@@ -1,0 +1,56 @@
+from __future__ import annotations
+import uuid
+from dataclasses import dataclass, field
+from agents.base_agent import BaseAgent, RunContext, ToolBlocked
+from agents.finance.analyst import Analyst, ProposalInvalid
+from agents.finance.risk_manager import RiskManager
+from agents.finance.tools import build_tools
+from core.contracts import AlertEvent
+from core.llm_client import LLMError
+
+
+class PipelineAgent(BaseAgent):
+    name = "pipeline"
+
+
+@dataclass
+class PipelineResult:
+    approved: bool
+    alert: AlertEvent | None = None
+    reasons: list[str] = field(default_factory=list)
+
+
+class FinancePipeline:
+    def __init__(self, llm, memory, permissions, logger, monitor, notes_dir):
+        self.llm, self.memory, self.permissions = llm, memory, permissions
+        self.logger, self.monitor, self.notes_dir = logger, monitor, notes_dir
+
+    def _reject(self, ctx: RunContext, asset: str, reasons: list[str]) -> PipelineResult:
+        self.logger.log("rejection", run_id=ctx.run_id, asset=asset, reasons=reasons)  # INV-7
+        self.memory.record_run("pipeline", asset, "rejected", "; ".join(reasons))
+        return PipelineResult(approved=False, reasons=reasons)
+
+    def run(self, asset: str, portfolio: dict) -> PipelineResult:
+        ctx = RunContext(run_id=uuid.uuid4().hex[:8])
+        tools = build_tools(self.memory, self.notes_dir, portfolio)
+        common = dict(tools=tools, monitor=self.monitor, permissions=self.permissions,
+                      logger=self.logger, ctx=ctx)
+        analyst = Analyst(llm=self.llm, **common)
+        risk_manager = RiskManager(**common)
+        emitter = PipelineAgent(**common)
+        try:
+            proposal = analyst.propose(asset)
+            risk, decision = risk_manager.assess(proposal)
+            if not decision.approved:
+                return self._reject(ctx, asset, decision.reasons)
+            alert = AlertEvent(
+                asset=proposal.asset, direction=proposal.direction,
+                entry_price=proposal.entry_price, stop_price=proposal.stop_price,
+                target_price=proposal.target_price, reward_risk_ratio=risk.reward_risk_ratio,
+                message=f"{proposal.direction} {proposal.asset}: R/R {risk.reward_risk_ratio:.2f}",
+            )
+            emitter.call_tool("emit_alert", alert=alert.model_dump())
+        except (ValueError, ProposalInvalid, ToolBlocked, LLMError) as exc:
+            return self._reject(ctx, asset, [f"{type(exc).__name__}: {exc}"])
+        self.memory.record_run("pipeline", asset, "alert_emitted", alert.message)
+        return PipelineResult(approved=True, alert=alert)
