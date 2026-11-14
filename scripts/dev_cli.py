@@ -19,6 +19,7 @@ from scripts.init_db import create_all
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Escreve ou revisa código Python. Nunca executa.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     w = sub.add_parser("write", help="o LLM escreve um arquivo a partir da tarefa")
@@ -55,3 +56,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

@@ -17,6 +17,7 @@ from scripts.init_db import create_all
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     if len(sys.argv) < 2:
         print('uso: central_cli.py "<pedido>"')
         return 1
@@ -42,3 +43,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

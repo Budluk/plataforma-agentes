@@ -46,6 +46,7 @@ LIVE_TEXT = ("Produto Low ticket. Gastei R$ 500 em anúncios. 2000 visitantes, 2
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true", help="usa o LLM real no 1º cenário")
     args = ap.parse_args()
@@ -81,3 +82,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

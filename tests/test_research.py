@@ -249,3 +249,10 @@ def test_other_agents_cannot_fetch(env):
     with pytest.raises(ToolBlocked) as exc:
         agent.call_tool("fetch_page", url=URL)
     assert exc.value.head == "permissions"
+
+
+def test_parse_summary_error_names_the_field_not_the_value():
+    raw = json.dumps({"summary": "x" * 1300, "key_points": [], "answers_question": True})
+    with pytest.raises(ResearchSummaryInvalid) as exc:
+        parse_summary(raw)
+    assert "summary" in str(exc.value) and "xxxx" not in str(exc.value)

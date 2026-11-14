@@ -42,7 +42,7 @@ class HttpLLMClient:
             r = httpx.post(
                 self.url,
                 headers={"Authorization": f"Bearer {self._key}"},
-                json={"model": self.model, "temperature": 0, "max_tokens": 1500,
+                json={"model": self.model, "temperature": 0, "max_tokens": 3000,
                       "messages": [{"role": "system", "content": system},
                                    {"role": "user", "content": user}]},
                 timeout=self.timeout,
@@ -52,7 +52,10 @@ class HttpLLMClient:
         if r.status_code != 200:
             raise LLMError(f"HTTP {r.status_code}: {r.text[:200]}")
         try:
-            return r.json()["choices"][0]["message"]["content"] or ""
+            choice = r.json()["choices"][0]
+            if choice.get("finish_reason") == "length":
+                raise LLMError("resposta cortada pelo limite de tokens (finish_reason=length)")
+            return choice["message"]["content"] or ""
         except (KeyError, IndexError, ValueError, TypeError):
             raise LLMError("resposta fora do formato esperado") from None
 
@@ -67,4 +70,5 @@ class FakeLLM:
     def complete(self, system: str, user: str) -> str:
         self.calls += 1
         return self.response
+
 

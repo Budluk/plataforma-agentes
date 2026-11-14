@@ -1,6 +1,7 @@
 import sys
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     erros = []
     if sys.version_info[:2] != (3, 12):
         erros.append(f"Python {sys.version.split()[0]} (esperado 3.12.x)")
@@ -19,3 +20,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

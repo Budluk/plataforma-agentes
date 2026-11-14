@@ -51,6 +51,7 @@ SCENARIOS = [
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     allowed_domains = load_allowed_domains(ROOT / "config" / "allowed_domains.txt")
     allowed_imports = load_allowed_imports(ROOT / "config" / "dev_allowed_imports.txt")
     db = ROOT / "data" / "sqlite.db"
@@ -72,4 +73,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
 

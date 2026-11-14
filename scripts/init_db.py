@@ -24,6 +24,7 @@ def create_all(db_path) -> dict:
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     info = create_all(ROOT / "data" / "sqlite.db")
     print("Tabelas:", ", ".join(info["tables"]))
     print("Capacidades:", info["capabilities"])
@@ -33,3 +34,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

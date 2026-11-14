@@ -8,6 +8,7 @@ LOG = ROOT / "data" / "logs" / "smoke.jsonl"
 DB = ROOT / "data" / "smoke.db"
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     LOG.parent.mkdir(parents=True, exist_ok=True)
     registro = {"evento": "smoke", "valor": 42}
     LOG.write_text(json.dumps(registro) + "\n", encoding="utf-8")
@@ -32,3 +33,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

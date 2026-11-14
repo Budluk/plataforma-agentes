@@ -21,6 +21,7 @@ from scripts.init_db import create_all
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Resume uma página de um domínio permitido.")
     ap.add_argument("url")
     ap.add_argument("question")
@@ -48,3 +49,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

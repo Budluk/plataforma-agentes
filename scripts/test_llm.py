@@ -4,6 +4,7 @@ import httpx
 from dotenv import load_dotenv
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     load_dotenv()
     key = os.getenv("GROQ_API_KEY", "").strip()
     model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -38,4 +39,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

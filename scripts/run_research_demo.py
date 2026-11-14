@@ -38,6 +38,7 @@ SCENARIOS = [
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true", help="busca uma página real e usa o LLM real")
     args = ap.parse_args()
@@ -82,6 +83,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
 
 
