@@ -82,3 +82,13 @@ front gera "dados insuficientes"; dados incoerentes (ex.: mais bumps que vendas)
 Uso: `scripts/research_live.py "<url>" "<pergunta>"`, `scripts/dev_cli.py write "<tarefa>"`, `scripts/dev_cli.py review <arquivo.py>`.
 Módulos que o código gerado pode importar: `config/dev_allowed_imports.txt` (lista de permitidos).
 Limite conhecido: os gates validam formato e regras, não a veracidade nem a correção do que o LLM produz.
+
+## Agente Central
+
+`scripts/central_cli.py "<pedido>"` recebe um pedido em linguagem natural e o roteia para uma área.
+- O LLM só pode devolver uma área de uma lista fechada (`finance`, `music`, `sales`, `funnel`, `research`, `dev`) ou `none`.
+  Qualquer outra coisa, campo extra, JSON inválido ou dúvida vira `none` e nada é despachado.
+- O roteador não tem ferramentas nem permissões. O texto que o LLM escreve em `reason` só vai para o log.
+- Cada área continua passando pelos seus próprios contratos, gates e permissões: um pedido mal roteado ainda é barrado.
+- Finanças exige uma fonte de portfólio real; sem ela, recusa (não inventa dados).
+- Revisão de código não passa pelo roteador: use `scripts/dev_cli.py review <arquivo.py>`.
