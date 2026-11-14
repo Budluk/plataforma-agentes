@@ -92,3 +92,32 @@ Limite conhecido: os gates validam formato e regras, não a veracidade nem a cor
 - Cada área continua passando pelos seus próprios contratos, gates e permissões: um pedido mal roteado ainda é barrado.
 - Finanças exige uma fonte de portfólio real; sem ela, recusa (não inventa dados).
 - Revisão de código não passa pelo roteador: use `scripts/dev_cli.py review <arquivo.py>`.
+
+## Regras do hard gate (Economia)
+
+Código: `core/hard_gate.py`. O gate lê só dados validados (nunca texto do LLM). Qualquer regra violada rejeita, e dado ausente também rejeita.
+
+| Regra | Valor | Rejeita quando |
+|---|---|---|
+| Perda diária | -2.0% | `daily_pnl_pct <= -2.0` |
+| Distância do stop | 5.0% | o stop fica a mais de 5.0% da entrada |
+| Retorno/risco | 1.5 | (alvo - entrada) / (entrada - stop) abaixo de 1.5 |
+| Coerência dos níveis | - | LONG exige stop < entrada < alvo; SHORT, o inverso |
+| Portfólio | - | equity ausente ou <= 0, ou `equity_snapshot_consistent = False` |
+
+Não existem limites de tamanho de posição nem de exposição total: o sistema só emite alertas, não dimensiona nem executa ordens.
+Se isso mudar, essas regras precisam ser criadas e testadas antes.
+
+## Demo offline (LLM falso)
+
+`FakeLLM` (em `core/llm_client.py`) devolve um texto fixo, sem rede. Os cenários e as respostas fixas ficam em `SCENARIOS`, em `scripts/run_finance_demo.py`; com `--live`, os cenários cuja resposta fixa é um JSON válido chamam o modelo real.
+
+## Modelo do LLM e versões
+
+`GROQ_MODEL` no `.env`. A lista de modelos muda por conta e com o tempo; para ver a da sua:
+
+    .\.venv\Scripts\python.exe -c "import os,httpx; from dotenv import load_dotenv; load_dotenv(); r=httpx.get('https://api.groq.com/openai/v1/models',headers={'Authorization':'Bearer '+os.getenv('GROQ_API_KEY','').strip()},timeout=30); print(r.status_code); [print(m['id']) for m in sorted(r.json().get('data',[]),key=lambda m:m['id'])]"
+
+Em uso: `openai/gpt-oss-20b`. O `llama-3.1-8b-instant` deu 404 nesta conta.
+Dependências: `requirements.txt` (5 diretas, versão exata) e `requirements.lock` (todas, para reproduzir o ambiente).
+Gates de aceitação: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\verify_gates.ps1`.

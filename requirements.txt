@@ -1,5 +1,5 @@
-pydantic
-httpx
-python-dotenv
-pytest
-pytest-asyncio
+httpx==0.28.1
+pydantic==2.14.3
+pytest==9.2.0
+pytest-asyncio==1.5.0
+python-dotenv==1.2.4
