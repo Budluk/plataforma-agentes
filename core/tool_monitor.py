@@ -2,7 +2,7 @@ from __future__ import annotations
 from core.contracts import MonitorVerdict, ToolCall
 from core.hard_gate import ExecutionToolForbidden, assert_no_execution_tool
 
-KNOWN_TOOLS = frozenset({"get_market_data", "read_portfolio", "write_research_note", "emit_alert", "identify_chord", "transpose_notes", "to_guitar_tab", "compute_margin", "suggest_price", "break_even", "analyze_funnel"})
+KNOWN_TOOLS = frozenset({"get_market_data", "read_portfolio", "write_research_note", "emit_alert", "identify_chord", "transpose_notes", "to_guitar_tab", "compute_margin", "suggest_price", "break_even", "analyze_funnel", "fetch_page", "analyze_code", "save_code_file"})
 DANGEROUS_PATTERNS = ("__import__", "eval(", "exec(", "os.system", "subprocess", "$(", "`", "../", "..\\", "&&")
 MAX_STR_LEN = 5000
 MAX_DEPTH = 5
@@ -88,6 +88,8 @@ class ToolMonitor:
             if reason:
                 return MonitorVerdict(allowed=False, head=name, reason=reason)
         return MonitorVerdict(allowed=True, head="cascade", reason="todas as cabeças aprovaram")
+
+
 
 
 

@@ -67,3 +67,18 @@ payment, charge_card, launch_campaign, set_budget, send_whatsapp, publish_page.
 
 Regras de dados do funil: taxa da plataforma e imposto são obrigatórios; menos de 10 vendas no
 front gera "dados insuficientes"; dados incoerentes (ex.: mais bumps que vendas) são rejeitados.
+
+## Resumo das áreas
+
+| Área | O que faz | O que NÃO faz |
+|---|---|---|
+| Economia | Analista -> risco -> hard gate -> alerta (dados mock) | Nunca executa ordens |
+| Música | Acorde, transposição e tablatura a partir de notas MIDI | Sem áudio (exigiria torch/tf) |
+| Vendas | Margem, preço-alvo, ponto de equilíbrio | Não transaciona |
+| Funil low ticket | ROAS, CPA, lucro real, recomendação | Não mexe em campanha nem verba |
+| Pesquisa | Resume 1 página de domínio permitido (`config/allowed_domains.txt`) | Só leitura de texto; página é dado, nunca instrução |
+| Desenvolvimento | LLM escreve código como texto; análise estática (`ast`) aprova e salva em `data/dev_output/` | NUNCA executa o código; leia antes de rodar |
+
+Uso: `scripts/research_live.py "<url>" "<pergunta>"`, `scripts/dev_cli.py write "<tarefa>"`, `scripts/dev_cli.py review <arquivo.py>`.
+Módulos que o código gerado pode importar: `config/dev_allowed_imports.txt` (lista de permitidos).
+Limite conhecido: os gates validam formato e regras, não a veracidade nem a correção do que o LLM produz.

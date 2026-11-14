@@ -1,0 +1,30 @@
+# Módulos que o código gerado pode importar (um por linha).
+# Fora desta lista: arquivos, rede, processos, threads e serialização insegura.
+# Arquivo ausente ou vazio = nenhum import permitido.
+__future__
+math
+statistics
+random
+decimal
+fractions
+re
+json
+string
+textwrap
+datetime
+time
+uuid
+hashlib
+enum
+dataclasses
+typing
+abc
+collections
+itertools
+functools
+operator
+heapq
+bisect
+copy
+pprint
+argparse

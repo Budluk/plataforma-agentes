@@ -6,7 +6,7 @@ SEED = [
     ("analyst", "get_market_data"),
     ("analyst", "write_research_note"),
     ("risk_manager", "read_portfolio"),
-    ("pipeline", "emit_alert"), ("music_agent", "identify_chord"), ("music_agent", "transpose_notes"), ("music_agent", "to_guitar_tab"), ("sales_agent", "compute_margin"), ("sales_agent", "suggest_price"), ("sales_agent", "break_even"), ("sales_agent", "analyze_funnel"),
+    ("pipeline", "emit_alert"), ("music_agent", "identify_chord"), ("music_agent", "transpose_notes"), ("music_agent", "to_guitar_tab"), ("sales_agent", "compute_margin"), ("sales_agent", "suggest_price"), ("sales_agent", "break_even"), ("sales_agent", "analyze_funnel"), ("research_agent", "fetch_page"), ("dev_agent", "analyze_code"), ("dev_agent", "save_code_file"),
 ]
 
 
@@ -33,6 +33,8 @@ class Permissions:
             return row is not None
         except sqlite3.Error:
             return False  # falha fechada
+
+
 
 
 

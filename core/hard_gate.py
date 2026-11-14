@@ -6,7 +6,7 @@ MAX_STOP_DISTANCE_PCT = 5.0
 MIN_REWARD_RISK = 1.5
 
 # Veto: nomes de ferramenta que nunca podem existir neste sistema.
-FORBIDDEN_TOOL_TOKENS = ("execution_order", "place_order", "submit_order", "send_order", "checkout", "purchase", "payment", "charge_card", "launch_campaign", "set_budget", "send_whatsapp", "publish_page")
+FORBIDDEN_TOOL_TOKENS = ("execution_order", "place_order", "submit_order", "send_order", "checkout", "purchase", "payment", "charge_card", "launch_campaign", "set_budget", "send_whatsapp", "publish_page", "submit_form", "post_form", "login", "download", "execute_code", "run_code", "run_script", "eval_code", "shell_command", "pip_install", "git_push", "deploy")
 
 
 class ExecutionToolForbidden(Exception):
@@ -52,5 +52,7 @@ def evaluate_risk(risk: ComputedRisk, portfolio: PortfolioState) -> RiskDecision
     if risk.reward_risk_ratio < MIN_REWARD_RISK:
         reasons.append(f"relação retorno/risco {risk.reward_risk_ratio:.2f} abaixo de {MIN_REWARD_RISK}")
     return RiskDecision(approved=not reasons, reasons=reasons)
+
+
 
 

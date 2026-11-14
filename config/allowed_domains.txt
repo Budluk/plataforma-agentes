@@ -1,0 +1,5 @@
+# Um domínio por linha. Subdomínios são incluídos (en.wikipedia.org vale para wikipedia.org).
+# Arquivo ausente ou vazio = nenhum domínio permitido.
+wikipedia.org
+docs.python.org
+developer.mozilla.org
