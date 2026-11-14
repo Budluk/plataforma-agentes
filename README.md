@@ -51,7 +51,7 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 - Execução real de ordens: não existe, nem como stub. O nome é vetado por design.
 - Docker, Ollama, LangChain, CrewAI, Qdrant, Postgres, ComfyUI e modelos locais.
 - O LLM nunca decide risco; o hard gate determinístico decide.
-- Os dados de mercado são mock (agents/finance/tools.py).
+- Os dados de mercado são mock por padrão (agents/finance/tools.py); com provedor real, veja a seção "Dados de mercado reais".
 
 ## Áreas implementadas
 
@@ -121,3 +121,27 @@ Se isso mudar, essas regras precisam ser criadas e testadas antes.
 Em uso: `openai/gpt-oss-20b`. O `llama-3.1-8b-instant` deu 404 nesta conta.
 Dependências: `requirements.txt` (5 diretas, versão exata) e `requirements.lock` (todas, para reproduzir o ambiente).
 Gates de aceitação: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\verify_gates.ps1`.
+
+
+## Dados de mercado reais (somente leitura)
+
+Uso: `.\.venv\Scripts\python.exe scripts\market_check.py` (cotação dos 5 ativos) e
+`.\.venv\Scripts\python.exe scripts\finance_live.py PETR4` (análise com preço real e LLM real).
+
+| Ativo | Fonte | Tipo | Idade máxima aceita |
+|---|---|---|---|
+| PETR4, VALE3, ITUB4 | brapi.dev (sem token) | último negócio (atraso do plano gratuito: reportado em até 15 min, não verificado) | 5 dias (a B3 fecha à noite, em fins de semana e feriados) |
+| BTCUSDT | data-api.binance.vision | último preço, 24h | 2 minutos |
+| EURUSD | api.frankfurter.dev (taxas de referência do BCE) | taxa diária de referência, NÃO é cotação de negociação | 5 dias |
+
+Regras: só GET, só https, só hosts de `config/market_data_hosts.txt`, sem redirecionamento, resposta limitada a 200 KB,
+URLs fixas no código (nada do usuário ou do LLM entra na URL). Se a API falhar, a análise é rejeitada: não há volta para os
+preços de mentira. O LLM só recebe números e rótulos fixos. O preço de entrada proposto pelo LLM é rejeitado se ficar a
+mais de 2.0% do preço de mercado. O alerta registra a fonte e a idade do preço.
+
+O portfólio NÃO vem de nenhuma corretora: é o arquivo `data/portfolio.json`, escrito por você
+(`{"equity": 10000.0, "daily_pnl_pct": 0.0, "equity_snapshot_consistent": true}`). Se ele não existir ou tiver mais de 24 h,
+o hard gate rejeita. Como o gate não consegue verificar esses números, ele só é tão confiável quanto o que você escreve ali.
+
+Limites: o sistema só emite alertas e não executa ordens. As regras de risco são marcadores de posição, e não recomendação financeira.
+Os três serviços são gratuitos, podem mudar o formato, impor limites ou sair do ar; nesses casos a análise é rejeitada com o motivo.

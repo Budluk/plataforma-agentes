@@ -44,6 +44,8 @@ class AlertEvent(_Strict):
     target_price: float
     reward_risk_ratio: float
     message: str
+    data_source: str = ""
+    data_age_minutes: int | None = None
 
 
 class ToolCall(_Strict):
@@ -56,3 +58,4 @@ class MonitorVerdict(_Strict):
     allowed: bool
     head: str
     reason: str
+

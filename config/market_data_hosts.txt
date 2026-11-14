@@ -1,0 +1,5 @@
+# Hosts de dados de mercado (somente leitura, https). Host exato, um por linha.
+# Arquivo ausente ou vazio = nenhum dado de mercado real é buscado (falha fechada).
+brapi.dev
+data-api.binance.vision
+api.frankfurter.dev

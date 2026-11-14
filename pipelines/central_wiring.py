@@ -16,12 +16,12 @@ from pipelines.sales_pipeline import SalesPipeline
 
 
 def build_central(*, router_llm, area_llm, db, data_dir, allowed_domains, allowed_imports, fetcher,
-                  portfolio_provider=None, logger=None) -> CentralPipeline:
+                  portfolio_provider=None, logger=None, market=None) -> CentralPipeline:
     data_dir = Path(data_dir)
     memory, perms, monitor = Memory(db), Permissions(db), ToolMonitor()
     logger = logger or JsonlLogger(data_dir / "logs" / "central.jsonl")
     handlers = build_handlers(
-        finance=FinancePipeline(area_llm, memory, perms, logger, monitor, data_dir / "notes"),
+        finance=FinancePipeline(area_llm, memory, perms, logger, monitor, data_dir / "notes", market=market),
         music=MusicPipeline(area_llm, memory, perms, logger, monitor),
         sales=SalesPipeline(area_llm, memory, perms, logger, monitor),
         funnel=FunnelPipeline(area_llm, memory, perms, logger, monitor),
@@ -30,3 +30,4 @@ def build_central(*, router_llm, area_llm, db, data_dir, allowed_domains, allowe
         portfolio_provider=portfolio_provider,
     )
     return CentralPipeline(Router(router_llm, logger), handlers, memory, logger)
+

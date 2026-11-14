@@ -26,10 +26,11 @@ foreach ($s in "check_env","smoke_io") {
 foreach ($s in "finance","music","sales","funnel","research","dev","central") {
     Check "demo offline $s" { & $py "scripts\run_${s}_demo.py" *> $null; $LASTEXITCODE -eq 0 }
 }
-if ($Live) { Check "LLM real responde (rede)" { & $py scripts\test_llm.py *> $null; $LASTEXITCODE -eq 0 } }
+if ($Live) { Check "dados de mercado reais (rede)" { & $py scripts\market_check.py *> $null; $LASTEXITCODE -eq 0 }; Check "LLM real responde (rede)" { & $py scripts\test_llm.py *> $null; $LASTEXITCODE -eq 0 } }
 
 Check ".env sem chaves repetidas" { -not (Select-String -Path .env -Pattern '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Group-Object | Where-Object Count -gt 1) }
 
 $rows | Format-Table -AutoSize
 if ($rows.Status -contains "FALHA") { "HÁ GATES FALHANDO."; exit 1 } else { "Todos os gates passaram."; exit 0 }
+
 
