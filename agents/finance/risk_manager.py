@@ -10,12 +10,18 @@ class RiskManager(BaseAgent):
 
     def assess(self, proposal: AnalystProposal) -> tuple[ComputedRisk, RiskDecision]:
         raw = self.call_tool("read_portfolio")
+        invalid = ""
         try:
             portfolio = PortfolioState.model_validate(raw)
-        except ValidationError:
+        except ValidationError as exc:
             portfolio = PortfolioState()  # dados inválidos -> falha fechada no gate
+            # só nome do campo e tipo do erro: o valor digitado nunca vai para a mensagem
+            invalid = ", ".join(".".join(str(x) for x in e["loc"]) + f"({e['type']})" for e in exc.errors())
         risk = compute_risk(proposal)
         decision = evaluate_risk(risk, portfolio)
+        if invalid:
+            decision = RiskDecision(approved=False,
+                                    reasons=[f"portfólio inválido (campos: {invalid})"] + decision.reasons)
         self.logger.log("risk_decision", run_id=self.ctx.run_id, asset=proposal.asset,
                         approved=decision.approved, reasons=decision.reasons)
         return risk, decision

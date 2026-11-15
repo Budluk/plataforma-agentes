@@ -24,6 +24,10 @@ def main() -> int:
         print('uso: central_cli.py "<pedido>"')
         return 1
     load_dotenv(ROOT / ".env")
+    from agents.finance.portfolio_file import describe_problem
+    _problem = describe_problem(ROOT / "data" / "portfolio.json")
+    if _problem:
+        print("aviso sobre data/portfolio.json:", _problem, file=sys.stderr)
     try:
         llm = HttpLLMClient("groq")
     except LLMError as exc:
@@ -47,5 +51,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
 
