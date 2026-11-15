@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from agents.dev.static_check import load_allowed_imports
 from agents.research.fetcher import HttpFetcher
 from agents.research.urlgate import load_allowed_domains
+from agents.finance.market_data import HttpMarketData, load_market_hosts
+from agents.finance.portfolio_file import load_portfolio
 from core.llm_client import HttpLLMClient, LLMError
 from pipelines.central_wiring import build_central
 from scripts.init_db import create_all
@@ -31,10 +33,12 @@ def main() -> int:
     allowed_imports = load_allowed_imports(ROOT / "config" / "dev_allowed_imports.txt")
     db = ROOT / "data" / "sqlite.db"
     create_all(db)
-    # sem portfolio_provider: finanças sempre recusa por falta de fonte de dados real (falha fechada)
+    # finanças: preço real (somente leitura) + portfólio de data/portfolio.json (ausente ou antigo = rejeita)
     central = build_central(router_llm=llm, area_llm=llm, db=db, data_dir=ROOT / "data",
                             allowed_domains=allowed_domains, allowed_imports=allowed_imports,
-                            fetcher=HttpFetcher(allowed_domains, user_agent=os.getenv("RESEARCH_USER_AGENT") or None))
+                            fetcher=HttpFetcher(allowed_domains, user_agent=os.getenv("RESEARCH_USER_AGENT") or None),
+                            market=HttpMarketData(load_market_hosts(ROOT / "config" / "market_data_hosts.txt")),
+                            portfolio_provider=lambda: load_portfolio(ROOT / "data" / "portfolio.json"))
     r = central.handle(sys.argv[1])
     print(json.dumps({"area": r.area, "dispatched": r.dispatched, "ok": r.ok, "data": r.data,
                       "reasons": r.reasons}, ensure_ascii=False, indent=2))
@@ -43,4 +47,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

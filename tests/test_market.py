@@ -345,3 +345,46 @@ def test_portfolio_file_rules(tmp_path):
     assert load_portfolio(p) == {}
     p.write_text(json.dumps(GOOD), encoding="utf-8-sig")
     assert load_portfolio(p) == GOOD
+
+
+# ---------------- Agente Central + dados reais ----------------
+def _central(env, tmp_path, market, provider=lambda: dict(GOOD), area_llm=None):
+    from agents.research.fetcher import FakeFetcher
+    from pipelines.central_wiring import build_central
+    area_llm = area_llm or FakeLLM(FIN_OK)
+    return build_central(router_llm=FakeLLM(json.dumps({"area": "finance", "reason": "t"})), area_llm=area_llm,
+                         db=env.db, data_dir=tmp_path, allowed_domains=frozenset({"wikipedia.org"}),
+                         allowed_imports=frozenset({"math"}), fetcher=FakeFetcher({}),
+                         portfolio_provider=provider, logger=env.logger, market=market), area_llm
+
+
+def test_central_finance_end_to_end_with_the_http_provider_mocked(env, tmp_path):
+    data = canned(datetime.now(timezone.utc))
+    hosts_called = []
+
+    def handler(request):
+        hosts_called.append(request.url.host)
+        return httpx.Response(200, headers={"content-type": "application/json"}, json=data[request.url.host])
+
+    market = HttpMarketData(HOSTS, transport=httpx.MockTransport(handler))
+    c, _ = _central(env, tmp_path, market)
+    r = c.handle("analise petr4")
+    assert r.ok and hosts_called == ["brapi.dev"] and r.data["data_source"] == "brapi"
+
+
+def test_central_finance_rejects_when_the_market_is_down_without_calling_the_analyst(env, tmp_path):
+    c, llm = _central(env, tmp_path, FakeMarketData({}, error="HTTP 503"))
+    r = c.handle("analise petr4")
+    assert r.dispatched and not r.ok and llm.calls == 0
+    assert "indisponíveis" in r.reasons[0]
+
+
+def test_central_finance_rejects_when_the_portfolio_file_is_missing(env, tmp_path):
+    c, _ = _central(env, tmp_path, FakeMarketData({"PETR4": fresh_quote()}), provider=lambda: {})
+    r = c.handle("analise petr4")
+    assert r.dispatched and not r.ok and any("portfólio" in x for x in r.reasons)
+
+
+def test_central_cli_wires_market_data_and_the_portfolio_file():
+    text = (ROOT / "scripts" / "central_cli.py").read_text(encoding="utf-8")
+    assert "HttpMarketData" in text and "load_portfolio" in text and "portfolio_provider=" in text
