@@ -4,3 +4,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 data/
+
+# --- Segredos e cópias locais (Etapa B) ---
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials*.json
+secrets*
+env-backup*
+*.bak
+*.log
