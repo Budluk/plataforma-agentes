@@ -27,6 +27,8 @@ USAGE = """uso:
   studio_cli.py fix-validation <project_id>
   studio_cli.py rebuild <project_id>
   studio_cli.py retry <project_id>
+  studio_cli.py versions <project_id>
+  studio_cli.py restore <project_id> <versão>
   studio_cli.py import-site <url> ["<descrição opcional>"]
   studio_cli.py import-github <url>
   studio_cli.py import-app <project_id>"""
@@ -73,6 +75,10 @@ def main() -> int:
         result = pipeline.rebuild(rest[0])
     elif cmd == "retry" and len(rest) == 1:
         result = pipeline.retry(rest[0])
+    elif cmd == "versions" and len(rest) == 1:
+        result = pipeline.versions(rest[0])
+    elif cmd == "restore" and len(rest) == 2 and rest[1].isdigit():
+        result = pipeline.restore(rest[0], int(rest[1]))
     elif cmd == "import-site" and len(rest) >= 1:
         result = pipeline.import_site(rest[0], " ".join(rest[1:]).strip() or None)
     elif cmd == "import-github" and len(rest) == 1:

@@ -113,8 +113,14 @@ A área `studio` é a mais supervisionada da plataforma. Cada ação passa por:
    campos conhecidos (nunca `files`, `buildLog`, `messages` ou `prompt`).
 
 Ações: `health`, `list`, `create`, `status`, `validate`, `messages`, `fix`, `fix-validation`,
-`rebuild`, `retry` e `import` (site, repositório do GitHub ou cópia de um app existente).
-`studio_health` é obrigatório antes de qualquer outra ferramenta (regra de sequência do monitor).
+`rebuild`, `retry`, `versions`, `restore` e `import` (site, repositório do GitHub ou cópia de um app
+existente). `studio_health` é obrigatório antes de qualquer outra ferramenta (regra de sequência do
+monitor).
+
+O histórico de versões guarda o `src/` de cada build bem-sucedido no CloneStudio. `versions` só lê a
+lista (número, rótulo, tipo, data e quantidade de arquivos) e `restore` recompila a versão escolhida,
+salvando antes o estado atual como `pre-restore` para não perder trabalho. A restauração aceita
+apenas `project_id` e `version` (inteiro de 1 a 1.000.000).
 
 A importação aceita apenas `http`/`https` público: nada de loopback, faixa privada, link-local,
 credenciais na URL, fragmento ou host fora de `github.com` no modo repositório. A resolução de DNS,
@@ -140,12 +146,15 @@ Uso pela plataforma:
     .\.venv\Scripts\python.exe scripts\studio_cli.py fix-validation <project_id>
     .\.venv\Scripts\python.exe scripts\studio_cli.py rebuild <project_id>
     .\.venv\Scripts\python.exe scripts\studio_cli.py retry <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py versions <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py restore <project_id> 2
     .\.venv\Scripts\python.exe scripts\studio_cli.py import-site https://exemplo.com
     .\.venv\Scripts\python.exe scripts\studio_cli.py import-github https://github.com/usuario/repo
     .\.venv\Scripts\python.exe scripts\studio_cli.py import-app <project_id>
 
 Ou pelo agente central: `scripts\central_cli.py "crie um app de notas com etiquetas"`,
-`"importar https://exemplo.com"`, `"corrigir a validação <project_id>"`.
+`"importar https://exemplo.com"`, `"corrigir a validação <project_id>"`,
+`"versões <project_id>"` ou `"restaurar a versão 2 <project_id>"`.
 
 Limites: o build e o preview acontecem no processo Node, no workspace dele (`clonestudio/data/`).
 A plataforma não executa o código gerado, não instala pacotes npm e não aceita URL como descrição.

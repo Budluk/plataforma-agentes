@@ -6,6 +6,7 @@ import httpx
 
 MAX_RESPONSE_BYTES = 64_000
 MAX_LIST_ITEMS = 20
+MAX_VERSIONS = 30
 MAX_TEXT = 200
 
 
@@ -75,6 +76,7 @@ def _summary(project: dict) -> dict:
         "status": _text(project.get("status"), 20),
         "stage": _text(project.get("stage"), 120),
         "fileCount": _int(project.get("fileCount")),
+        "currentVersion": _int(project.get("currentVersion")),
         "updatedAt": _text(project.get("updatedAt"), 40),
     }
 
@@ -96,6 +98,22 @@ def _validation(value) -> dict | None:
         "blank": bool(value.get("blank")),
         "navigationError": _text(value.get("navigationError"), MAX_TEXT),
         "counts": {key: _int(counts.get(key)) for key in ("console", "page", "requests", "http", "images", "total")},
+    }
+
+
+def _version(value) -> dict | None:
+    """Versão do histórico reduzida a campos conhecidos (sem hash nem messageId)."""
+    if not isinstance(value, dict):
+        return None
+    number = _int(value.get("version"))
+    if number < 1:
+        return None
+    return {
+        "version": number,
+        "label": _text(value.get("label"), 80),
+        "kind": _text(value.get("kind"), 20),
+        "createdAt": _text(value.get("createdAt"), 40),
+        "fileCount": _int(value.get("fileCount")),
     }
 
 
@@ -216,6 +234,30 @@ class StudioClient:
 
     def retry(self, project_id: str) -> dict:
         return self._action(project_id, "retry")
+
+    # --- histórico de versões --------------------------------------------
+    def versions(self, project_id: str) -> dict:
+        data = self._request("GET", f"/api/projects/{project_id}/versions")
+        raw = data.get("versions")
+        if not isinstance(raw, list):
+            raise StudioError("resposta sem lista de versões")
+        versions = [item for item in (_version(entry) for entry in raw[:MAX_VERSIONS]) if item]
+        return {
+            "currentVersion": _int(data.get("currentVersion")),
+            "count": len(versions),
+            "versions": versions,
+        }
+
+    def restore(self, project_id: str, version: int) -> dict:
+        data = self._request("POST", f"/api/projects/{project_id}/restore",
+                             {"version": version})
+        project = data.get("project")
+        if not isinstance(project, dict):
+            raise StudioError("resposta sem projeto após restore")
+        detail = _detail(project)
+        meta = _version(data.get("version"))
+        detail["restoredVersion"] = meta["version"] if meta else _int(version)
+        return detail
 
     # --- importação -------------------------------------------------------
     def _import(self, payload: dict) -> dict:

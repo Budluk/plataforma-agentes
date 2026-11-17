@@ -37,6 +37,12 @@ class StudioAgent(BaseAgent):
     def retry_app(self, project_id: str) -> dict:
         return self.call_tool("studio_retry_app", project_id=project_id)
 
+    def list_versions(self, project_id: str) -> dict:
+        return self.call_tool("studio_list_versions", project_id=project_id)
+
+    def restore_version(self, project_id: str, version: int) -> dict:
+        return self.call_tool("studio_restore_version", project_id=project_id, version=version)
+
     def import_site(self, url: str, prompt: str | None = None) -> dict:
         return self.call_tool("studio_import_site", url=url, prompt=prompt)
 

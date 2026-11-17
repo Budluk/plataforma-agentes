@@ -15,7 +15,8 @@ _BLOCKED_HOSTS = frozenset({"localhost", "localhost.localdomain", "ip6-localhost
 _BLOCKED_SUFFIXES = (".local", ".localhost", ".internal", ".home.arpa")
 _GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
 
-_ID_ACTIONS = ("status", "validate", "fix", "fix_validation", "rebuild", "retry")
+_ID_ACTIONS = ("status", "validate", "fix", "fix_validation", "rebuild", "retry",
+               "versions")
 
 
 def _check_url(raw: str) -> list[str]:
@@ -84,6 +85,9 @@ def check_request(req: StudioRequest) -> list[str]:
         if value is not None and _CONTROL.search(value):
             reasons.append(f"{label} contém caractere de controle")
 
+    if req.action != "restore" and req.version is not None:
+        reasons.append(f"{req.action} não aceita version")
+
     if req.action == "create":
         if req.project_id is not None:
             reasons.append("criação não aceita project_id")
@@ -107,6 +111,13 @@ def check_request(req: StudioRequest) -> list[str]:
             reasons.append("messages aceita apenas project_id e mensagem")
     elif req.action == "import":
         reasons.extend(_check_import(req))
+    elif req.action == "restore":
+        if req.project_id is None:
+            reasons.append("project_id ausente (falha fechada)")
+        if req.version is None:
+            reasons.append("restauração exige o número da versão (falha fechada)")
+        if req.prompt is not None or req.message is not None or req.url is not None or req.kind is not None:
+            reasons.append("restore aceita apenas project_id e version")
     else:  # health, list
         if any(getattr(req, name) is not None
                for name in ("prompt", "project_id", "message", "url", "kind")):

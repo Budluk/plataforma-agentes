@@ -33,6 +33,12 @@ def build_studio_tools(client: StudioClient) -> dict:
     def studio_retry_app(project_id: str) -> dict:
         return client.retry(project_id)
 
+    def studio_list_versions(project_id: str) -> dict:
+        return client.versions(project_id)
+
+    def studio_restore_version(project_id: str, version: int) -> dict:
+        return client.restore(project_id, version)
+
     def studio_import_site(url: str, prompt: str | None = None) -> dict:
         return client.import_site(url, prompt)
 
@@ -53,6 +59,8 @@ def build_studio_tools(client: StudioClient) -> dict:
         "studio_fix_validation": studio_fix_validation,
         "studio_rebuild_app": studio_rebuild_app,
         "studio_retry_app": studio_retry_app,
+        "studio_list_versions": studio_list_versions,
+        "studio_restore_version": studio_restore_version,
         "studio_import_site": studio_import_site,
         "studio_import_github": studio_import_github,
         "studio_import_app": studio_import_app,

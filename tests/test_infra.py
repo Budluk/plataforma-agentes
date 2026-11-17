@@ -6,15 +6,15 @@ from core.permissions import Permissions
 from scripts.init_db import create_all
 
 
-def test_init_db_creates_3_tables_27_capabilities(tmp_path):
+def test_init_db_creates_3_tables_29_capabilities(tmp_path):
     info = create_all(tmp_path / "t.db")
     assert info["tables"] == ["agent_runs", "alerts", "capabilities"]
-    assert info["capabilities"] == 27
+    assert info["capabilities"] == 29
 
 
 def test_init_db_is_idempotent(tmp_path):
     create_all(tmp_path / "t.db")
-    assert create_all(tmp_path / "t.db")["capabilities"] == 27
+    assert create_all(tmp_path / "t.db")["capabilities"] == 29
 
 
 def test_permissions(tmp_path):

@@ -26,6 +26,9 @@ _FIX_VALIDATION = re.compile(
 )
 _REBUILD = re.compile(r"\b(recompilar|recompile|rebuild)\b", re.IGNORECASE)
 _RETRY = re.compile(r"\b(retry|tentar\s+de\s+novo|tentar\s+novamente|repetir)\b", re.IGNORECASE)
+_RESTORE = re.compile(r"\b(restaurar|restaure|restore|voltar\s+para)\b", re.IGNORECASE)
+_VERSIONS = re.compile(r"\b(vers(?:ão|ões|ao|oes)|hist[óo]rico|versions)\b", re.IGNORECASE)
+_VERSION_NUMBER = re.compile(r"\b(?:vers(?:ão|ao)|v)\s*#?\s*(\d{1,6})\b", re.IGNORECASE)
 _FIX = re.compile(r"\b(corrigir|corrija|fix)\b", re.IGNORECASE)
 _URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 _GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
@@ -71,10 +74,11 @@ class StudioPipeline:
 
     def _execute(self, ctx: RunContext, action: str, *, prompt: str | None = None,
                  project_id: str | None = None, message: str | None = None,
-                 url: str | None = None, kind: str | None = None) -> StudioResult:
+                 url: str | None = None, kind: str | None = None,
+                 version: int | None = None) -> StudioResult:
         try:
             req = StudioRequest(action=action, prompt=prompt, project_id=project_id,
-                                message=message, url=url, kind=kind)
+                                message=message, url=url, kind=kind, version=version)
         except ValidationError:
             return self._reject(ctx, ["pedido inválido (ação ou parâmetro fora do formato)"])
         reasons = check_request(req)
@@ -105,6 +109,11 @@ class StudioPipeline:
                 return self._ok(ctx, agent.rebuild_app(project_id=req.project_id))
             if req.action == "retry":
                 return self._ok(ctx, agent.retry_app(project_id=req.project_id))
+            if req.action == "versions":
+                return self._ok(ctx, agent.list_versions(project_id=req.project_id))
+            if req.action == "restore":
+                return self._ok(ctx, agent.restore_version(project_id=req.project_id,
+                                                           version=req.version))
             # import
             if req.kind == "app":
                 return self._ok(ctx, agent.import_app(project_id=req.project_id))
@@ -145,6 +154,12 @@ class StudioPipeline:
     def retry(self, project_id: str) -> StudioResult:
         return self._execute(new_context(), "retry", project_id=project_id)
 
+    def versions(self, project_id: str) -> StudioResult:
+        return self._execute(new_context(), "versions", project_id=project_id)
+
+    def restore(self, project_id: str, version: int) -> StudioResult:
+        return self._execute(new_context(), "restore", project_id=project_id, version=version)
+
     def import_site(self, url: str, prompt: str | None = None) -> StudioResult:
         return self._execute(new_context(), "import", url=url, kind="site", prompt=prompt)
 
@@ -179,6 +194,14 @@ class StudioPipeline:
         match = _UUID.search(cleaned)
         if match:
             project_id = match.group(0).lower()
+            if _RESTORE.search(cleaned):
+                number = _VERSION_NUMBER.search(cleaned)
+                if not number:
+                    return self._reject(ctx, ["restauração exige o número da versão"])
+                return self._execute(ctx, "restore", project_id=project_id,
+                                     version=int(number.group(1)))
+            if _VERSIONS.search(cleaned):
+                return self._execute(ctx, "versions", project_id=project_id)
             if _FIX_VALIDATION.search(cleaned):
                 action = "fix_validation"
             elif _REBUILD.search(cleaned):

@@ -25,7 +25,7 @@ STUDIO_TOOLS = {"studio_health", "studio_list_apps", "studio_create_app",
                 "studio_app_status", "studio_validate_app", "studio_send_message",
                 "studio_fix_app", "studio_fix_validation", "studio_rebuild_app",
                 "studio_retry_app", "studio_import_site", "studio_import_github",
-                "studio_import_app"}
+                "studio_import_app", "studio_list_versions", "studio_restore_version"}
 
 
 def make_client(handler, base="http://127.0.0.1:8787"):
@@ -92,6 +92,15 @@ def test_hosts_file_fails_closed_and_ignores_comments(tmp_path):
     dict(action="fix_validation", project_id=PROJECT, kind="site"),
     dict(action="rebuild", project_id=PROJECT, message="recompilar"),
     dict(action="retry", url="https://example.com"),
+    # histórico de versões
+    dict(action="restore"),
+    dict(action="restore", project_id=PROJECT),
+    dict(action="restore", version=2),
+    dict(action="restore", project_id=PROJECT, version=2, message="ok"),
+    dict(action="restore", project_id=PROJECT, version=2, kind="site"),
+    dict(action="versions"),
+    dict(action="versions", project_id=PROJECT, version=2),
+    dict(action="status", project_id=PROJECT, version=2),
     # importação
     dict(action="import"),
     dict(action="import", kind="site"),
@@ -125,6 +134,8 @@ def test_gate_rejects_invalid_combinations(kw):
                                 dict(action="fix_validation", project_id=PROJECT),
                                 dict(action="rebuild", project_id=PROJECT),
                                 dict(action="retry", project_id=PROJECT),
+                                dict(action="versions", project_id=PROJECT),
+                                dict(action="restore", project_id=PROJECT, version=2),
                                 dict(action="import", kind="site", url="https://example.com"),
                                 dict(action="import", kind="site", url="https://example.com",
                                      prompt="inspirado neste layout"),
@@ -138,6 +149,8 @@ def test_gate_accepts_only_the_expected_shapes(kw):
 @pytest.mark.parametrize("kw", [dict(action="create", prompt="curto"),
                                 dict(action="status", project_id="abc"),
                                 dict(action="messages", project_id=PROJECT, message="x"),
+                                dict(action="restore", project_id=PROJECT, version=0),
+                                dict(action="restore", project_id=PROJECT, version=1_000_001),
                                 dict(action="import", kind="zip", url="https://example.com"),
                                 dict(action="executar")])
 def test_contract_rejects_before_any_http(kw):
@@ -222,6 +235,57 @@ def test_list_caps_at_twenty(env):
     assert result.ok and result.data["count"] == 25 and len(result.data["projects"]) == 20
 
 
+def test_versions_returns_sanitized_history(env):
+    calls = []
+    payload = {
+        "currentVersion": 2,
+        "versions": [
+            {"version": 2, "label": "Alteração por chat", "kind": "chat",
+             "createdAt": "2026-01-02T00:00:00.000Z", "fileCount": 3,
+             "hash": "SEGREDO", "messageId": "SEGREDO", "files": {"src/App.tsx": "SEGREDO"}},
+            {"version": 1, "label": "Geração inicial", "kind": "initial",
+             "createdAt": "2026-01-01T00:00:00.000Z", "fileCount": 3},
+            {"version": 0, "label": "inválida"},
+            {"version": "x"},
+            "lixo",
+        ],
+    }
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("GET", f"/api/projects/{PROJECT}/versions"): payload,
+    }, calls)
+    result = pipe(env, handler).versions(PROJECT)
+    assert result.ok and result.data["currentVersion"] == 2 and result.data["count"] == 2
+    assert [v["version"] for v in result.data["versions"]] == [2, 1]
+    assert "SEGREDO" not in json.dumps(result.data)
+    assert (calls[1]["method"], calls[1]["path"]) == ("GET", f"/api/projects/{PROJECT}/versions")
+
+
+def test_versions_without_a_list_fails_closed(env):
+    result = pipe(env, routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("GET", f"/api/projects/{PROJECT}/versions"): {"currentVersion": 0},
+    })).versions(PROJECT)
+    assert not result.ok and "versões" in result.reasons[0]
+
+
+def test_restore_posts_only_the_version_and_hides_the_code(env):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", f"/api/projects/{PROJECT}/restore"): {
+            "project": project_payload(status="generating", currentVersion=1),
+            "version": {"version": 1, "label": "Geração inicial", "kind": "initial",
+                        "createdAt": "2026-01-01T00:00:00.000Z", "fileCount": 3,
+                        "hash": "SEGREDO"},
+        },
+    }, calls)
+    result = pipe(env, handler).restore(PROJECT, 1)
+    assert result.ok and result.data["restoredVersion"] == 1
+    assert json.loads(calls[1]["body"]) == {"version": 1}
+    assert "SEGREDO" not in json.dumps(result.data)
+
+
 def test_redirect_is_refused(env):
     def handler(request):
         return httpx.Response(302, headers={"location": "http://evil.com"})
@@ -304,6 +368,8 @@ def test_permissions_block_the_tool_when_capability_is_missing(env):
     ("studio_import_site", {"url": "https://example.com"}),
     ("studio_import_github", {"url": "https://github.com/Budluk/plataforma-agentes"}),
     ("studio_import_app", {"project_id": PROJECT}),
+    ("studio_list_versions", {"project_id": PROJECT}),
+    ("studio_restore_version", {"project_id": PROJECT, "version": 1}),
 ])
 def test_every_studio_tool_requires_health_in_the_same_run(env, tool, kwargs):
     ctx = RunContext(run_id="t1")
@@ -524,6 +590,35 @@ def test_run_maps_project_actions_by_keyword(env):
     for text, route in cases:
         assert pipeline.run(text).ok, text
         assert calls[-1]["path"] == f"/api/projects/{PROJECT}/{route}"
+
+
+def test_run_maps_versions_and_restore_text(env):
+    calls = []
+    routes = {
+        ("GET", "/api/health"): {"ok": True},
+        ("GET", f"/api/projects/{PROJECT}/versions"): {"currentVersion": 2, "versions": []},
+        ("POST", f"/api/projects/{PROJECT}/restore"): {
+            "project": project_payload(status="generating", currentVersion=1),
+            "version": {"version": 1, "label": "Geração inicial", "kind": "initial"},
+        },
+    }
+    pipeline = pipe(env, routes_handler(routes, calls))
+
+    assert pipeline.run(f"versões {PROJECT}").ok
+    assert (calls[-1]["method"], calls[-1]["path"]) == ("GET", f"/api/projects/{PROJECT}/versions")
+
+    assert pipeline.run(f"restaurar a versão 2 {PROJECT}").ok
+    assert (calls[-1]["method"], calls[-1]["path"]) == ("POST", f"/api/projects/{PROJECT}/restore")
+    assert json.loads(calls[-1]["body"]) == {"version": 2}
+
+    assert pipeline.run(f"voltar para a v1 {PROJECT}").ok
+    assert json.loads(calls[-1]["body"]) == {"version": 1}
+
+
+def test_run_restore_without_version_is_rejected_without_http(env):
+    calls = []
+    result = pipe(env, routes_handler({}, calls)).run(f"restaurar {PROJECT}")
+    assert not result.ok and "versão" in result.reasons[0] and calls == []
 
 
 def test_run_maps_import_text(env):
