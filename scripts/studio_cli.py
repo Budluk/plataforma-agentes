@@ -21,7 +21,15 @@ USAGE = """uso:
   studio_cli.py list
   studio_cli.py create "<descrição do app>"
   studio_cli.py status <project_id>
-  studio_cli.py validate <project_id>"""
+  studio_cli.py validate <project_id>
+  studio_cli.py message <project_id> "<alteração desejada>"
+  studio_cli.py fix <project_id>
+  studio_cli.py fix-validation <project_id>
+  studio_cli.py rebuild <project_id>
+  studio_cli.py retry <project_id>
+  studio_cli.py import-site <url> ["<descrição opcional>"]
+  studio_cli.py import-github <url>
+  studio_cli.py import-app <project_id>"""
 
 
 def main() -> int:
@@ -44,16 +52,33 @@ def main() -> int:
     pipeline = StudioPipeline(client, Memory(db), Permissions(db),
                               JsonlLogger(ROOT / "data" / "logs" / "studio.jsonl"), ToolMonitor())
     cmd = sys.argv[1].strip().lower()
+    rest = sys.argv[2:]
     if cmd == "health":
         result = pipeline.health()
     elif cmd == "list":
         result = pipeline.list_apps()
     elif cmd == "create":
-        result = pipeline.create(" ".join(sys.argv[2:]).strip())
-    elif cmd == "status" and len(sys.argv) == 3:
-        result = pipeline.status(sys.argv[2])
-    elif cmd == "validate" and len(sys.argv) == 3:
-        result = pipeline.validate(sys.argv[2])
+        result = pipeline.create(" ".join(rest).strip())
+    elif cmd == "status" and len(rest) == 1:
+        result = pipeline.status(rest[0])
+    elif cmd == "validate" and len(rest) == 1:
+        result = pipeline.validate(rest[0])
+    elif cmd == "message" and len(rest) >= 2:
+        result = pipeline.message(rest[0], " ".join(rest[1:]).strip())
+    elif cmd == "fix" and len(rest) == 1:
+        result = pipeline.fix(rest[0])
+    elif cmd == "fix-validation" and len(rest) == 1:
+        result = pipeline.fix_validation(rest[0])
+    elif cmd == "rebuild" and len(rest) == 1:
+        result = pipeline.rebuild(rest[0])
+    elif cmd == "retry" and len(rest) == 1:
+        result = pipeline.retry(rest[0])
+    elif cmd == "import-site" and len(rest) >= 1:
+        result = pipeline.import_site(rest[0], " ".join(rest[1:]).strip() or None)
+    elif cmd == "import-github" and len(rest) == 1:
+        result = pipeline.import_github(rest[0])
+    elif cmd == "import-app" and len(rest) == 1:
+        result = pipeline.import_app(rest[0])
     else:
         print(USAGE)
         return 1

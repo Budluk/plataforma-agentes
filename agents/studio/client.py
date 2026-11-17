@@ -79,6 +79,14 @@ def _summary(project: dict) -> dict:
     }
 
 
+def _detail(project: dict) -> dict:
+    summary = _summary(project)
+    summary["error"] = _text(project.get("error"), MAX_TEXT)
+    summary["previewUrl"] = _text(project.get("previewUrl"), 300)
+    summary["validation"] = _validation(project.get("validation"))
+    return summary
+
+
 def _validation(value) -> dict | None:
     if not isinstance(value, dict):
         return None
@@ -177,11 +185,7 @@ class StudioClient:
         project = data.get("project")
         if not isinstance(project, dict):
             raise StudioError("resposta sem projeto")
-        summary = _summary(project)
-        summary["error"] = _text(project.get("error"), MAX_TEXT)
-        summary["previewUrl"] = _text(project.get("previewUrl"), 300)
-        summary["validation"] = _validation(project.get("validation"))
-        return summary
+        return _detail(project)
 
     def validate(self, project_id: str) -> dict:
         data = self._request("POST", f"/api/projects/{project_id}/validate")
@@ -189,3 +193,49 @@ class StudioClient:
         if not isinstance(project, dict):
             raise StudioError("resposta sem projeto validado")
         return {"project": _summary(project), "validation": _validation(data.get("validation"))}
+
+    # --- ações sobre um projeto existente --------------------------------
+    def _action(self, project_id: str, action: str, payload: dict | None = None) -> dict:
+        data = self._request("POST", f"/api/projects/{project_id}/{action}", payload)
+        project = data.get("project")
+        if not isinstance(project, dict):
+            raise StudioError(f"resposta sem projeto após {action}")
+        return _detail(project)
+
+    def send_message(self, project_id: str, content: str) -> dict:
+        return self._action(project_id, "messages", {"content": content})
+
+    def fix(self, project_id: str) -> dict:
+        return self._action(project_id, "fix")
+
+    def fix_validation(self, project_id: str) -> dict:
+        return self._action(project_id, "fix-validation")
+
+    def rebuild(self, project_id: str) -> dict:
+        return self._action(project_id, "rebuild")
+
+    def retry(self, project_id: str) -> dict:
+        return self._action(project_id, "retry")
+
+    # --- importação -------------------------------------------------------
+    def _import(self, payload: dict) -> dict:
+        data = self._request("POST", "/api/import", payload)
+        project = data.get("project")
+        if not isinstance(project, dict):
+            raise StudioError("resposta sem projeto importado")
+        detail = _detail(project)
+        detail["kind"] = _text(data.get("kind"), 20)
+        return detail
+
+    def import_site(self, url: str, prompt: str | None = None) -> dict:
+        payload = {"kind": "site", "url": url}
+        if prompt:
+            payload["prompt"] = prompt
+        return self._import(payload)
+
+    def import_github(self, url: str) -> dict:
+        return self._import({"kind": "github", "url": url})
+
+    def import_app(self, project_id: str) -> dict:
+        return self._import({"kind": "app", "projectId": project_id})
+

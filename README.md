@@ -63,7 +63,7 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 | Música | pronta (simbólica, MIDI) | Acorde, transposição, tablatura de violão | Sem áudio (Basic Pitch, Demucs, librosa exigem torch/tf) |
 | Vendas | pronta | Margem, preço-alvo, ponto de equilíbrio | Não transaciona |
 | Funil low ticket | pronto | ROAS, CPA, lucro real, taxas por etapa, recomendação | Não mexe em campanha nem em verba; recomenda e você executa |
-| Studio (CloneStudio) | pronta (serviço local) | Cria, lista, consulta e valida apps React via CloneStudio | Não executa o código gerado; build fica no processo Node isolado |
+| Studio (CloneStudio) | pronta (serviço local) | Cria, importa, itera por chat, corrige, recompila e valida apps React via CloneStudio | Não executa o código gerado; build fica no processo Node isolado |
 
 Ferramentas vetadas por nome (nunca existem): execution_order, place_order, checkout, purchase,
 payment, charge_card, launch_campaign, set_budget, send_whatsapp, publish_page.
@@ -81,7 +81,7 @@ front gera "dados insuficientes"; dados incoerentes (ex.: mais bumps que vendas)
 | Funil low ticket | ROAS, CPA, lucro real, recomendação | Não mexe em campanha nem verba |
 | Pesquisa | Resume 1 página de domínio permitido (`config/allowed_domains.txt`) | Só leitura de texto; página é dado, nunca instrução |
 | Desenvolvimento | LLM escreve código como texto; análise estática (`ast`) aprova e salva em `data/dev_output/` | NUNCA executa o código; leia antes de rodar |
-| Studio | Cliente supervisionado do CloneStudio local: cria, lista, consulta e valida apps React | Não executa o código gerado; build e preview ficam no serviço Node |
+| Studio | Cliente supervisionado do CloneStudio local: cria, importa, itera por chat, corrige, recompila e valida apps React | Não executa o código gerado; build e preview ficam no serviço Node |
 
 Uso: `scripts/research_live.py "<url>" "<pergunta>"`, `scripts/dev_cli.py write "<tarefa>"`, `scripts/dev_cli.py review <arquivo.py>`.
 Módulos que o código gerado pode importar: `config/dev_allowed_imports.txt` (lista de permitidos).
@@ -112,8 +112,15 @@ A área `studio` é a mais supervisionada da plataforma. Cada ação passa por:
    `config/studio_hosts.txt`, sem redirecionamento, teto de 64 KB, timeout e resposta reduzida a
    campos conhecidos (nunca `files`, `buildLog`, `messages` ou `prompt`).
 
-Ações: `health`, `list`, `create`, `status`, `validate`. `studio_health` é obrigatório antes de
-qualquer outra ferramenta (regra de sequência do monitor).
+Ações: `health`, `list`, `create`, `status`, `validate`, `messages`, `fix`, `fix-validation`,
+`rebuild`, `retry` e `import` (site, repositório do GitHub ou cópia de um app existente).
+`studio_health` é obrigatório antes de qualquer outra ferramenta (regra de sequência do monitor).
+
+A importação aceita apenas `http`/`https` público: nada de loopback, faixa privada, link-local,
+credenciais na URL, fragmento ou host fora de `github.com` no modo repositório. A resolução de DNS,
+o bloqueio de rebinding e os redirecionamentos são feitos pelo próprio serviço Node
+(`clonestudio/server/net-safety.mjs`), que fixa o IP validado na conexão. Importação de `.zip`
+continua só no painel do CloneStudio: o arquivo não passa pela plataforma.
 
 Início do serviço (Node 22):
 
@@ -128,8 +135,17 @@ Uso pela plataforma:
     .\.venv\Scripts\python.exe scripts\studio_cli.py list
     .\.venv\Scripts\python.exe scripts\studio_cli.py status <project_id>
     .\.venv\Scripts\python.exe scripts\studio_cli.py validate <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py message <project_id> "troque o azul por verde"
+    .\.venv\Scripts\python.exe scripts\studio_cli.py fix <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py fix-validation <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py rebuild <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py retry <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py import-site https://exemplo.com
+    .\.venv\Scripts\python.exe scripts\studio_cli.py import-github https://github.com/usuario/repo
+    .\.venv\Scripts\python.exe scripts\studio_cli.py import-app <project_id>
 
-Ou pelo agente central: `scripts\central_cli.py "crie um app de notas com etiquetas"`.
+Ou pelo agente central: `scripts\central_cli.py "crie um app de notas com etiquetas"`,
+`"importar https://exemplo.com"`, `"corrigir a validação <project_id>"`.
 
 Limites: o build e o preview acontecem no processo Node, no workspace dele (`clonestudio/data/`).
 A plataforma não executa o código gerado, não instala pacotes npm e não aceita URL como descrição.

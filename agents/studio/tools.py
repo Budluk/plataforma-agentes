@@ -18,10 +18,42 @@ def build_studio_tools(client: StudioClient) -> dict:
     def studio_validate_app(project_id: str) -> dict:
         return client.validate(project_id)
 
+    def studio_send_message(project_id: str, content: str) -> dict:
+        return client.send_message(project_id, content)
+
+    def studio_fix_app(project_id: str) -> dict:
+        return client.fix(project_id)
+
+    def studio_fix_validation(project_id: str) -> dict:
+        return client.fix_validation(project_id)
+
+    def studio_rebuild_app(project_id: str) -> dict:
+        return client.rebuild(project_id)
+
+    def studio_retry_app(project_id: str) -> dict:
+        return client.retry(project_id)
+
+    def studio_import_site(url: str, prompt: str | None = None) -> dict:
+        return client.import_site(url, prompt)
+
+    def studio_import_github(url: str) -> dict:
+        return client.import_github(url)
+
+    def studio_import_app(project_id: str) -> dict:
+        return client.import_app(project_id)
+
     return {
         "studio_health": studio_health,
         "studio_list_apps": studio_list_apps,
         "studio_create_app": studio_create_app,
         "studio_app_status": studio_app_status,
         "studio_validate_app": studio_validate_app,
+        "studio_send_message": studio_send_message,
+        "studio_fix_app": studio_fix_app,
+        "studio_fix_validation": studio_fix_validation,
+        "studio_rebuild_app": studio_rebuild_app,
+        "studio_retry_app": studio_retry_app,
+        "studio_import_site": studio_import_site,
+        "studio_import_github": studio_import_github,
+        "studio_import_app": studio_import_app,
     }

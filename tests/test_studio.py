@@ -22,7 +22,10 @@ from pipelines.studio_pipeline import StudioPipeline, new_context
 PROJECT = "123e4567-e89b-42d3-a456-426614174000"
 HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 STUDIO_TOOLS = {"studio_health", "studio_list_apps", "studio_create_app",
-                "studio_app_status", "studio_validate_app"}
+                "studio_app_status", "studio_validate_app", "studio_send_message",
+                "studio_fix_app", "studio_fix_validation", "studio_rebuild_app",
+                "studio_retry_app", "studio_import_site", "studio_import_github",
+                "studio_import_app"}
 
 
 def make_client(handler, base="http://127.0.0.1:8787"):
@@ -80,6 +83,33 @@ def test_hosts_file_fails_closed_and_ignores_comments(tmp_path):
     dict(action="list", project_id=PROJECT),
     dict(action="health", prompt="a" * 10),
     dict(action="create", prompt="a\x00" + "b" * 10),
+    # mensagens e ações sobre projeto existente
+    dict(action="messages", project_id=PROJECT),
+    dict(action="messages", project_id=PROJECT, message="ok", url="https://example.com"),
+    dict(action="messages", message="troque o azul por verde"),
+    dict(action="fix"),
+    dict(action="fix", project_id=PROJECT, prompt="a" * 10),
+    dict(action="fix_validation", project_id=PROJECT, kind="site"),
+    dict(action="rebuild", project_id=PROJECT, message="recompilar"),
+    dict(action="retry", url="https://example.com"),
+    # importação
+    dict(action="import"),
+    dict(action="import", kind="site"),
+    dict(action="import", kind="site", url="http://127.0.0.1:8787/api/health"),
+    dict(action="import", kind="site", url="http://localhost/x"),
+    dict(action="import", kind="site", url="http://servidor.local/x"),
+    dict(action="import", kind="site", url="http://10.0.0.1/x"),
+    dict(action="import", kind="site", url="http://192.168.0.1/x"),
+    dict(action="import", kind="site", url="http://[::1]/x"),
+    dict(action="import", kind="site", url="https://user:pw@example.com"),
+    dict(action="import", kind="site", url="ftp://example.com/x"),
+    dict(action="import", kind="site", url="https://example.com/x#frag"),
+    dict(action="import", kind="site", url="https://example.com", project_id=PROJECT),
+    dict(action="import", kind="github", url="https://gitlab.com/a/b"),
+    dict(action="import", kind="github", url="https://github.com/a/b", prompt="a" * 10),
+    dict(action="import", kind="app"),
+    dict(action="import", kind="app", project_id=PROJECT, url="https://example.com"),
+    dict(action="import", kind="app", project_id=PROJECT, prompt="a" * 10),
 ])
 def test_gate_rejects_invalid_combinations(kw):
     assert check_request(StudioRequest(**kw))
@@ -88,13 +118,27 @@ def test_gate_rejects_invalid_combinations(kw):
 @pytest.mark.parametrize("kw", [dict(action="health"), dict(action="list"),
                                 dict(action="create", prompt="loja de café"),
                                 dict(action="status", project_id=PROJECT),
-                                dict(action="validate", project_id=PROJECT)])
+                                dict(action="validate", project_id=PROJECT),
+                                dict(action="messages", project_id=PROJECT,
+                                     message="troque o azul por verde"),
+                                dict(action="fix", project_id=PROJECT),
+                                dict(action="fix_validation", project_id=PROJECT),
+                                dict(action="rebuild", project_id=PROJECT),
+                                dict(action="retry", project_id=PROJECT),
+                                dict(action="import", kind="site", url="https://example.com"),
+                                dict(action="import", kind="site", url="https://example.com",
+                                     prompt="inspirado neste layout"),
+                                dict(action="import", kind="github",
+                                     url="https://github.com/Budluk/plataforma-agentes"),
+                                dict(action="import", kind="app", project_id=PROJECT)])
 def test_gate_accepts_only_the_expected_shapes(kw):
     assert check_request(StudioRequest(**kw)) == []
 
 
 @pytest.mark.parametrize("kw", [dict(action="create", prompt="curto"),
                                 dict(action="status", project_id="abc"),
+                                dict(action="messages", project_id=PROJECT, message="x"),
+                                dict(action="import", kind="zip", url="https://example.com"),
                                 dict(action="executar")])
 def test_contract_rejects_before_any_http(kw):
     with pytest.raises(ValidationError):
@@ -247,12 +291,26 @@ def test_permissions_block_the_tool_when_capability_is_missing(env):
     assert [c["method"] for c in calls] == ["GET"]
 
 
-def test_create_tool_requires_health_in_the_same_run(env):
+@pytest.mark.parametrize("tool,kwargs", [
+    ("studio_list_apps", {}),
+    ("studio_create_app", {"prompt": "uma loja de café com carrinho"}),
+    ("studio_app_status", {"project_id": PROJECT}),
+    ("studio_validate_app", {"project_id": PROJECT}),
+    ("studio_send_message", {"project_id": PROJECT, "content": "troque o azul"}),
+    ("studio_fix_app", {"project_id": PROJECT}),
+    ("studio_fix_validation", {"project_id": PROJECT}),
+    ("studio_rebuild_app", {"project_id": PROJECT}),
+    ("studio_retry_app", {"project_id": PROJECT}),
+    ("studio_import_site", {"url": "https://example.com"}),
+    ("studio_import_github", {"url": "https://github.com/Budluk/plataforma-agentes"}),
+    ("studio_import_app", {"project_id": PROJECT}),
+])
+def test_every_studio_tool_requires_health_in_the_same_run(env, tool, kwargs):
     ctx = RunContext(run_id="t1")
     agent = StudioAgent(tools=build_studio_tools(make_client(routes_handler({}))),
                         monitor=env.monitor, permissions=env.perms, logger=env.logger, ctx=ctx)
     with pytest.raises(ToolBlocked) as exc:
-        agent.create_app("uma loja de café com carrinho")
+        agent.call_tool(tool, **kwargs)
     assert "studio_health" in str(exc.value)
 
 
@@ -355,3 +413,134 @@ def test_studio_modules_never_execute_or_spawn():
                 attr = fn.attr if isinstance(fn, ast.Attribute) else ""
                 assert name not in {"eval", "exec", "compile", "__import__"}, f"{path.name}: {name}"
                 assert attr not in {"system", "popen", "eval", "exec"}, f"{path.name}: {attr}"
+
+
+# --- ações sobre projeto existente (mensagens, correções, build) ----------
+def project_payload(**extra):
+    base = {
+        "id": PROJECT, "name": "Loja", "status": "generating", "stage": "Na fila",
+        "fileCount": 0, "updatedAt": "2026-01-01T00:00:00.000Z",
+        "previewUrl": "http://127.0.0.1:8788/preview/x/",
+        "buildLog": "SEGREDO", "files": {"src/App.tsx": "SEGREDO"},
+        "messages": [{"content": "SEGREDO"}], "prompt": "SEGREDO",
+    }
+    base.update(extra)
+    return base
+
+
+@pytest.mark.parametrize("method,route", [("fix", "fix"), ("fix_validation", "fix-validation"),
+                                          ("rebuild", "rebuild"), ("retry", "retry")])
+def test_project_actions_hit_the_right_route(env, method, route):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", f"/api/projects/{PROJECT}/{route}"): {"project": project_payload(status="ready")},
+    }, calls)
+    result = getattr(pipe(env, handler), method)(PROJECT)
+    assert result.ok and result.data["status"] == "ready"
+    assert "SEGREDO" not in json.dumps(result.data)
+    assert (calls[1]["method"], calls[1]["path"]) == ("POST", f"/api/projects/{PROJECT}/{route}")
+
+
+def test_message_posts_only_the_content(env):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", f"/api/projects/{PROJECT}/messages"): {"project": project_payload()},
+    }, calls)
+    result = pipe(env, handler).message(PROJECT, "troque o azul por verde")
+    assert result.ok and result.data["status"] == "generating"
+    assert json.loads(calls[1]["body"]) == {"content": "troque o azul por verde"}
+    assert "SEGREDO" not in json.dumps(result.data)
+
+
+def test_conflict_is_reported_without_leaking_the_body(env):
+    def handler(request):
+        if request.url.path == "/api/health":
+            return httpx.Response(200, json={"ok": True})
+        return httpx.Response(409, json={"error": "SEGREDO"})
+    result = pipe(env, handler).retry(PROJECT)
+    assert not result.ok and "409" in result.reasons[0] and "SEGREDO" not in result.reasons[0]
+
+
+# --- importação -----------------------------------------------------------
+@pytest.mark.parametrize("call,payload", [
+    (lambda p: p.import_site("https://example.com"),
+     {"kind": "site", "url": "https://example.com"}),
+    (lambda p: p.import_site("https://example.com", "inspirado neste layout"),
+     {"kind": "site", "url": "https://example.com", "prompt": "inspirado neste layout"}),
+    (lambda p: p.import_github("https://github.com/Budluk/plataforma-agentes"),
+     {"kind": "github", "url": "https://github.com/Budluk/plataforma-agentes"}),
+    (lambda p: p.import_app(PROJECT), {"kind": "app", "projectId": PROJECT}),
+])
+def test_import_posts_the_expected_payload(env, call, payload):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/import"): {"kind": payload["kind"], "project": project_payload()},
+    }, calls)
+    result = call(pipe(env, handler))
+    assert result.ok and result.data["kind"] == payload["kind"]
+    assert json.loads(calls[1]["body"]) == payload
+    assert "SEGREDO" not in json.dumps(result.data)
+
+
+def test_import_of_local_url_is_rejected_without_any_http(env):
+    calls = []
+    result = pipe(env, routes_handler({}, calls)).import_site("http://127.0.0.1:8787/api/health")
+    assert not result.ok and "local" in result.reasons[0] and calls == []
+
+
+def test_import_of_cloud_metadata_is_rejected_without_any_http(env):
+    calls = []
+    result = pipe(env, routes_handler({}, calls)).import_site("http://169.254.169.254/latest/meta-data")
+    assert not result.ok and calls == []
+
+
+def test_import_github_rejects_other_hosts_without_http(env):
+    calls = []
+    result = pipe(env, routes_handler({}, calls)).import_github("https://gitlab.com/a/b")
+    assert not result.ok and "github.com" in result.reasons[0] and calls == []
+
+
+def test_import_rejects_a_control_character_without_http(env):
+    calls = []
+    result = pipe(env, routes_handler({}, calls)).import_site("https://example.com/\x00x")
+    assert not result.ok and calls == []
+
+
+# --- texto livre do agente central ---------------------------------------
+def test_run_maps_project_actions_by_keyword(env):
+    calls = []
+    routes = {("GET", "/api/health"): {"ok": True}}
+    for route in ("fix", "fix-validation", "rebuild", "retry", "messages"):
+        routes[("POST", f"/api/projects/{PROJECT}/{route}")] = {"project": project_payload()}
+    pipeline = pipe(env, routes_handler(routes, calls))
+    cases = [(f"corrigir {PROJECT}", "fix"),
+             (f"corrigir a validação {PROJECT}", "fix-validation"),
+             (f"recompilar {PROJECT}", "rebuild"),
+             (f"tentar de novo {PROJECT}", "retry"),
+             (f"mensagem {PROJECT} troque o azul por verde", "messages")]
+    for text, route in cases:
+        assert pipeline.run(text).ok, text
+        assert calls[-1]["path"] == f"/api/projects/{PROJECT}/{route}"
+
+
+def test_run_maps_import_text(env):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/import"): {"kind": "site", "project": project_payload()},
+    }, calls)
+    pipeline = pipe(env, handler)
+    assert pipeline.run("importar https://example.com").ok
+    assert json.loads(calls[-1]["body"]) == {"kind": "site", "url": "https://example.com"}
+    assert pipeline.run("importar https://github.com/Budluk/plataforma-agentes").ok
+    assert json.loads(calls[-1]["body"]) == {"kind": "github",
+                                            "url": "https://github.com/Budluk/plataforma-agentes"}
+
+
+def test_run_import_without_url_is_rejected(env):
+    calls = []
+    assert not pipe(env, routes_handler({}, calls)).run("importar isto aqui").ok
+    assert calls == []

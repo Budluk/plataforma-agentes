@@ -2,6 +2,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.studio.agent import StudioAgent
@@ -14,6 +15,20 @@ _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 _LIST = re.compile(r"^\s*(listar|lista|list|meus apps|meus aplicativos)\b", re.IGNORECASE)
 _VALIDATE = re.compile(r"\b(validar|valide|valida\u00e7\u00e3o|verificar|verifique)\b", re.IGNORECASE)
 _HEALTH = re.compile(r"^\s*(status|sa\u00fade|health|ping)\s*[.!?]?\s*$", re.IGNORECASE)
+_IMPORT = re.compile(r"^\s*(importar|importe|import)\b\s*(.*)$", re.IGNORECASE | re.DOTALL)
+_MESSAGE = re.compile(
+    r"^\s*(?:mensagem|alterar|altere|mudar|mude|ajustar|ajuste)\s+(\S+)\s*[:\-]?\s*(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_FIX_VALIDATION = re.compile(
+    r"(fix[-\s]?validation|corrigir\s+(?:a\s+)?valida\u00e7\u00e3o|corrigir\s+o\s+preview)",
+    re.IGNORECASE,
+)
+_REBUILD = re.compile(r"\b(recompilar|recompile|rebuild)\b", re.IGNORECASE)
+_RETRY = re.compile(r"\b(retry|tentar\s+de\s+novo|tentar\s+novamente|repetir)\b", re.IGNORECASE)
+_FIX = re.compile(r"\b(corrigir|corrija|fix)\b", re.IGNORECASE)
+_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
 
 
 def new_context() -> RunContext:
@@ -55,11 +70,13 @@ class StudioPipeline:
                            permissions=self.permissions, logger=self.logger, ctx=ctx)
 
     def _execute(self, ctx: RunContext, action: str, *, prompt: str | None = None,
-                 project_id: str | None = None) -> StudioResult:
+                 project_id: str | None = None, message: str | None = None,
+                 url: str | None = None, kind: str | None = None) -> StudioResult:
         try:
-            req = StudioRequest(action=action, prompt=prompt, project_id=project_id)
+            req = StudioRequest(action=action, prompt=prompt, project_id=project_id,
+                                message=message, url=url, kind=kind)
         except ValidationError:
-            return self._reject(ctx, ["pedido inválido (ação, descrição ou project_id fora do formato)"])
+            return self._reject(ctx, ["pedido inválido (ação ou parâmetro fora do formato)"])
         reasons = check_request(req)
         if reasons:
             return self._reject(ctx, reasons)
@@ -75,7 +92,25 @@ class StudioPipeline:
                 return self._ok(ctx, agent.create_app(prompt=req.prompt))
             if req.action == "status":
                 return self._ok(ctx, agent.app_status(project_id=req.project_id))
-            return self._ok(ctx, agent.validate_app(project_id=req.project_id))
+            if req.action == "validate":
+                return self._ok(ctx, agent.validate_app(project_id=req.project_id))
+            if req.action == "messages":
+                return self._ok(ctx, agent.send_message(project_id=req.project_id,
+                                                        content=req.message))
+            if req.action == "fix":
+                return self._ok(ctx, agent.fix_app(project_id=req.project_id))
+            if req.action == "fix_validation":
+                return self._ok(ctx, agent.fix_validation(project_id=req.project_id))
+            if req.action == "rebuild":
+                return self._ok(ctx, agent.rebuild_app(project_id=req.project_id))
+            if req.action == "retry":
+                return self._ok(ctx, agent.retry_app(project_id=req.project_id))
+            # import
+            if req.kind == "app":
+                return self._ok(ctx, agent.import_app(project_id=req.project_id))
+            if req.kind == "github":
+                return self._ok(ctx, agent.import_github(url=req.url))
+            return self._ok(ctx, agent.import_site(url=req.url, prompt=req.prompt))
         except (ToolBlocked, StudioError, ValueError) as exc:
             return self._reject(ctx, [f"{type(exc).__name__}: {exc}"])
 
@@ -95,16 +130,69 @@ class StudioPipeline:
     def validate(self, project_id: str) -> StudioResult:
         return self._execute(new_context(), "validate", project_id=project_id)
 
+    def message(self, project_id: str, content: str) -> StudioResult:
+        return self._execute(new_context(), "messages", project_id=project_id, message=content)
+
+    def fix(self, project_id: str) -> StudioResult:
+        return self._execute(new_context(), "fix", project_id=project_id)
+
+    def fix_validation(self, project_id: str) -> StudioResult:
+        return self._execute(new_context(), "fix_validation", project_id=project_id)
+
+    def rebuild(self, project_id: str) -> StudioResult:
+        return self._execute(new_context(), "rebuild", project_id=project_id)
+
+    def retry(self, project_id: str) -> StudioResult:
+        return self._execute(new_context(), "retry", project_id=project_id)
+
+    def import_site(self, url: str, prompt: str | None = None) -> StudioResult:
+        return self._execute(new_context(), "import", url=url, kind="site", prompt=prompt)
+
+    def import_github(self, url: str) -> StudioResult:
+        return self._execute(new_context(), "import", url=url, kind="github")
+
+    def import_app(self, project_id: str) -> StudioResult:
+        return self._execute(new_context(), "import", project_id=project_id, kind="app")
+
     # --- entrada do agente central (texto livre) --------------------------
     def run(self, text: str) -> StudioResult:
         ctx = new_context()
         cleaned = (text or "").strip()
         if not cleaned:
             return self._reject(ctx, ["pedido vazio"])
+
+        match = _MESSAGE.match(cleaned)
+        if match and _UUID.fullmatch(match.group(1)):
+            return self._execute(ctx, "messages", project_id=match.group(1).lower(),
+                                 message=match.group(2).strip())
+
+        match = _IMPORT.match(cleaned)
+        if match:
+            url_match = _URL_IN_TEXT.search(match.group(2))
+            if not url_match:
+                return self._reject(ctx, ["importação exige uma URL"])
+            url = url_match.group(0).rstrip(".,;:!?)]}\"'")
+            host = (urlsplit(url).hostname or "").lower()
+            kind = "github" if host in _GITHUB_HOSTS else "site"
+            return self._execute(ctx, "import", url=url, kind=kind)
+
         match = _UUID.search(cleaned)
         if match:
-            action = "validate" if _VALIDATE.search(cleaned) else "status"
-            return self._execute(ctx, action, project_id=match.group(0).lower())
+            project_id = match.group(0).lower()
+            if _FIX_VALIDATION.search(cleaned):
+                action = "fix_validation"
+            elif _REBUILD.search(cleaned):
+                action = "rebuild"
+            elif _RETRY.search(cleaned):
+                action = "retry"
+            elif _VALIDATE.search(cleaned):
+                action = "validate"
+            elif _FIX.search(cleaned):
+                action = "fix"
+            else:
+                action = "status"
+            return self._execute(ctx, action, project_id=project_id)
+
         if _LIST.search(cleaned):
             return self._execute(ctx, "list")
         if _HEALTH.match(cleaned):

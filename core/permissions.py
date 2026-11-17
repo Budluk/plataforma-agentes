@@ -12,6 +12,14 @@ SEED = [
     ("studio_agent", "studio_create_app"),
     ("studio_agent", "studio_app_status"),
     ("studio_agent", "studio_validate_app"),
+    ("studio_agent", "studio_send_message"),
+    ("studio_agent", "studio_fix_app"),
+    ("studio_agent", "studio_fix_validation"),
+    ("studio_agent", "studio_rebuild_app"),
+    ("studio_agent", "studio_retry_app"),
+    ("studio_agent", "studio_import_site"),
+    ("studio_agent", "studio_import_github"),
+    ("studio_agent", "studio_import_app"),
 ]
 
 
