@@ -15,6 +15,7 @@ O MVP está funcional de ponta a ponta:
 - correção por IA a partir do relatório de validação;
 - documentação atualizada de bibliotecas via Context7/MCP (Recharts, Framer Motion, Lucide e clsx) injetada no prompt de geração;
 - chat para alterar o app e corrigir erros de build;
+- histórico de versões: cada build bem-sucedido vira uma versão restaurável, com recompilação e preservação do estado atual antes da troca;
 - visualização de arquivos e log de build;
 - catálogo de Skills, Integrações e Provedores.
 
@@ -74,6 +75,7 @@ Para desligar o agrupamento ou o cache de varredura, defina `PERSIST_DELAY_MS=0`
 
 - **Dashboard:** descreva o app e clique em “Gerar app”.
 - **Workspace:** acompanhe as etapas, veja o preview, abra o código ou o log de build.
+- **Histórico:** a aba lista as versões criadas a cada build bem-sucedido (até 30, configurável em `MAX_VERSIONS`). "Restaurar" copia o `src/` da versão escolhida, recompila e valida o app de novo; se o estado atual ainda não estiver salvo, ele vira uma versão antes da troca, então a restauração também pode ser desfeita.
 - **Abas e janelas:** cada projeto aberto ganha uma aba no topo, com status ao vivo. Feche pela tecla do meio ou pelo “x”; as abas e o estado de cada uma (preview/código/log, desktop/mobile, arquivo selecionado e rascunho do chat) são mantidos ao recarregar. O botão de janela abre o projeto em um pop-up separado, útil para comparar dois apps lado a lado.
 - **Chat:** peça alterações (“adicione um filtro”, “troque a paleta”, “corrija o build”). O modelo recebe o conjunto atual de arquivos e devolve a versão completa.
 - **Corrigir build:** quando o Vite falha, o log vira contexto para uma nova tentativa.
@@ -91,7 +93,7 @@ CloneStudioAI/
 ├── server/
 │   ├── index.mjs            API HTTP + arquivos estáticos
 │   ├── env.mjs              carregamento do .env
-│   ├── storage.mjs          projetos, arquivos, cache de src/ e persistência
+│   ├── storage.mjs          projetos, arquivos, versões, cache de src/ e persistência
 │   ├── http-cache.mjs       ETag, If-None-Match e cache de assets
 │   ├── providers.mjs        roteamento OpenAI-compatible + fallback
 │   ├── generator.mjs        pipeline de geração, validação e build
@@ -111,7 +113,7 @@ CloneStudioAI/
 ├── public/                  UI do CloneStudio (HTML/CSS/JS puro)
 ├── data/
 │   ├── projects.json        metadados dos projetos
-│   └── projects/<id>/app/   código, node_modules (junction) e dist
+│   └── projects/<id>/       app/ (código, node_modules e dist) e versions/<n>/ (src + meta.json)
 ├── tests/                   testes do parser/validador, cache HTTP, storage, rede e navegador
 └── docs/
 ```
@@ -162,7 +164,7 @@ npm.cmd run check
 npm.cmd run test:browser
 ```
 
-A suíte padrão tem 101 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, cache HTTP, cache de `src/` e persistência agrupada.
+A suíte padrão tem 103 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, cache HTTP, cache de `src/`, persistência agrupada e histórico de versões (snapshot, deduplicação, limite e restauração).
 
 O `npm.cmd run test:browser` é separado porque abre o Edge headless. Ele sobe um servidor com `DATA_DIR` temporário e portas livres, cria dois projetos descartáveis e verifica 15 comportamentos de abas, janelas e persistência, sem tocar nos seus projetos nem depender de rede externa.
 
@@ -195,4 +197,5 @@ A integração só consulta a rede quando detecta Recharts, Framer Motion, Lucid
 - O Context7 público tem limites de uso e pode ficar indisponível. A geração degrada sem bloquear, mas o selo de conhecimento pode não aparecer.
 - A importação de GitHub/.zip aceita apenas projetos Vite/React com `src/App.tsx` (ou `App.tsx` na raiz). Next.js, Vue e arquivos `.less/.scss` não são convertidos. Dependências fora de React, lucide-react, framer-motion, recharts e clsx não são instaladas automaticamente. A análise antes de criar já avisa sobre esses bloqueios e mostra todas as funções detectadas, sem criar o projeto.
 - O preview é estático (`dist`), não um dev server com HMR. Cada iteração gera um novo build.
+- O histórico guarda apenas o `src/` de cada versão (o build é refeito na restauração). Recompilar sem mudar o código não cria versão nova, e o limite padrão é 30 versões por projeto (`MAX_VERSIONS`). Se a restauração não compilar, o projeto fica em erro e a versão anterior do estado atual continua disponível no histórico.
 - O nome do projeto pode vir do prompt quando o modelo não devolve `name`.

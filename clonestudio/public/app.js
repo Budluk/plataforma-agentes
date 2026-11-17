@@ -147,6 +147,11 @@ const state = {
   inspection: null,
   inspectionBusy: false,
   inspectionLabel: '',
+  versions: [],
+  versionsBusy: false,
+  versionsError: '',
+  versionsProjectId: null,
+  restoringVersion: null,
   openProjects: loadOpenProjects(),
   workspaceStates: loadWorkspaceStates(),
   pollTimer: null,
@@ -279,7 +284,9 @@ function scheduleWorkspaceStateSave() {
 
 function applyWorkspaceState(id) {
   const saved = state.workspaceStates[id] || {};
-  state.tab = ['preview', 'validation', 'code', 'log'].includes(saved.tab) ? saved.tab : 'preview';
+  state.tab = ['preview', 'validation', 'code', 'log', 'versions'].includes(saved.tab)
+    ? saved.tab
+    : 'preview';
   state.device = saved.device === 'mobile' ? 'mobile' : 'desktop';
   state.selectedFile = typeof saved.selectedFile === 'string' ? saved.selectedFile : null;
   state.chatDraft = typeof saved.chatDraft === 'string' ? saved.chatDraft : '';
@@ -615,6 +622,12 @@ async function routeChanged(initial = false) {
         syncProjectSummary(data.project);
         applyWorkspaceState(data.project.id);
         ensureSelectedFile();
+        if (state.versionsProjectId !== data.project.id) {
+          state.versions = [];
+          state.versionsError = '';
+          state.versionsProjectId = null;
+          state.versionsBusy = false;
+        }
       } catch (error) {
         if (error.status === 404) {
           showToast('Este projeto não existe mais.', 'error');
@@ -1108,6 +1121,7 @@ function renderWorkspace() {
             <button class="tab ${state.tab === 'preview' ? 'active' : ''}" type="button" data-action="tab" data-tab="preview">${icon('monitor')} Preview</button>
             <button class="tab ${state.tab === 'validation' ? 'active' : ''}" type="button" data-action="tab" data-tab="validation">${icon(validationRunning ? 'loader' : 'shield', validationRunning ? 'spin' : '')} Validação${validationIssues && !validationRunning ? `<span class="tab-badge">${validationIssues}</span>` : ''}</button>
             <button class="tab ${state.tab === 'code' ? 'active' : ''}" type="button" data-action="tab" data-tab="code">${icon('code')} Código</button>
+            <button class="tab ${state.tab === 'versions' ? 'active' : ''}" type="button" data-action="tab" data-tab="versions">${icon('clock')} Histórico</button>
             <button class="tab ${state.tab === 'log' ? 'active' : ''}" type="button" data-action="tab" data-tab="log">${icon('terminal')} Log</button>
           </div>
           ${
@@ -1168,6 +1182,7 @@ function renderCanvas(project) {
   if (state.tab === 'code') return renderCodeView(project);
   if (state.tab === 'log') return renderLogView(project);
   if (state.tab === 'validation') return renderValidationView(project);
+  if (state.tab === 'versions') return renderVersionsView(project);
   if (project.status === 'error') return renderErrorView(project);
   if (project.status === 'generating' || project.status === 'building' || !project.previewVersion) {
     return renderStage(project);
@@ -1495,6 +1510,53 @@ function renderValidationView(project) {
   </div>`;
 }
 
+function renderVersionsView(project) {
+  const versions = state.versions;
+  const loading = state.versionsBusy && !versions.length;
+  const busy = isBusy(project) || state.busyAction;
+  const head = `<div class="versions-head">
+    <div>
+      <h2>${icon('clock')} Histórico de versões</h2>
+      <p>Cada build bem-sucedido vira uma versão restaurável. Restaurar recompila o app e salva o estado atual antes da troca.</p>
+    </div>
+    <button class="btn small" type="button" data-action="refresh-versions" ${state.versionsBusy ? 'disabled' : ''}>${icon('refresh', state.versionsBusy ? 'spin' : '')} Atualizar</button>
+  </div>`;
+
+  if (loading) {
+    return `<div class="versions-view">${head}<div class="versions-empty">${icon('loader', 'spin')} Carregando versões…</div></div>`;
+  }
+  if (state.versionsError) {
+    return `<div class="versions-view">${head}<div class="versions-empty error">${icon('alert')} ${esc(state.versionsError)}</div></div>`;
+  }
+  if (!versions.length) {
+    return `<div class="versions-view">${head}<div class="versions-empty">${icon('info')} Nenhuma versão ainda. Gere o app ou peça uma alteração para criar a primeira.</div></div>`;
+  }
+
+  return `<div class="versions-view">${head}
+    <div class="version-list">
+      ${versions
+        .map((version) => {
+          const current = version.version === (project.currentVersion || 0);
+          const restoring = state.restoringVersion === version.version;
+          const when = relTime(version.createdAt);
+          return `<article class="version-card ${current ? 'current' : ''}">
+            <span class="version-number">v${version.version}</span>
+            <div class="version-body">
+              <strong>${esc(version.label || 'Versão')}</strong>
+              <span class="version-meta" title="${esc(version.createdAt)}">${when} · ${version.fileCount} arquivo(s)</span>
+            </div>
+            ${
+              current
+                ? '<span class="version-current">atual</span>'
+                : `<button class="btn small" type="button" data-action="restore-version" data-version="${version.version}" ${busy ? 'disabled' : ''}>${icon(restoring ? 'loader' : 'clock', restoring ? 'spin' : '')} ${restoring ? 'Restaurando…' : 'Restaurar'}</button>`
+            }
+          </article>`;
+        })
+        .join('')}
+    </div>
+  </div>`;
+}
+
 function renderCodeView(project) {
   const files = project.files || [];
   ensureSelectedFile();
@@ -1552,6 +1614,14 @@ function afterRenderWorkspace() {
   const messages = document.getElementById('messages');
   if (messages) messages.scrollTop = messages.scrollHeight;
   ensureSelectedFile();
+  if (
+    state.tab === 'versions' &&
+    state.project &&
+    state.versionsProjectId !== state.project.id &&
+    !state.versionsBusy
+  ) {
+    loadVersions();
+  }
   if (isBusy()) scheduleProjectPoll();
   scheduleTabsPoll();
 }
@@ -1608,6 +1678,7 @@ async function refreshProject() {
     const previous = state.project;
     let next = data.project;
     if (!Array.isArray(next.files)) next.files = previous.files || [];
+    const finished = previous.status !== next.status && !isBusy(next);
     if (previous.status !== next.status && !isBusy(next)) {
       // Ao terminar, busca o detalhe completo (arquivos e log) uma única vez.
       try {
@@ -1643,6 +1714,7 @@ async function refreshProject() {
       }
     }
     render();
+    if (finished && state.tab === 'versions') loadVersions();
   } catch (error) {
     if (state.route.name !== 'project' || state.project?.id !== id) return;
     if (error.status === 404) {
@@ -1695,6 +1767,66 @@ async function refreshHomeProjects() {
 }
 
 /* ---------- actions ---------- */
+
+async function loadVersions() {
+  const project = state.project;
+  if (!project || state.versionsBusy) return;
+  const projectId = project.id;
+  if (state.versionsProjectId !== projectId) {
+    state.versions = [];
+    state.versionsProjectId = projectId;
+  }
+  state.versionsBusy = true;
+  state.versionsError = '';
+  render();
+  try {
+    const data = await api(`/api/projects/${projectId}/versions`);
+    if (state.project?.id !== projectId) return;
+    state.versions = data.versions || [];
+    if (data.currentVersion && state.project) state.project.currentVersion = data.currentVersion;
+  } catch (error) {
+    if (state.project?.id !== projectId) return;
+    state.versionsError = error.message;
+  } finally {
+    state.versionsBusy = false;
+    if (state.project?.id === projectId) render();
+  }
+}
+
+async function restoreVersion(version) {
+  const project = state.project;
+  if (!project || state.busyAction) return;
+  if (
+    !window.confirm(
+      `Restaurar a versão ${version}? O estado atual é preservado antes da troca.`,
+    )
+  ) {
+    return;
+  }
+  const projectId = project.id;
+  state.busyAction = true;
+  state.restoringVersion = version;
+  render();
+  try {
+    const data = await api(`/api/projects/${projectId}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    });
+    if (state.project?.id !== projectId) return;
+    state.project = data.project;
+    syncProjectSummary(data.project);
+    state.tab = 'preview';
+    saveWorkspaceStateFor(projectId);
+    showToast(`Restaurando a versão ${version}…`);
+    render();
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    state.busyAction = false;
+    state.restoringVersion = null;
+    if (state.project?.id === projectId) render();
+  }
+}
 
 async function createFromComposer() {
   const prompt = state.promptDraft.trim();
@@ -2338,7 +2470,8 @@ document.addEventListener('click', async (event) => {
       state.tab = element.dataset.tab || 'preview';
       if (state.tab === 'code') ensureSelectedFile();
       saveWorkspaceStateFor();
-      render();
+      if (state.tab === 'versions') loadVersions();
+      else render();
       break;
     case 'device':
       state.device = element.dataset.device === 'mobile' ? 'mobile' : 'desktop';
@@ -2388,6 +2521,12 @@ document.addEventListener('click', async (event) => {
       break;
     case 'rebuild':
       rebuild();
+      break;
+    case 'refresh-versions':
+      loadVersions();
+      break;
+    case 'restore-version':
+      restoreVersion(Number(element.dataset.version));
       break;
     case 'create-inspected':
       createFromInspection();

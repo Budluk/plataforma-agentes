@@ -8,10 +8,12 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clonestudio-storage-'));
 process.env.DATA_DIR = dataDir;
 process.env.PERSIST_DELAY_MS = '0';
 process.env.SOURCE_SCAN_TTL_MS = '0';
+process.env.MAX_VERSIONS = '3';
 
 const storage = await import('../server/storage.mjs');
 
-test.after(() => {
+test.after(async () => {
+  await storage.flushPersistence();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -89,3 +91,100 @@ test('persistência agrupada grava o estado final', async () => {
   const saved = db.projects.find((item) => item.id === project.id);
   assert.equal(saved.stage, 'Validando preview');
 });
+
+test('versões: snapshot, deduplicação e restauração com estado atual preservado', async () => {
+  const project = storage.createProject({ prompt: 'Teste de versões' });
+  storage.ensureProjectWorkspace(project.id);
+
+  await storage.writeGeneratedFiles(project.id, [
+    { path: 'src/App.tsx', content: 'export default function App() { return "v1"; }\n' },
+  ]);
+  const first = await storage.snapshotVersion(project.id, {
+    label: 'Geração inicial',
+    kind: 'generation',
+  });
+  assert.equal(first.version, 1);
+  assert.equal(storage.getProject(project.id).currentVersion, 1);
+  assert.equal(storage.listVersions(project.id).length, 1);
+
+  // Recompilar o mesmo código não cria versão nova.
+  const repeated = await storage.snapshotVersion(project.id, { label: 'Recompilação' });
+  assert.equal(repeated.version, 1);
+  assert.equal(storage.listVersions(project.id).length, 1);
+
+  await storage.writeGeneratedFiles(project.id, [
+    { path: 'src/App.tsx', content: 'export default function App() { return "v2"; }\n' },
+  ]);
+  const second = await storage.snapshotVersion(project.id, {
+    label: 'Alteração por chat',
+    kind: 'generation',
+  });
+  assert.equal(second.version, 2);
+  assert.equal(storage.getProject(project.id).currentVersion, 2);
+
+  const old = storage.getVersion(project.id, 1);
+  assert.match(old.files.find((file) => file.path === 'src/App.tsx').content, /v1/);
+  assert.equal(storage.getVersion(project.id, 99), null);
+
+  // Simula uma edição fora do histórico: restaurar precisa salvar esse estado
+  // antes de sobrescrever o src/.
+  fs.writeFileSync(
+    path.join(storage.appDir(project.id), 'src', 'App.tsx'),
+    'export default function App() { return "v3-manual"; }\n',
+    'utf8',
+  );
+
+  const restored = await storage.restoreVersion(project.id, 1);
+  assert.equal(restored.version, 1);
+  assert.equal(storage.getProject(project.id).currentVersion, 1);
+  const files = storage.readSourceFiles(project.id);
+  assert.match(files.find((file) => file.path === 'src/App.tsx').content, /v1/);
+
+  const versions = storage.listVersions(project.id);
+  assert.equal(versions.length, 3);
+  assert.equal(versions[0].version, 3);
+  assert.equal(versions[0].kind, 'pre-restore');
+  assert.match(
+    storage.getVersion(project.id, 3).files.find((file) => file.path === 'src/App.tsx').content,
+    /v3-manual/,
+  );
+});
+
+test('versões respeitam o limite e preservam o alvo da restauração', async () => {
+  const project = storage.createProject({ prompt: 'Teste de limite de versões' });
+  storage.ensureProjectWorkspace(project.id);
+
+  for (let index = 1; index <= 5; index += 1) {
+    await storage.writeGeneratedFiles(project.id, [
+      {
+        path: 'src/App.tsx',
+        content: `export default function App() { return "limite-${index}"; }\n`,
+      },
+    ]);
+    await storage.snapshotVersion(project.id, { label: `Versão ${index}` });
+  }
+
+  const versions = storage.listVersions(project.id);
+  assert.deepEqual(
+    versions.map((version) => version.version),
+    [5, 4, 3],
+  );
+  assert.equal(storage.getProject(project.id).currentVersion, 5);
+
+  // Edição manual fora do histórico força um snapshot novo na restauração; a
+  // poda não pode apagar a versão que está sendo restaurada.
+  fs.writeFileSync(
+    path.join(storage.appDir(project.id), 'src', 'App.tsx'),
+    'export default function App() { return "manual"; }\n',
+    'utf8',
+  );
+  await storage.restoreVersion(project.id, 3);
+  assert.equal(storage.getProject(project.id).currentVersion, 3);
+  assert.ok(storage.getVersion(project.id, 3));
+  assert.match(
+    storage.readSourceFiles(project.id).find((file) => file.path === 'src/App.tsx').content,
+    /limite-3/,
+  );
+});
+
+

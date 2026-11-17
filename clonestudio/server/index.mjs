@@ -13,6 +13,7 @@ import {
   getProject,
   listProjects,
   listSourceFiles,
+  listVersions,
   projectDetail,
   projectSummary,
   updateProject,
@@ -29,6 +30,7 @@ import {
   isGenerating,
   requestGeneration,
   requestRebuild,
+  requestRestore,
 } from './generator.mjs';
 import { listSkills } from './skills.mjs';
 import {
@@ -513,7 +515,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const projectMatch = pathname.match(
-      /^\/api\/projects\/([a-f0-9-]{36})(?:\/(messages|fix|fix-validation|rebuild|retry|validate))?$/i,
+      /^\/api\/projects\/([a-f0-9-]{36})(?:\/(messages|fix|fix-validation|rebuild|retry|validate|versions|restore))?$/i,
     );
     if (projectMatch) {
       const id = projectMatch[1];
@@ -544,6 +546,31 @@ const server = http.createServer(async (req, res) => {
         }
         deleteProject(id);
         return sendJson(res, 200, { ok: true });
+      }
+
+      if (method === 'GET' && action === 'versions') {
+        return sendJson(res, 200, {
+          currentVersion: project.currentVersion || 0,
+          versions: listVersions(id),
+        });
+      }
+
+      if (method === 'POST' && action === 'restore') {
+        if (isGenerating(id)) throw new HttpError(409, 'Aguarde a geração atual terminar.');
+        if (!['ready', 'error'].includes(project.status)) {
+          throw new HttpError(409, 'O projeto precisa estar pronto para restaurar uma versão.');
+        }
+        const body = await readBody(req);
+        const version = Number(body.version);
+        const meta = listVersions(id).find((item) => item.version === version);
+        if (!meta) throw new HttpError(404, 'Versão não encontrada.');
+        if (!requestRestore(id, meta.version)) {
+          throw new HttpError(409, 'Já existe uma operação em andamento.');
+        }
+        return sendJson(res, 200, {
+          project: projectDetail(getProject(id), base),
+          version: meta,
+        });
       }
 
       if (method === 'POST' && action === 'messages') {
@@ -686,6 +713,8 @@ const server = http.createServer(async (req, res) => {
       [/^\/api\/inspect$/, 'POST'],
       [/^\/api\/import$/, 'POST'],
       [/^\/api\/projects\/[a-f0-9-]{36}\/validation\/screenshot$/i, 'GET'],
+      [/^\/api\/projects\/[a-f0-9-]{36}\/versions$/i, 'GET'],
+      [/^\/api\/projects\/[a-f0-9-]{36}\/restore$/i, 'POST'],
     ];
     const apiRule = API_METHODS.find(([pattern]) => pattern.test(pathname));
     if (apiRule && !apiRule[1].split(', ').includes(method)) {
@@ -708,6 +737,8 @@ const server = http.createServer(async (req, res) => {
           '/api/projects/:id/validate',
           '/api/projects/:id/validation',
           '/api/projects/:id/validation/screenshot',
+          '/api/projects/:id/versions',
+          '/api/projects/:id/restore',
           '/api/providers',
           '/api/skills',
           '/api/integrations',

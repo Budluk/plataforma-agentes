@@ -1753,6 +1753,140 @@ button {
   flex-wrap: wrap;
 }
 
+/* versions view */
+
+.versions-view {
+  height: 100%;
+  overflow: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.versions-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(139, 124, 255, 0.08), rgba(14, 20, 36, 0.9) 52%);
+}
+
+.versions-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.versions-head h2 .icon {
+  color: var(--accent-strong);
+}
+
+.versions-head p {
+  margin: 0;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(14, 20, 36, 0.6);
+}
+
+.version-card.current {
+  border-color: rgba(74, 222, 128, 0.3);
+  background: linear-gradient(120deg, rgba(74, 222, 128, 0.08), rgba(14, 20, 36, 0.75) 55%);
+}
+
+.version-number {
+  flex: none;
+  min-width: 44px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--accent-strong);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.version-card.current .version-number {
+  color: var(--good);
+  border-color: rgba(74, 222, 128, 0.34);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.version-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.version-body strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version-meta {
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.version-current {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--good);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.versions-empty {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 26px 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.versions-empty.error {
+  color: #fecdd6;
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(251, 113, 133, 0.06);
+}
+
 /* code view */
 
 .code-view {

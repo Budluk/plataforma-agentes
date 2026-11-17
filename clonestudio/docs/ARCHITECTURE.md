@@ -132,6 +132,8 @@ O gerador lista os vídeos reais e exige um player funcional: modal com `<iframe
 
 O modelo devolve o conjunto completo de arquivos. Não há aplicação de diff, o que simplifica a validação e evita estados parciais.
 
+Depois de cada build bem-sucedido, o `src/` é copiado para `data/projects/<id>/versions/<n>/src` com um `meta.json` (rótulo, tipo, data, hash e contagem de arquivos). O hash evita versões duplicadas quando só o build é repetido. `POST /api/projects/:id/restore` copia a versão escolhida para um diretório de staging, salva o estado atual como versão (se ele ainda não estiver salvo) e substitui `src/` atomicamente antes de recompilar. O limite padrão é 30 versões por projeto (`MAX_VERSIONS`), sempre preservando a versão atual.
+
 ## Armazenamento
 
 ```text
@@ -146,6 +148,7 @@ data/projects.json
     "messages": [{ "role": "user", "kind": "chat", "content": "…" }],
     "buildLog": "…",
     "previewVersion": 2,
+    "currentVersion": 2,
     "provider": "freellmapi",
     "model": "nvidia/…",
     "knowledge": {
@@ -167,6 +170,8 @@ data/projects.json
 ```
 
 Os arquivos ficam em `data/projects/<id>/app/`. `node_modules` é uma **junction** para `templates/base/node_modules`, porque todas as apps usam o mesmo conjunto fixo de dependências. Isso evita reinstalar dependências por projeto.
+
+Cada versão fica em `data/projects/<id>/versions/<n>/`, com o `src/` completo e um `meta.json` (`version`, `label`, `kind`, `createdAt`, `hash`, `fileCount` e `messageId`). `versions/` não entra no `dist/` nem no `node_modules`; a restauração sempre recompila.
 
 As gravações de `projects.json` são agrupadas com debounce de `PERSIST_DELAY_MS` (150 ms). `createProject`, `deleteProject`, `addMessage` e o encerramento do servidor gravam imediatamente (`flushPersistence`), então uma queda no meio de um build perde no máximo a última etapa intermediária.
 
@@ -209,6 +214,8 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 | POST | `/api/projects/:id/fix-validation` | corrigir problemas encontrados na validação |
 | POST | `/api/projects/:id/retry` | gerar de novo a partir do prompt original (erro sem arquivos) |
 | POST | `/api/projects/:id/rebuild` | recompilar sem LLM (inclui nova validação) |
+| GET | `/api/projects/:id/versions` | lista as versões salvas e a versão atual |
+| POST | `/api/projects/:id/restore` | restaura uma versão, recompila e valida |
 | POST | `/api/projects/:id/validate` | validar o preview sob demanda |
 | GET | `/api/projects/:id/validation` | último relatório de validação |
 | GET | `/api/projects/:id/validation/screenshot` | screenshot PNG da validação |
@@ -228,3 +235,5 @@ Para produção, os próximos passos são: autenticação, rate limiting, fila p
 A validação é controlada por `PREVIEW_VALIDATION`, `PREVIEW_VALIDATION_TIMEOUT_MS`, `PREVIEW_VALIDATION_HOST` e `PREVIEW_BROWSER_CHANNEL`. Com `PREVIEW_VALIDATION=off`, o build continua funcionando e o relatório registra `disabled`.
 
 O Context7 é controlado por `CONTEXT7_ENABLED`, `CONTEXT7_BASE_URL`, `CONTEXT7_API_KEY`, `CONTEXT7_TIMEOUT_MS`, `CONTEXT7_MAX_LIBRARIES`, `CONTEXT7_MAX_CHARS` e `CONTEXT7_CACHE_TTL_MS`. Com `CONTEXT7_ENABLED=off`, o gerador não faz chamadas MCP e registra `disabled`.
+
+O histórico de versões é controlado por `MAX_VERSIONS` (padrão 30). As versões guardam apenas `src/`; `dist/` e `node_modules` são reconstruídos a cada restauração.

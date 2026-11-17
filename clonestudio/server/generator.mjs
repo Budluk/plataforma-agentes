@@ -8,6 +8,8 @@ import {
   getProject,
   listSourceFiles,
   readSourceFiles,
+  restoreVersion,
+  snapshotVersion,
   syncProjectTemplate,
   templateMainSource,
   TEMPLATE_DIR,
@@ -666,6 +668,23 @@ async function runGeneration(id, options = {}) {
     setStage(id, 'Compilando o app');
     await buildProject(id);
 
+    const versionLabel = isFresh
+      ? 'Geração reiniciada'
+      : isValidationFix
+        ? 'Correção da validação'
+        : isFix
+          ? 'Correção de build'
+          : files.length
+            ? 'Alteração por chat'
+            : 'Geração inicial';
+    await snapshotVersion(id, {
+      label: versionLabel,
+      kind: 'generation',
+      messageId: currentMessageId,
+    }).catch((error) => {
+      console.warn(`[versions] projeto ${id}: ${error.message}`);
+    });
+
     const summary =
       parsed.message ||
       `App ${files.length ? 'atualizado' : 'gerado'} com ${parsed.files.length} arquivo(s).`;
@@ -724,6 +743,9 @@ export function requestRebuild(id) {
     .then(async () => {
       try {
         await buildProject(id);
+        await snapshotVersion(id, { label: 'Recompilação', kind: 'rebuild' }).catch((error) => {
+          console.warn(`[versions] projeto ${id}: ${error.message}`);
+        });
         addMessage(id, {
           role: 'assistant',
           kind: 'info',
@@ -742,6 +764,47 @@ export function requestRebuild(id) {
           role: 'assistant',
           kind: 'error',
           content: `O build falhou: ${truncate(error.message, 2500)}`,
+        });
+      }
+    })
+    .finally(() => jobs.delete(id));
+  jobs.set(id, promise);
+  return true;
+}
+
+export function requestRestore(id, version) {
+  if (jobs.has(id)) return false;
+  // O status muda antes da resposta para o painel acompanhar o build da versão
+  // restaurada em vez de mostrar o preview antigo.
+  updateProject(id, {
+    status: 'building',
+    stage: `Restaurando a versão ${version}`,
+    error: null,
+  });
+  const promise = Promise.resolve()
+    .then(() => new Promise((resolve) => setImmediate(resolve)))
+    .then(async () => {
+      try {
+        const meta = await restoreVersion(id, version);
+        await buildProject(id);
+        addMessage(id, {
+          role: 'assistant',
+          kind: 'info',
+          content: `Versão ${meta.version} restaurada e build concluído com sucesso.`,
+        });
+        updateProject(id, { stage: '' });
+      } catch (error) {
+        if (!getProject(id)) return;
+        updateProject(id, {
+          status: 'error',
+          stage: '',
+          error: truncate(error.message, 5000),
+          buildLog: truncate(error.message, 16000),
+        });
+        addMessage(id, {
+          role: 'assistant',
+          kind: 'error',
+          content: `Não foi possível restaurar a versão ${version}: ${truncate(error.message, 2500)}`,
         });
       }
     })

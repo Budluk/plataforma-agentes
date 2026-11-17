@@ -9,6 +9,7 @@ export const TEMPLATE_DIR = path.join(ROOT, 'templates', 'base');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const MAX_PROJECTS = 80;
 const MAX_MESSAGES = 80;
+const MAX_VERSIONS = Math.max(1, Number(process.env.MAX_VERSIONS ?? 30));
 const PERSIST_DELAY_MS = Math.max(0, Number(process.env.PERSIST_DELAY_MS ?? 150));
 const SOURCE_SCAN_TTL_MS = Math.max(0, Number(process.env.SOURCE_SCAN_TTL_MS ?? 5000));
 
@@ -255,6 +256,204 @@ export function distDir(id) {
   return path.join(appDir(id), 'dist');
 }
 
+export function versionsDir(id) {
+  return path.join(PROJECTS_DIR, id, 'versions');
+}
+
+function versionNumber(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1 || number > 1_000_000) return null;
+  return number;
+}
+
+function readVersionMeta(dir) {
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));
+    const version = versionNumber(meta?.version);
+    if (!version) return null;
+    return {
+      version,
+      label: typeof meta.label === 'string' ? meta.label : '',
+      kind: typeof meta.kind === 'string' ? meta.kind : 'build',
+      createdAt: typeof meta.createdAt === 'string' ? meta.createdAt : '',
+      hash: typeof meta.hash === 'string' ? meta.hash : '',
+      fileCount: Number(meta.fileCount) || 0,
+      messageId: typeof meta.messageId === 'string' ? meta.messageId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readVersionFiles(dir) {
+  const src = path.join(dir, 'src');
+  const byPath = new Map();
+  for (const entry of scanSourceEntries(src)) byPath.set(entry.path, entry.absolute);
+  return sortSourceFiles([...byPath.keys()].map((relative) => `src/${relative}`)).map(
+    (relative) => ({
+      path: relative,
+      content: fs.readFileSync(byPath.get(relative.replace(/^src\//, '')), 'utf8'),
+    }),
+  );
+}
+
+export function listVersions(id) {
+  const root = versionsDir(id);
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const versions = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+    const meta = readVersionMeta(path.join(root, entry.name));
+    if (meta) versions.push(meta);
+  }
+  return versions.sort((a, b) => b.version - a.version);
+}
+
+export function getVersion(id, value) {
+  const number = versionNumber(value);
+  if (!number) return null;
+  const dir = path.join(versionsDir(id), String(number));
+  const meta = readVersionMeta(dir);
+  if (!meta || !fs.existsSync(path.join(dir, 'src'))) return null;
+  return { ...meta, files: readVersionFiles(dir) };
+}
+
+function sourceHash(files) {
+  const hash = crypto.createHash('sha1');
+  for (const file of files) {
+    hash.update(String(file.path));
+    hash.update('\0');
+    hash.update(String(file.content));
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
+export async function snapshotVersion(
+  id,
+  { label = '', kind = 'build', messageId = null, protect = [] } = {},
+) {
+  const project = getProject(id);
+  if (!project) return null;
+  const src = path.join(appDir(id), 'src');
+  if (!fs.existsSync(src)) return null;
+  const files = readSourceFiles(id);
+  if (!files.length) return null;
+
+  const hash = sourceHash(files);
+  const currentNumber = versionNumber(project.currentVersion);
+  const currentMeta = currentNumber
+    ? readVersionMeta(path.join(versionsDir(id), String(currentNumber)))
+    : null;
+  // Recompilar sem mudar o código não deve criar uma versão nova.
+  if (currentMeta && currentMeta.hash === hash) return currentMeta;
+
+  const root = versionsDir(id);
+  const existing = listVersions(id);
+  const next = existing.length ? Math.max(...existing.map((version) => version.version)) + 1 : 1;
+  const staging = path.join(root, `.tmp-${process.pid}-${Date.now()}`);
+  const target = path.join(root, String(next));
+  const meta = {
+    version: next,
+    label,
+    kind,
+    createdAt: now(),
+    hash,
+    fileCount: files.length,
+    messageId,
+  };
+
+  await fs.promises.mkdir(root, { recursive: true });
+  try {
+    await fs.promises.mkdir(staging, { recursive: true });
+    await fs.promises.cp(src, path.join(staging, 'src'), { recursive: true });
+    await fs.promises.writeFile(
+      path.join(staging, 'meta.json'),
+      JSON.stringify(meta, null, 2),
+      'utf8',
+    );
+    await fs.promises.rename(staging, target);
+  } finally {
+    await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => {});
+  }
+
+  updateProject(id, { currentVersion: next });
+
+  // Mantém as versões mais recentes e nunca apaga a versão atual nem as que a
+  // operação em andamento precisa preservar (ex.: o alvo de uma restauração).
+  const keep = new Set([next]);
+  if (currentNumber) keep.add(currentNumber);
+  for (const value of Array.isArray(protect) ? protect : [protect]) {
+    const number = versionNumber(value);
+    if (number) keep.add(number);
+  }
+  for (const old of listVersions(id).slice(MAX_VERSIONS)) {
+    if (keep.has(old.version)) continue;
+    await fs.promises
+      .rm(path.join(root, String(old.version)), { recursive: true, force: true })
+      .catch(() => {});
+  }
+  return meta;
+}
+
+export async function restoreVersion(id, value) {
+  const project = getProject(id);
+  if (!project) throw new Error('Projeto não encontrado.');
+  const number = versionNumber(value);
+  if (!number) throw new Error('Versão inválida.');
+  const dir = path.join(versionsDir(id), String(number));
+  const meta = readVersionMeta(dir);
+  const source = path.join(dir, 'src');
+  if (!meta || !fs.existsSync(source)) throw new Error(`A versão ${number} não existe.`);
+
+  const app = ensureProjectWorkspace(id);
+  const target = path.join(app, 'src');
+  const staging = path.join(app, `.src-restore-${process.pid}-${Date.now()}`);
+  const previous = path.join(app, `.src-before-restore-${process.pid}-${Date.now()}`);
+
+  // Copia a versão escolhida antes de qualquer poda: o snapshot do estado
+  // atual pode remover versões antigas quando o limite é atingido.
+  await fs.promises.cp(source, staging, { recursive: true });
+
+  try {
+    // Guarda o estado atual antes de sobrescrever, para que a restauração
+    // também possa ser desfeita.
+    await snapshotVersion(id, {
+      label: `Antes de restaurar a versão ${number}`,
+      kind: 'pre-restore',
+      protect: [number],
+    });
+
+    invalidateSourceCache(id);
+
+    let movedPrevious = false;
+    if (fs.existsSync(target)) {
+      await fs.promises.rename(target, previous);
+      movedPrevious = true;
+    }
+    try {
+      await fs.promises.rename(staging, target);
+    } catch (error) {
+      if (movedPrevious) await fs.promises.rename(previous, target).catch(() => {});
+      throw error;
+    }
+    if (movedPrevious) {
+      await fs.promises.rm(previous, { recursive: true, force: true }).catch(() => {});
+    }
+  } finally {
+    await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => {});
+    invalidateSourceCache(id);
+  }
+
+  updateProject(id, { currentVersion: number });
+  return meta;
+}
+
 function copyTemplate(target) {
   if (!fs.existsSync(TEMPLATE_DIR)) {
     throw new Error('Template base não encontrado em templates/base.');
@@ -490,6 +689,7 @@ export function projectSummary(project, previewBase) {
     provider: project.provider || null,
     model: project.model || null,
     previewVersion: project.previewVersion || 0,
+    currentVersion: project.currentVersion || 0,
     previewUrl: previewBase ? `${previewBase}/preview/${project.id}/` : null,
     validation: project.validation || null,
     knowledge: project.knowledge || null,
