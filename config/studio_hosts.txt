@@ -1,0 +1,6 @@
+# Hosts autorizados para a área studio (serviço CloneStudio local).
+# Um por linha. Qualquer host fora desta lista é recusado antes de abrir conexão.
+# Só loopback: o CloneStudio não deve ser exposto na rede.
+127.0.0.1
+localhost
+::1

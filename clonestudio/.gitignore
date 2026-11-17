@@ -1,0 +1,9 @@
+.env
+node_modules/
+data/
+.logs/
+*.log
+.DS_Store
+templates/base/node_modules/
+templates/base/dist/
+templates/base/.vite/

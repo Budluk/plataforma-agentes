@@ -7,6 +7,11 @@ SEED = [
     ("analyst", "write_research_note"),
     ("risk_manager", "read_portfolio"),
     ("pipeline", "emit_alert"), ("music_agent", "identify_chord"), ("music_agent", "transpose_notes"), ("music_agent", "to_guitar_tab"), ("sales_agent", "compute_margin"), ("sales_agent", "suggest_price"), ("sales_agent", "break_even"), ("sales_agent", "analyze_funnel"), ("research_agent", "fetch_page"), ("dev_agent", "analyze_code"), ("dev_agent", "save_code_file"),
+    ("studio_agent", "studio_health"),
+    ("studio_agent", "studio_list_apps"),
+    ("studio_agent", "studio_create_app"),
+    ("studio_agent", "studio_app_status"),
+    ("studio_agent", "studio_validate_app"),
 ]
 
 

@@ -13,6 +13,7 @@ from agents.research.fetcher import HttpFetcher
 from agents.research.urlgate import load_allowed_domains
 from agents.finance.market_data import HttpMarketData, load_market_hosts
 from agents.finance.portfolio_file import load_portfolio
+from agents.studio.client import StudioClient, StudioError, load_studio_hosts
 from core.llm_client import HttpLLMClient, LLMError
 from pipelines.central_wiring import build_central
 from scripts.init_db import create_all
@@ -37,12 +38,22 @@ def main() -> int:
     allowed_imports = load_allowed_imports(ROOT / "config" / "dev_allowed_imports.txt")
     db = ROOT / "data" / "sqlite.db"
     create_all(db)
+    try:
+        studio = StudioClient(
+            os.getenv("STUDIO_BASE_URL") or "http://127.0.0.1:8787",
+            load_studio_hosts(ROOT / "config" / "studio_hosts.txt"),
+            timeout=float(os.getenv("STUDIO_TIMEOUT_MS") or 30000) / 1000.0,
+        )
+    except (StudioError, ValueError) as exc:
+        print("aviso: área studio desativada:", exc, file=sys.stderr)
+        studio = None
     # finanças: preço real (somente leitura) + portfólio de data/portfolio.json (ausente ou antigo = rejeita)
     central = build_central(router_llm=llm, area_llm=llm, db=db, data_dir=ROOT / "data",
                             allowed_domains=allowed_domains, allowed_imports=allowed_imports,
                             fetcher=HttpFetcher(allowed_domains, user_agent=os.getenv("RESEARCH_USER_AGENT") or None),
                             market=HttpMarketData(load_market_hosts(ROOT / "config" / "market_data_hosts.txt")),
-                            portfolio_provider=lambda: load_portfolio(ROOT / "data" / "portfolio.json"))
+                            portfolio_provider=lambda: load_portfolio(ROOT / "data" / "portfolio.json"),
+                            studio_client=studio)
     r = central.handle(sys.argv[1])
     print(json.dumps({"area": r.area, "dispatched": r.dispatched, "ok": r.ok, "data": r.data,
                       "reasons": r.reasons}, ensure_ascii=False, indent=2))

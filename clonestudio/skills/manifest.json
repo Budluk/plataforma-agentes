@@ -1,0 +1,34 @@
+{
+  "skills": [
+    {
+      "id": "cloudflare-security-audit",
+      "repo": "https://github.com/cloudflare/security-audit-skill",
+      "install": "npx skills add https://github.com/cloudflare/security-audit-skill --skill security-audit"
+    },
+    {
+      "id": "thirdwatch-scraping",
+      "repo": "https://github.com/thirdwatch-dev/scraping-skills",
+      "install": "npx skills add https://github.com/thirdwatch-dev/scraping-skills"
+    },
+    {
+      "id": "context7",
+      "repo": "https://github.com/upstash/context7",
+      "install": "npx ctx7 setup"
+    },
+    {
+      "id": "remotion",
+      "repo": "https://github.com/remotion-dev/skills",
+      "install": "npx skills add remotion-dev/skills"
+    },
+    {
+      "id": "composio",
+      "repo": "https://github.com/ComposioHQ/composio",
+      "install": "npm install @composio/core"
+    },
+    {
+      "id": "google-workspace-cli",
+      "repo": "https://github.com/googleworkspace/cli",
+      "install": "npm install -g @googleworkspace/cli"
+    }
+  ]
+}

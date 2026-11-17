@@ -2,7 +2,8 @@ from __future__ import annotations
 from core.contracts import MonitorVerdict, ToolCall
 from core.hard_gate import ExecutionToolForbidden, assert_no_execution_tool
 
-KNOWN_TOOLS = frozenset({"get_market_data", "read_portfolio", "write_research_note", "emit_alert", "identify_chord", "transpose_notes", "to_guitar_tab", "compute_margin", "suggest_price", "break_even", "analyze_funnel", "fetch_page", "analyze_code", "save_code_file"})
+KNOWN_TOOLS = frozenset({"get_market_data", "read_portfolio", "write_research_note", "emit_alert", "identify_chord", "transpose_notes", "to_guitar_tab", "compute_margin", "suggest_price", "break_even", "analyze_funnel", "fetch_page", "analyze_code", "save_code_file", "studio_health", "studio_list_apps", "studio_create_app", "studio_app_status", "studio_validate_app"})
+STUDIO_TOOLS = frozenset({"studio_list_apps", "studio_create_app", "studio_app_status", "studio_validate_app"})
 DANGEROUS_PATTERNS = ("__import__", "eval(", "exec(", "os.system", "subprocess", "$(", "`", "../", "..\\", "&&")
 MAX_STR_LEN = 5000
 MAX_DEPTH = 5
@@ -69,6 +70,8 @@ class ToolMonitor:
     def _sequence(self, call: ToolCall, history: list[str]) -> str | None:
         if call.tool == "emit_alert" and "read_portfolio" not in history:
             return "emit_alert exige read_portfolio antes na mesma execução"
+        if call.tool in STUDIO_TOOLS and "studio_health" not in history:
+            return f"{call.tool} exige studio_health antes na mesma execução"
         if history[-2:] == [call.tool, call.tool]:
             return f"loop detectado: {call.tool!r} chamada 3 vezes seguidas"
         return None
