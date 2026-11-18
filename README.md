@@ -145,3 +145,53 @@ o hard gate rejeita. Como o gate não consegue verificar esses números, ele só
 
 Limites: o sistema só emite alertas e não executa ordens. As regras de risco são marcadores de posição, e não recomendação financeira.
 Os três serviços são gratuitos, podem mudar o formato, impor limites ou sair do ar; nesses casos a análise é rejeitada com o motivo.
+## Conteudo autonomo (medicao, geracao e proposta)
+
+Modulo adicional, isolado das areas originais. Estado: funcional, com
+publicacao real desabilitada.
+
+### O que faz
+
+- Mede crescimento de um conteudo entre duas observacoes no tempo, com tres
+  recortes (latest, window, full), em banco SQLite separado.
+- Gera texto (gancho, roteiro, legenda, hashtags) a partir de um tema, com o
+  LLM em uso, validado contra contrato que recusa link e hashtag malformada.
+- Cria proposta de publicacao com o hash do conteudo, que passa pelo
+  ActionGateway: uma pessoa aprova, a execucao e de uso unico e os parametros
+  ficam amarrados ao hash aprovado.
+- Valida personas em arquivo: persona desabilitada ou tema fora do escopo e
+  recusado antes de gastar token.
+
+### O que NAO faz
+
+- Nao publica em rede nenhuma. O handler em uso e simulado: registra a intencao
+  e devolve publicado: false.
+- Nao produz audio nem video. Roteiro nao e midia publicavel.
+- Nao le tendencias de fonte real ainda. O feed RSS do Google Trends responde,
+  mas o adaptador nao foi escrito.
+
+### Como usar
+
+    .\.venv\Scripts\python.exe scripts\trend_report.py
+    .\.venv\Scripts\python.exe scripts\cycle_cli.py --tema "aula de python"
+    .\.venv\Scripts\python.exe scripts\cycle_live.py --tema "aula de python"
+    .\.venv\Scripts\python.exe scripts\approvals.py list
+    .\.venv\Scripts\python.exe scripts\approvals.py approve ID
+
+O processo agendado scripts\run_trends.ps1 roda duas vezes por dia (06:00 e
+20:00) pelo Agendador de Tarefas do Windows e grava log em logs/.
+
+### Estrutura adicional
+
+- content_automation/: contrato de observacao, armazenamento SQLite, calculo de
+  crescimento, recortes, historico, importacao de CSV e fonte simulada.
+- agents/content/: contrato de conteudo, pipeline com LLM e personas.
+- agents/publisher/: contrato de publicacao, handler simulado e gateway.
+- pipelines/trends_pipeline.py: coleta de sinais, somente leitura.
+- config/content_automation/ e config/personas/: configuracao.
+
+### Testes
+
+129 testes, todos offline: nenhuma chamada de rede, nenhum token gasto. Os do
+gateway rodam pelo pytest; as demais suites ficam em scripts/ com o sufixo
+_offline.py.
