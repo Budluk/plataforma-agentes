@@ -888,12 +888,13 @@ function renderInspectionCard(inspection) {
   const extraDeps = Math.max(0, (inspection.dependencies?.total || 0) - deps.length);
   const features = (inspection.features || []).slice(0, 28);
   const blockers = inspection.blockers || [];
+  const totalDeps = deps.length + extraDeps;
   const createLabel =
     inspection.kind === 'github' ? 'Criar site do GitHub' : 'Criar site do ZIP';
 
   return `<section class="inspect-card" aria-live="polite">
     <header class="inspect-head">
-      <span class="eyebrow">${icon(inspection.kind === 'github' ? 'github' : 'download')} ${esc(inspection.sourceLabel || 'Projeto analisado')}</span>
+      <span class="inspect-source">${icon(inspection.kind === 'github' ? 'github' : 'download')} ${esc(inspection.sourceLabel || 'Projeto analisado')}</span>
       <h3>${esc(inspection.name || 'Projeto')}</h3>
       <p>${esc(inspection.description || 'Sem descrição no projeto.')}</p>
       <div class="inspect-tags">
@@ -917,7 +918,7 @@ function renderInspectionCard(inspection) {
       ${
         features.length
           ? `<div class="inspect-section">
-              <h4>O que ele pode fazer</h4>
+              <h4><span class="inspect-section-icon">${icon('bolt')}</span> O que ele pode fazer <span class="inspect-section-count">${features.length}</span></h4>
               <ul class="feature-list">
                 ${features
                   .map(
@@ -933,7 +934,7 @@ function renderInspectionCard(inspection) {
       ${
         deps.length
           ? `<div class="inspect-section">
-              <h4>Dependências principais</h4>
+              <h4><span class="inspect-section-icon">${icon('layers')}</span> Dependências principais <span class="inspect-section-count">${totalDeps}</span></h4>
               <div class="dep-chips">
                 ${deps
                   .map(
@@ -950,7 +951,7 @@ function renderInspectionCard(inspection) {
       ${
         inspection.routes?.length
           ? `<div class="inspect-section">
-              <h4>Rotas detectadas</h4>
+              <h4><span class="inspect-section-icon">${icon('code')}</span> Rotas detectadas <span class="inspect-section-count">${inspection.routes.length}</span></h4>
               <div class="dep-chips">
                 ${inspection.routes
                   .slice(0, 16)
@@ -1006,7 +1007,7 @@ function renderInspirationCard(report) {
   const content = report.content || {};
   const stats = [
     ['Público', audience.sizeLabel || 'desconhecido'],
-    ['Seguidores/inscritos', formatMetric(metrics.followers)],
+    ['Seguidores', formatMetric(metrics.followers)],
     ['Visualizações', formatMetric(metrics.totalViews)],
     ['Curtidas', formatMetric(metrics.totalLikes)],
     ['Comentários', formatMetric(metrics.totalComments)],
@@ -1017,13 +1018,13 @@ function renderInspirationCard(report) {
   const limitations = report.limitations || [];
   return `<section class="inspire-card" aria-live="polite">
     <header class="inspect-head">
-      <span class="eyebrow">${icon('trending')} Inspiração · ${esc(report.platformLabel || report.platform)}</span>
+      <span class="inspect-source">${icon('trending')} Inspiração · ${esc(report.platformLabel || report.platform)}</span>
       <h3>${esc(report.title || report.handle || 'Página analisada')}</h3>
       <p>${esc(report.description || 'Sem descrição pública disponível.')}</p>
       <div class="inspect-tags">
         ${report.handle ? `<span class="inspect-tag">${esc(report.handle)}</span>` : ''}
         ${themes.map((theme) => `<span class="inspect-tag">${esc(theme)}</span>`).join('')}
-        <a class="inspect-tag" href="${esc(report.url)}" target="_blank" rel="noreferrer">Abrir página</a>
+        <a class="inspect-tag" href="${esc(report.url)}" target="_blank" rel="noreferrer">${icon('external')} Abrir página</a>
       </div>
     </header>
     <div class="inspect-body">
@@ -1038,17 +1039,17 @@ function renderInspirationCard(report) {
 
       <div class="inspire-grid">
         <div class="inspect-section">
-          <h4>${icon('users')} Público estimado</h4>
+          <h4><span class="inspect-section-icon">${icon('users')}</span> Público estimado</h4>
           <p>${esc(audience.summary || 'Sem métricas públicas suficientes para estimar o público.')}</p>
         </div>
         <div class="inspect-section">
-          <h4>${icon('eye')} Alcance público</h4>
+          <h4><span class="inspect-section-icon">${icon('eye')}</span> Alcance público</h4>
           <p>${esc(reach.summary || 'A plataforma não informou alcance público.')}</p>
         </div>
       </div>
 
       <div class="inspect-section">
-        <h4>${icon('layers')} Formato e temas</h4>
+        <h4><span class="inspect-section-icon">${icon('layers')}</span> Formato e temas ${hashtags.length ? `<span class="inspect-section-count">${hashtags.length}</span>` : ''}</h4>
         <p>Formato: ${esc(content.format || 'não informado')}.</p>
         ${
           hashtags.length
