@@ -1,3 +1,4 @@
+import pytest
 from core.contracts import ToolCall
 from core.tool_monitor import ToolMonitor
 
@@ -20,14 +21,37 @@ def test_blocks_execution_tool():
     assert not v.allowed and v.head == "veto"
 
 
-def test_blocks_dangerous_param():
-    v = ToolMonitor().check(call("write_research_note", text="__import__('os')"), [])
+def test_allows_shell_like_text_in_free_text_fields():
+    text = "use `cmd && echo $(date)`, veja ../relatorio.py e __import__('os')"
+    v = ToolMonitor().check(call("write_research_note", text=text), [])
+    assert v.allowed and v.head == "cascade"
+
+
+def test_blocks_dangerous_path_param():
+    v = ToolMonitor().check(call("save_code_file", filename="../../etc"), [])
     assert not v.allowed and v.head == "params"
 
 
-def test_blocks_nested_dangerous_param():
-    v = ToolMonitor().check(call("write_research_note", data={"a": ["ok", "../../etc"]}), [])
-    assert not v.allowed
+def test_blocks_dangerous_path_in_nested_param():
+    v = ToolMonitor().check(call("save_code_file", data={"a": ["ok", {"path": "..\\segredo"}]}), [])
+    assert not v.allowed and v.head == "params"
+
+
+@pytest.mark.parametrize("filename", [
+    "/etc/passwd",
+    "C:\\windows\\system32",
+    "..%2f..%2fetc",
+    "%252e%252e%252fetc",
+    "．．／etc",
+    "",
+])
+def test_rejects_obfuscated_or_absolute_paths(filename):
+    v = ToolMonitor().check(call("save_code_file", filename=filename), [])
+    assert not v.allowed and v.head == "params"
+
+
+def test_accepts_plain_filename():
+    assert ToolMonitor().check(call("save_code_file", filename="App.py"), []).allowed
 
 
 def test_emit_alert_requires_read_portfolio():

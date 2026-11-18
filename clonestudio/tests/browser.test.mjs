@@ -21,13 +21,22 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const OPEN_KEY = 'clonestudio.openProjects';
 const STATES_KEY = 'clonestudio.workspaceStates';
 
-function findEdge() {
+function findBrowser() {
   const candidates = [
     process.env.EDGE_PATH,
+    process.env.CHROME_PATH,
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   ].filter(Boolean);
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+  const installed = candidates.find((candidate) => fs.existsSync(candidate));
+  if (installed) return installed;
+  // No CI, o Chromium é instalado pelo playwright-core.
+  try {
+    const bundled = chromium.executablePath();
+    return bundled && fs.existsSync(bundled) ? bundled : null;
+  } catch {
+    return null;
+  }
 }
 
 function freePort() {
@@ -96,9 +105,9 @@ function writeDist(id, storage, title) {
 }
 
 test('abas, janelas e persistência do workspace', async (t) => {
-  const edgePath = findEdge();
-  if (!edgePath) {
-    t.skip('Microsoft Edge não encontrado; defina EDGE_PATH para rodar este teste.');
+  const browserPath = findBrowser();
+  if (!browserPath) {
+    t.skip('Navegador não encontrado; defina EDGE_PATH/CHROME_PATH ou instale o Chromium.');
     return;
   }
 
@@ -162,7 +171,7 @@ test('abas, janelas e persistência do workspace', async (t) => {
   await waitForServer(`http://127.0.0.1:${previewPort}/preview/${alpha.id}/`, 20000, getLogs);
 
   browser = await chromium.launch({
-    executablePath: edgePath,
+    executablePath: browserPath,
     headless: true,
     args: ['--disable-gpu', '--no-first-run'],
   });

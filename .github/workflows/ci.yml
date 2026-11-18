@@ -15,7 +15,9 @@ jobs:
           python-version: '3.12'
           cache: pip
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.lock
+      - name: Conferir dependencias
+        run: pip check
       - name: Testes
         run: python -m pytest -q
       - name: Verificar ambiente
@@ -35,3 +37,22 @@ jobs:
         run: npm run check
       - name: Testes do CloneStudio
         run: npm test
+
+  studio-browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clonestudio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: clonestudio/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Instalar Chromium
+        run: npx playwright-core install --with-deps chromium
+      - name: Testes de navegador
+        run: npm run test:browser

@@ -67,12 +67,14 @@ def test_llm_failure_rejected_with_reason(env):
     assert not res.approved and "LLMError" in res.reasons[0]
 
 
-# --- 4.1 parâmetro perigoso e sequência perigosa via agente ---
-def test_dangerous_param_blocked_via_agent(env):
+# --- 4.1 texto livre e sequência perigosa via agente ---
+def test_shell_like_free_text_is_allowed_via_agent(env):
+    """Texto de nota não vai para shell; só campos de caminho são validados."""
     a = make(Analyst, env, llm=FakeLLM(OK))
-    with pytest.raises(ToolBlocked) as exc:
-        a.call_tool("write_research_note", asset="PETR4", text="$(rm -rf /)")
-    assert exc.value.head == "params"
+    text = "use `date` e $(id); veja ../relatorio.py"
+    filename = a.call_tool("write_research_note", asset="PETR4", text=text)
+    assert filename == "PETR4_1.md"
+    assert (env.notes / filename).read_text(encoding="utf-8") == text
 
 
 def test_emit_alert_without_risk_check_blocked(env):

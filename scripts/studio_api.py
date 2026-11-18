@@ -16,8 +16,9 @@ Endpoints (JSON):
 
 Segurança: bind apenas em loopback, corpo limitado a 64 KB e, se
 STUDIO_API_TOKEN estiver definido, Authorization: Bearer <token> é
-obrigatório em todas as rotas. Erros não previstos devolvem 500 JSON
-(sem detalhe interno) e são registrados no JSONL de auditoria.
+obrigatório em todas as rotas. As chamadas ao pipeline são limitadas (excesso
+devolve 503 JSON) e erros não previstos devolvem 500 JSON (sem detalhe
+interno), registrados no JSONL de auditoria.
 """
 from __future__ import annotations
 
@@ -45,6 +46,7 @@ from pipelines.studio_pipeline import StudioPipeline, StudioResult
 from scripts.init_db import create_all
 
 MAX_BODY_BYTES = 64 * 1024
+MAX_CONCURRENT_CALLS = 4
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8790
 MIN_TOKEN_CHARS = 16
@@ -163,12 +165,24 @@ def _internal_error(logger, exc: BaseException) -> ApiResponse:
     return _error(500, f"erro interno ({type(exc).__name__})")
 
 
-def _execute(pipeline, method: str, params: dict, logger) -> ApiResponse:
-    """Chama o pipeline; qualquer exceção inesperada vira 500 em vez de conexão cortada."""
+def _execute(pipeline, method: str, params: dict, logger, limiter=None) -> ApiResponse:
+    """Chama o pipeline com limite de concorrência e 500 controlado.
+
+    O semáforo cobre só a chamada ao pipeline: descoberta, validação e erros
+    de corpo não ocupam uma vaga, e rotas de liveness nunca ficam na fila.
+    """
+    acquired = False
+    if limiter is not None:
+        acquired = limiter.acquire(blocking=False)
+        if not acquired:
+            return _error(503, "limite de chamadas simultâneas atingido; tente novamente")
     try:
         return _result(getattr(pipeline, method)(**params))
     except Exception as exc:
         return _internal_error(logger, exc)
+    finally:
+        if acquired:
+            limiter.release()
 
 
 def _parse_body(body: bytes) -> dict | ApiResponse:
@@ -234,7 +248,7 @@ def _content_type_ok(headers, body: bytes) -> bool:
 
 
 def dispatch(pipeline, *, method: str, target: str, headers, body: bytes,
-             token: str | None = None, logger=None) -> ApiResponse:
+             token: str | None = None, logger=None, limiter=None) -> ApiResponse:
     """Resolve uma requisição sem tocar em sockets (testável isoladamente)."""
     if not _host_allowed(headers):
         return _error(400, "Host não permitido; use 127.0.0.1 ou localhost")
@@ -269,7 +283,7 @@ def dispatch(pipeline, *, method: str, target: str, headers, body: bytes,
         problem = _check_params(RUN_SPEC, parsed)
         if problem:
             return _error(400, problem)
-        return _execute(pipeline, "run", parsed, logger)
+        return _execute(pipeline, "run", parsed, logger, limiter)
 
     if path.startswith("/tools/"):
         name = path[len("/tools/"):]
@@ -286,7 +300,7 @@ def dispatch(pipeline, *, method: str, target: str, headers, body: bytes,
         problem = _check_params(spec, parsed)
         if problem:
             return _error(400, problem)
-        return _execute(pipeline, spec.method, parsed, logger)
+        return _execute(pipeline, spec.method, parsed, logger, limiter)
 
     return _error(404, "rota não encontrada")
 
@@ -319,10 +333,10 @@ class StudioApiHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
         try:
-            with self.server.lock:
-                response = dispatch(self.server.pipeline, method=method, target=self.path,
-                                    headers=self.headers, body=body,
-                                    token=self.server.token, logger=self.server.logger)
+            response = dispatch(self.server.pipeline, method=method, target=self.path,
+                                headers=self.headers, body=body,
+                                token=self.server.token, logger=self.server.logger,
+                                limiter=self.server.pipeline_slots)
         except Exception as exc:  # bug na própria API: responde 500 em vez de derrubar a conexão
             response = _internal_error(self.server.logger, exc)
         self._send(response)
@@ -362,17 +376,21 @@ class StudioApiServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, pipeline, token: str | None = None):
+    def __init__(self, address, pipeline, token: str | None = None,
+                 max_concurrent_calls: int = MAX_CONCURRENT_CALLS):
         super().__init__(address, StudioApiHandler)
+        if max_concurrent_calls < 1:
+            raise ValueError("max_concurrent_calls precisa ser pelo menos 1")
         self.pipeline = pipeline
         self.token = token
         # Só um JsonlLogger de verdade serve para registrar erros da API; um
         # pipeline de teste pode não ter logger (ou ter um atributo qualquer).
         logger = getattr(pipeline, "logger", None)
         self.logger = logger if isinstance(logger, JsonlLogger) else None
-        # O pipeline grava em SQLite e no JSONL; serializar as chamadas evita
-        # contenção e combina com a fila única de builds do CloneStudio.
-        self.lock = threading.Lock()
+        # O CloneStudio tem fila única de builds; limitar as chamadas evita
+        # contenção no SQLite/JSONL sem transformar o servidor em fila única:
+        # caminhos de liveness e descoberta não passam por este semáforo.
+        self.pipeline_slots = threading.BoundedSemaphore(max_concurrent_calls)
 
     def handle_error(self, request, client_address):
         exc = sys.exc_info()[1]
