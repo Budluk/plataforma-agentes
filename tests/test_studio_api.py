@@ -1,6 +1,7 @@
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -87,6 +88,41 @@ def routes_handler(routes, calls=None):
 def real_pipeline(env, routes, calls=None):
     return StudioPipeline(make_client(routes_handler(routes, calls)), env.memory,
                           env.perms, env.logger, env.monitor)
+
+
+def test_project_id_is_url_encoded_in_every_path():
+    hostile = "abc/../segredo?x=1#y"
+    encoded = quote(hostile, safe="")
+    seen = []
+    project = {"id": hostile, "name": "App", "status": "ready"}
+
+    def handler(request):
+        seen.append(request.url.raw_path.decode("utf-8"))
+        return httpx.Response(200, json={
+            "project": project,
+            "validation": {},
+            "versions": [],
+            "currentVersion": 0,
+        })
+
+    client = StudioClient("http://127.0.0.1:8787", HOSTS,
+                          transport=httpx.MockTransport(handler))
+    try:
+        assert client.status(hostile)["status"] == "ready"
+        assert client.validate(hostile)["project"]["id"] == hostile[:36]
+        assert client.fix(hostile)["status"] == "ready"
+        assert client.versions(hostile)["count"] == 0
+        assert client.restore(hostile, 1)["restoredVersion"] == 1
+    finally:
+        client.close()
+
+    assert seen == [
+        f"/api/projects/{encoded}?files=0",
+        f"/api/projects/{encoded}/validate",
+        f"/api/projects/{encoded}/fix",
+        f"/api/projects/{encoded}/versions",
+        f"/api/projects/{encoded}/restore",
+    ]
 
 
 # --- catálogo e descoberta ------------------------------------------------

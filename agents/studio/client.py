@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 import httpx
 
 MAX_RESPONSE_BYTES = 64_000
@@ -260,14 +260,16 @@ class StudioClient:
         return summary
 
     def status(self, project_id: str) -> dict:
-        data = self._request("GET", f"/api/projects/{project_id}?files=0")
+        ident = quote(project_id, safe="")
+        data = self._request("GET", f"/api/projects/{ident}?files=0")
         project = data.get("project")
         if not isinstance(project, dict):
             raise StudioError("resposta sem projeto")
         return _detail(project)
 
     def validate(self, project_id: str) -> dict:
-        data = self._request("POST", f"/api/projects/{project_id}/validate")
+        ident = quote(project_id, safe="")
+        data = self._request("POST", f"/api/projects/{ident}/validate")
         project = data.get("project")
         if not isinstance(project, dict):
             raise StudioError("resposta sem projeto validado")
@@ -275,7 +277,8 @@ class StudioClient:
 
     # --- ações sobre um projeto existente --------------------------------
     def _action(self, project_id: str, action: str, payload: dict | None = None) -> dict:
-        data = self._request("POST", f"/api/projects/{project_id}/{action}", payload)
+        ident = quote(project_id, safe="")
+        data = self._request("POST", f"/api/projects/{ident}/{action}", payload)
         project = data.get("project")
         if not isinstance(project, dict):
             raise StudioError(f"resposta sem projeto após {action}")
@@ -298,7 +301,8 @@ class StudioClient:
 
     # --- histórico de versões --------------------------------------------
     def versions(self, project_id: str) -> dict:
-        data = self._request("GET", f"/api/projects/{project_id}/versions")
+        ident = quote(project_id, safe="")
+        data = self._request("GET", f"/api/projects/{ident}/versions")
         raw = data.get("versions")
         if not isinstance(raw, list):
             raise StudioError("resposta sem lista de versões")
@@ -310,7 +314,8 @@ class StudioClient:
         }
 
     def restore(self, project_id: str, version: int) -> dict:
-        data = self._request("POST", f"/api/projects/{project_id}/restore",
+        ident = quote(project_id, safe="")
+        data = self._request("POST", f"/api/projects/{ident}/restore",
                              {"version": version})
         project = data.get("project")
         if not isinstance(project, dict):
