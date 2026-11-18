@@ -16,7 +16,8 @@ Endpoints (JSON):
 
 Segurança: bind apenas em loopback, corpo limitado a 64 KB e, se
 STUDIO_API_TOKEN estiver definido, Authorization: Bearer <token> é
-obrigatório em todas as rotas.
+obrigatório em todas as rotas. Erros não previstos devolvem 500 JSON
+(sem detalhe interno) e são registrados no JSONL de auditoria.
 """
 from __future__ import annotations
 
@@ -152,6 +153,24 @@ def _result(result: StudioResult) -> ApiResponse:
     return ApiResponse(200 if result.ok else 422, payload)
 
 
+def _internal_error(logger, exc: BaseException) -> ApiResponse:
+    """Erro não previsto: registra no JSONL e responde 500 sem vazar detalhe interno."""
+    if logger is not None:
+        try:
+            logger.log("api_error", error=type(exc).__name__, detail=str(exc)[:300])
+        except Exception:
+            pass  # o log nunca pode impedir a resposta
+    return _error(500, f"erro interno ({type(exc).__name__})")
+
+
+def _execute(pipeline, method: str, params: dict, logger) -> ApiResponse:
+    """Chama o pipeline; qualquer exceção inesperada vira 500 em vez de conexão cortada."""
+    try:
+        return _result(getattr(pipeline, method)(**params))
+    except Exception as exc:
+        return _internal_error(logger, exc)
+
+
 def _parse_body(body: bytes) -> dict | ApiResponse:
     if len(body) > MAX_BODY_BYTES:
         return _error(413, f"corpo maior que {MAX_BODY_BYTES} bytes")
@@ -215,7 +234,7 @@ def _content_type_ok(headers, body: bytes) -> bool:
 
 
 def dispatch(pipeline, *, method: str, target: str, headers, body: bytes,
-             token: str | None = None) -> ApiResponse:
+             token: str | None = None, logger=None) -> ApiResponse:
     """Resolve uma requisição sem tocar em sockets (testável isoladamente)."""
     if not _host_allowed(headers):
         return _error(400, "Host não permitido; use 127.0.0.1 ou localhost")
@@ -250,7 +269,7 @@ def dispatch(pipeline, *, method: str, target: str, headers, body: bytes,
         problem = _check_params(RUN_SPEC, parsed)
         if problem:
             return _error(400, problem)
-        return _result(pipeline.run(**parsed))
+        return _execute(pipeline, "run", parsed, logger)
 
     if path.startswith("/tools/"):
         name = path[len("/tools/"):]
@@ -267,7 +286,7 @@ def dispatch(pipeline, *, method: str, target: str, headers, body: bytes,
         problem = _check_params(spec, parsed)
         if problem:
             return _error(400, problem)
-        return _result(getattr(pipeline, spec.method)(**parsed))
+        return _execute(pipeline, spec.method, parsed, logger)
 
     return _error(404, "rota não encontrada")
 
@@ -299,10 +318,13 @@ class StudioApiHandler(BaseHTTPRequestHandler):
             self._send(_error(400, str(exc)))
             self.close_connection = True
             return
-        with self.server.lock:
-            response = dispatch(self.server.pipeline, method=method, target=self.path,
-                                headers=self.headers, body=body,
-                                token=self.server.token)
+        try:
+            with self.server.lock:
+                response = dispatch(self.server.pipeline, method=method, target=self.path,
+                                    headers=self.headers, body=body,
+                                    token=self.server.token, logger=self.server.logger)
+        except Exception as exc:  # bug na própria API: responde 500 em vez de derrubar a conexão
+            response = _internal_error(self.server.logger, exc)
         self._send(response)
 
     def _read_body(self) -> bytes:
@@ -344,6 +366,10 @@ class StudioApiServer(ThreadingHTTPServer):
         super().__init__(address, StudioApiHandler)
         self.pipeline = pipeline
         self.token = token
+        # Só um JsonlLogger de verdade serve para registrar erros da API; um
+        # pipeline de teste pode não ter logger (ou ter um atributo qualquer).
+        logger = getattr(pipeline, "logger", None)
+        self.logger = logger if isinstance(logger, JsonlLogger) else None
         # O pipeline grava em SQLite e no JSONL; serializar as chamadas evita
         # contenção e combina com a fila única de builds do CloneStudio.
         self.lock = threading.Lock()

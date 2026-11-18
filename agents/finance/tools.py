@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from agents.finance.market_parsers import MarketDataError
@@ -7,6 +8,17 @@ from core.market import Quote, age_seconds
 from core.memory import Memory
 
 MOCK_PRICES = {"PETR4": 38.0, "VALE3": 62.0, "ITUB4": 33.0, "BTCUSDT": 65000.0, "EURUSD": 1.08}
+_NOTE_NAME = re.compile(r"^(?P<asset>[A-Z0-9]+)_(?P<number>[1-9][0-9]{0,8})\.md$")
+
+
+def _highest_note_number(notes_dir: Path, asset: str) -> int:
+    """Maior número de nota já usado pelo ativo (0 quando ainda não há nota)."""
+    highest = 0
+    for entry in notes_dir.iterdir():
+        match = _NOTE_NAME.fullmatch(entry.name)
+        if match and match.group("asset") == asset:
+            highest = max(highest, int(match.group("number")))
+    return highest
 
 
 def build_tools(memory: Memory, notes_dir, portfolio: dict, market=None, quote_holder: dict | None = None) -> dict:
@@ -41,9 +53,18 @@ def build_tools(memory: Memory, notes_dir, portfolio: dict, market=None, quote_h
         if asset not in ALLOWED_ASSETS:
             raise ValueError(f"ativo não permitido: {asset!r}")
         notes_dir.mkdir(parents=True, exist_ok=True)
-        path = notes_dir / f"{asset}_{len(list(notes_dir.glob(asset + '_*.md'))) + 1}.md"
-        path.write_text(text, encoding="utf-8")
-        return path.name
+        number = _highest_note_number(notes_dir, asset) + 1
+        for _ in range(1000):
+            path = notes_dir / f"{asset}_{number}.md"
+            try:
+                # "x" cria de forma exclusiva: uma nota existente nunca é sobrescrita
+                with open(path, "x", encoding="utf-8") as handle:
+                    handle.write(text)
+            except FileExistsError:
+                number += 1  # outra nota tomou o número entre o cálculo e a criação
+                continue
+            return path.name
+        raise ValueError("não foi possível reservar um nome livre para a nota")
 
     def emit_alert(alert: dict) -> dict:
         event = AlertEvent.model_validate(alert)

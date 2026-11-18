@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from agents.studio.client import StudioClient
+from core.logger import JsonlLogger
 from core.tool_monitor import STUDIO_TOOLS
 from pipelines.studio_pipeline import StudioPipeline, StudioResult
 from scripts.studio_api import (MAX_BODY_BYTES, TOOL_SPECS, StudioApiServer,
@@ -30,12 +31,24 @@ class FakePipeline:
         return call
 
 
-def call(pipeline, method, target, body=b"", headers=None, token=None):
+class BoomPipeline:
+    """Estoura em qualquer chamada, para testar o 500 controlado da API."""
+
+    def __init__(self, logger=None):
+        self.logger = logger
+
+    def __getattr__(self, name):
+        def call(**params):
+            raise RuntimeError("falha inesperada")
+        return call
+
+
+def call(pipeline, method, target, body=b"", headers=None, token=None, logger=None):
     merged = dict(headers or {})
     if body and "Content-Type" not in merged:
         merged["Content-Type"] = "application/json"
     return dispatch(pipeline, method=method, target=target, headers=merged,
-                    body=body, token=token)
+                    body=body, token=token, logger=logger)
 
 
 def make_client(handler, base="http://127.0.0.1:8787"):
@@ -334,3 +347,64 @@ def test_real_http_server_serializes_concurrent_calls(env):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+# --- erros inesperados nunca cortam a conexão -----------------------------
+def read_events(path):
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_unexpected_pipeline_error_is_500_and_logged(tmp_path):
+    logger = JsonlLogger(tmp_path / "api.jsonl")
+    response = call(BoomPipeline(logger), "POST", "/tools/studio_list_apps", b"{}", logger=logger)
+
+    assert response.status == 500
+    assert response.payload["ok"] is False
+    assert "falha inesperada" not in json.dumps(response.payload)
+    events = read_events(tmp_path / "api.jsonl")
+    assert events[-1]["event"] == "api_error"
+    assert events[-1]["error"] == "RuntimeError"
+
+
+def test_unexpected_error_on_run_is_500(tmp_path):
+    logger = JsonlLogger(tmp_path / "api.jsonl")
+    body = json.dumps({"text": "criar um app de tarefas"}).encode()
+    response = call(BoomPipeline(logger), "POST", "/run", body, logger=logger)
+    assert response.status == 500
+    assert response.payload["reasons"] == ["erro interno (RuntimeError)"]
+
+
+def test_error_does_not_break_the_next_request(tmp_path):
+    logger = JsonlLogger(tmp_path / "api.jsonl")
+    boom = BoomPipeline(logger)
+    assert call(boom, "POST", "/tools/studio_list_apps", b"{}", logger=logger).status == 500
+
+    ok = FakePipeline()
+    response = call(ok, "POST", "/tools/studio_list_apps", b"{}", logger=logger)
+    assert response.status == 200
+    assert ok.calls == [("list_apps", {})]
+
+
+def test_real_http_server_unexpected_error_is_500(tmp_path):
+    logger = JsonlLogger(tmp_path / "api.jsonl")
+    server = StudioApiServer(("127.0.0.1", 0), BoomPipeline(logger))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address[:2]
+        with httpx.Client(base_url=f"http://{host}:{port}", timeout=5.0,
+                          trust_env=False) as client:
+            response = client.post("/tools/studio_list_apps")
+            assert response.status_code == 500
+            assert response.json()["ok"] is False
+            assert "falha inesperada" not in response.text
+            # a conexão continua utilizável depois do erro
+            assert client.post("/tools/studio_nope").status_code == 404
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    events = read_events(tmp_path / "api.jsonl")
+    assert events[-1]["event"] == "api_error"
+    assert events[-1]["error"] == "RuntimeError"
