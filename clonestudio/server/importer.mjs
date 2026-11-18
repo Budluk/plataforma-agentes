@@ -31,6 +31,8 @@ function envNumber(name, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = 
 const MAX_DOWNLOAD_BYTES = envNumber('IMPORT_MAX_BYTES', 20_000_000, { min: 1024 });
 const MAX_SOURCE_BYTES = envNumber('IMPORT_MAX_SOURCE_BYTES', 1_500_000, { min: 1024 });
 const SITE_TIMEOUT_MS = envNumber('IMPORT_SITE_TIMEOUT_MS', 25000, { min: 1000 });
+const SITE_RETRY_DELAY_MS = envNumber('IMPORT_SITE_RETRY_DELAY_MS', 2000, { min: 0, max: 10000 });
+const SITE_RETRY_FAST_FAILURE_MS = 12000;
 const MAX_SITE_CHARS = 12000;
 
 const importJobs = new Set();
@@ -230,21 +232,66 @@ export function extractPage(html, url) {
   };
 }
 
-export async function fetchSiteReference(rawUrl) {
-  const url = assertPublicHttpUrl(rawUrl);
-  const rendered = await renderSiteReference(url.href, { timeoutMs: SITE_TIMEOUT_MS }).catch(
-    (error) => {
-      console.warn(`[importer] Renderização falhou: ${error.message}`);
-      return null;
-    },
-  );
+export function isTransientSiteStatus(status) {
+  const code = Number(status || 0);
+  return code === 408 || code === 425 || code === 429 || (code >= 500 && code <= 599);
+}
+
+/**
+ * Decide se vale repetir a leitura. Só repete quando nada foi lido e a falha
+ * parece temporária (HTTP 429/5xx ou erro rápido sem status, como uma falha
+ * momentânea do navegador). Timeout não é repetido para não dobrar a espera.
+ */
+export function shouldRetrySiteFetch({
+  rendered = null,
+  staticReference = null,
+  status = 0,
+  timedOut = false,
+  elapsedMs = 0,
+} = {}) {
+  if (rendered || staticReference) return false;
+  if (isTransientSiteStatus(status)) return true;
+  return !status && !timedOut && elapsedMs < SITE_RETRY_FAST_FAILURE_MS;
+}
+
+export function describeSiteFetchFailure({ status = 0, timedOut = false } = {}) {
+  const seconds = Math.round(SITE_TIMEOUT_MS / 1000);
+  const code = Number(status || 0);
+  if (timedOut) {
+    return `O site demorou mais de ${seconds}s para responder. Tente novamente em instantes.`;
+  }
+  if (code === 403) {
+    return 'O site bloqueou a leitura automática (HTTP 403). Confira se a página abre no navegador.';
+  }
+  if (code === 404) {
+    return 'A página não foi encontrada (HTTP 404). Confira o link e tente novamente.';
+  }
+  if (code === 429) {
+    return 'O site limitou as tentativas de acesso (HTTP 429). Aguarde alguns segundos e tente novamente.';
+  }
+  if (isTransientSiteStatus(code)) {
+    return `O site respondeu com um erro temporário (HTTP ${code}). Tente novamente em instantes.`;
+  }
+  return 'Não foi possível ler a página do site. Confira se o link abre no navegador e tente novamente.';
+}
+
+async function readSiteOnce(url, timeoutMs) {
+  let failure = null;
+  let staticStatus = 0;
+  let timedOut = false;
+
+  const rendered = await renderSiteReference(url.href, { timeoutMs }).catch((error) => {
+    failure = error;
+    console.warn(`[importer] Renderização falhou: ${error.message}`);
+    return null;
+  });
 
   let staticReference = null;
   const needsStatic =
     !rendered || !rendered.description || (rendered.images || []).length === 0;
   if (needsStatic) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), SITE_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await safeFetch(url.href, {
         signal: controller.signal,
@@ -254,6 +301,7 @@ export async function fetchSiteReference(rawUrl) {
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) CloneStudioBot/0.2',
         },
       });
+      staticStatus = response.status;
       if (response.ok) {
         const type = response.headers.get('content-type') || '';
         if (/text\/html|application\/xhtml/i.test(type)) {
@@ -262,22 +310,49 @@ export async function fetchSiteReference(rawUrl) {
         }
       }
     } catch (error) {
-      if (!rendered) {
-        if (error.name === 'AbortError') {
-          throw new Error(
-            `O site demorou mais de ${Math.round(SITE_TIMEOUT_MS / 1000)}s para responder.`,
-          );
-        }
-        throw error;
-      }
+      if (error.name === 'AbortError') timedOut = true;
+      failure = failure || error;
       console.warn(`[importer] Leitura estática falhou: ${error.message}`);
     } finally {
       clearTimeout(timer);
     }
   }
 
+  return { rendered, staticReference, staticStatus, timedOut, failure };
+}
+
+export async function fetchSiteReference(rawUrl) {
+  const url = assertPublicHttpUrl(rawUrl);
+  const startedAt = Date.now();
+  let attempt = await readSiteOnce(url, SITE_TIMEOUT_MS);
+
+  if (
+    shouldRetrySiteFetch({
+      rendered: attempt.rendered,
+      staticReference: attempt.staticReference,
+      status: attempt.staticStatus,
+      timedOut: attempt.timedOut,
+      elapsedMs: Date.now() - startedAt,
+    })
+  ) {
+    console.warn(
+      `[importer] Nova tentativa de leitura (HTTP ${attempt.staticStatus || 'sem resposta'}${
+        attempt.timedOut ? ', tempo esgotado' : ''
+      }).`,
+    );
+    if (SITE_RETRY_DELAY_MS) {
+      await new Promise((resolve) => setTimeout(resolve, SITE_RETRY_DELAY_MS));
+    }
+    attempt = await readSiteOnce(url, SITE_TIMEOUT_MS);
+  }
+
+  const { rendered, staticReference, staticStatus, timedOut, failure } = attempt;
+
   if (!rendered && !staticReference) {
-    throw new Error('Não foi possível ler a página do site.');
+    if (!timedOut && !staticStatus && failure && failure.name !== 'AbortError') {
+      throw failure;
+    }
+    throw new Error(describeSiteFetchFailure({ status: staticStatus, timedOut }));
   }
 
   const base = rendered || staticReference;

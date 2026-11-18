@@ -3,14 +3,17 @@ import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 import {
   assertPublicHttpUrl,
+  describeSiteFetchFailure,
   extractImagesFromHtml,
   extractLinksFromHtml,
   extractPage,
   findEscapingImports,
+  isTransientSiteStatus,
   parseGithubUrl,
   pickProjectFiles,
   resolveUrl,
   shortSitePrompt,
+  shouldRetrySiteFetch,
   unzipEntries,
 } from '../server/importer.mjs';
 
@@ -311,4 +314,34 @@ test('pickProjectFiles aceita imports internos de src/', () => {
   ]);
   const files = pickProjectFiles(unzipEntries(zip));
   assert.ok(files.some((file) => file.path === 'src/components/Card.tsx'));
+});
+
+test('isTransientSiteStatus reconhece erros temporários', () => {
+  for (const status of [408, 425, 429, 500, 503, 599]) {
+    assert.equal(isTransientSiteStatus(status), true, `HTTP ${status} deve ser temporário`);
+  }
+  for (const status of [0, 200, 301, 400, 403, 404, 410, 422]) {
+    assert.equal(isTransientSiteStatus(status), false, `HTTP ${status} não é temporário`);
+  }
+});
+
+test('shouldRetrySiteFetch só repete falhas sem conteúdo e com indício temporário', () => {
+  assert.equal(shouldRetrySiteFetch({ status: 429 }), true);
+  assert.equal(shouldRetrySiteFetch({ status: 503 }), true);
+  assert.equal(shouldRetrySiteFetch({ elapsedMs: 3000 }), true);
+  assert.equal(shouldRetrySiteFetch({ elapsedMs: 20000 }), false);
+  assert.equal(shouldRetrySiteFetch({ timedOut: true }), false);
+  assert.equal(shouldRetrySiteFetch({ status: 404, elapsedMs: 3000 }), false);
+  assert.equal(shouldRetrySiteFetch({ status: 403, elapsedMs: 3000 }), false);
+  assert.equal(shouldRetrySiteFetch({ status: 500, rendered: { title: 'app' } }), false);
+  assert.equal(shouldRetrySiteFetch({ staticReference: { title: 'app' } }), false);
+});
+
+test('describeSiteFetchFailure orienta o usuário conforme a falha', () => {
+  assert.match(describeSiteFetchFailure({ timedOut: true }), /demorou mais de \d+s.*Tente novamente/);
+  assert.match(describeSiteFetchFailure({ status: 403 }), /bloqueou a leitura automática/);
+  assert.match(describeSiteFetchFailure({ status: 404 }), /página não foi encontrada/);
+  assert.match(describeSiteFetchFailure({ status: 429 }), /HTTP 429.*Aguarde alguns segundos/);
+  assert.match(describeSiteFetchFailure({ status: 503 }), /erro temporário \(HTTP 503\)/);
+  assert.match(describeSiteFetchFailure(), /Não foi possível ler a página do site/);
 });
