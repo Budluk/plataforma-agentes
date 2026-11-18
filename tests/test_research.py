@@ -1,11 +1,13 @@
 import json
+import httpcore
 import httpx
 import pytest
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.research.agent import ResearchAgent, build_research_tools
 from agents.research.contracts import ResearchRequest, ResearchSummary
-from agents.research.fetcher import FakeFetcher, FetchError, HttpFetcher
+from agents.research.fetcher import FakeFetcher, FetchError, HttpFetcher, PinnedBackend, PinnedTransport
+from agents.research import urlgate
 from agents.research.sanitize import clean_text, find_injection, html_to_text
 from agents.research.urlgate import check_url, load_allowed_domains
 from core.llm_client import FakeLLM
@@ -58,6 +60,52 @@ def test_load_allowed_domains(tmp_path):
     f.write_text("# c\n\nWikipedia.org\nhttps://x.com\nlocalhost\nfoo.com/bar\ndocs.python.org\n", encoding="utf-8")
     assert load_allowed_domains(f) == frozenset({"wikipedia.org", "docs.python.org"})
     assert load_allowed_domains(tmp_path / "nao_existe.txt") == frozenset()
+
+
+def test_resolve_public_host_fixes_the_public_address(monkeypatch):
+    monkeypatch.setattr(
+        urlgate.socket, "getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 0))],
+    )
+    assert urlgate.resolve_public_host("example.com") == ("93.184.216.34",)
+
+
+@pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.5", "::1", "::ffff:192.168.1.2"])
+def test_resolve_public_host_rejects_private_addresses(monkeypatch, address):
+    monkeypatch.setattr(
+        urlgate.socket, "getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", (address, 0))],
+    )
+    with pytest.raises(ValueError, match="privado"):
+        urlgate.resolve_public_host("example.com")
+
+
+def test_pinned_backend_connects_only_to_the_validated_address(monkeypatch):
+    seen = []
+
+    def fake_connect(self, host, port, **kw):
+        seen.append((host, port))
+        return "stream"
+
+    monkeypatch.setattr(httpcore.SyncBackend, "connect_tcp", fake_connect)
+    backend = PinnedBackend(resolver=lambda host: ("93.184.216.34",))
+    assert backend.connect_tcp("example.com", 443) == "stream"
+    assert seen == [("93.184.216.34", 443)]
+
+
+def test_pinned_backend_fails_closed_without_validated_addresses():
+    backend = PinnedBackend(resolver=lambda host: ())
+    with pytest.raises(httpcore.ConnectError):
+        backend.connect_tcp("example.com", 443)
+
+
+def test_pinned_transport_uses_the_pinned_backend_without_keepalive():
+    transport = PinnedTransport()
+    try:
+        assert isinstance(transport._pool._network_backend, PinnedBackend)
+        assert transport._pool._max_keepalive_connections == 0
+    finally:
+        transport.close()
 
 
 # --- limpeza ---
