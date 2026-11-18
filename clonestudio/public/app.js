@@ -1487,34 +1487,64 @@ function renderCanvas(project) {
     return renderStage(project);
   }
   const src = `${esc(project.previewUrl)}?v=${project.previewVersion}-${state.previewNonce}`;
+  const prettyUrl = esc(String(project.previewUrl || '').replace(/^https?:\/\//, ''));
   return `<div class="preview-wrap">
     <div class="preview-frame ${state.device === 'mobile' ? 'mobile' : ''}">
-      <iframe src="${src}" title="Preview do app gerado" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"></iframe>
+      <div class="preview-chrome">
+        <span class="preview-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="preview-address" title="${esc(project.previewUrl)}">${icon('monitor')}<span>${prettyUrl}</span></span>
+        <span class="preview-version">v${esc(String(project.previewVersion))}</span>
+        <a class="preview-open" href="${esc(project.previewUrl)}" target="_blank" rel="noreferrer" title="Abrir preview em nova aba" aria-label="Abrir preview em nova aba">${icon('external')}</a>
+      </div>
+      <div class="preview-stage">
+        <iframe src="${src}" title="Preview do app gerado" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"></iframe>
+      </div>
     </div>
   </div>`;
 }
 
 function renderStage(project) {
   const steps = [
-    'Gerando código',
-    'Validando arquivos',
-    'Compilando',
-    'Validando preview',
-    'Publicando',
+    ['Gerando código', 'O modelo está escrevendo React + TypeScript'],
+    ['Validando arquivos', 'Conferindo imports e arquivos obrigatórios'],
+    ['Compilando', 'Rodando o build do Vite'],
+    ['Validando preview', 'Abrindo o app em um navegador real'],
+    ['Publicando', 'Liberando a nova versão do preview'],
   ];
+  const states = steps.map((_, index) => stageStepState(project, index));
+  const done = states.filter((status) => status === 'done').length;
+  const activeIndex = states.indexOf('active');
+  const current = steps[activeIndex >= 0 ? activeIndex : Math.min(done, steps.length - 1)];
+  const heading =
+    project.stage || (project.status === 'building' ? 'Compilando seu app…' : 'Gerando seu app…');
   return `<div class="stage-screen">
-    <div class="orb"><div class="orb-core">${icon('sparkles')}</div></div>
-    <h2>${esc(project.stage || (project.status === 'building' ? 'Compilando seu app…' : 'Gerando seu app…'))}</h2>
-    <p>O modelo está escrevendo React + TypeScript. O preview aparece aqui automaticamente quando o build terminar.</p>
-    <div class="stage-steps">
-      ${steps
-        .map((label, index) => {
-          const status = stageStepState(project, index);
-          const iconName = status === 'done' ? 'check' : status === 'active' ? 'loader' : 'clock';
-          return `<span class="stage-step ${status}">${icon(iconName, status === 'active' ? 'spin' : '')} ${label}</span>`;
-        })
-        .join('')}
-    </div>
+    <section class="stage-card">
+      <header class="stage-head">
+        <div class="orb"><div class="orb-core">${icon('sparkles')}</div></div>
+        <div class="stage-head-text">
+          <span class="stage-kicker">${project.status === 'building' ? 'Compilando' : 'Gerando'}</span>
+          <h2>${esc(heading)}</h2>
+          <p>${esc(current[1])}</p>
+        </div>
+        <span class="stage-pill">${icon('loader', 'spin')} ${done}/${steps.length}</span>
+      </header>
+      <ol class="stage-steps">
+        ${steps
+          .map(([label, hint], index) => {
+            const status = states[index];
+            const iconName = status === 'done' ? 'check' : status === 'active' ? 'loader' : 'clock';
+            return `<li class="stage-step ${status}">
+              <span class="stage-step-icon">${icon(iconName, status === 'active' ? 'spin' : '')}</span>
+              <span class="stage-step-text"><strong>${label}</strong><small>${hint}</small></span>
+            </li>`;
+          })
+          .join('')}
+      </ol>
+      <footer class="stage-foot">
+        <span>${icon('terminal')} Acompanhe os detalhes na aba Log.</span>
+        <button class="btn small ghost" type="button" data-action="tab" data-tab="log">Abrir log</button>
+      </footer>
+    </section>
   </div>`;
 }
 
@@ -1524,23 +1554,37 @@ function renderErrorView(project) {
   const description = hasFiles
     ? 'O código foi gravado, mas o build falhou. Peça uma correção automática ou ajuste pelo chat.'
     : 'O modelo não conseguiu concluir. Tente novamente — o prompt original será enviado de novo.';
+  const nextStep = hasFiles
+    ? 'O código atual foi preservado. Corrija o build ou descreva o ajuste no chat.'
+    : 'Nenhum arquivo foi gravado. Tentar de novo reenvia o prompt original.';
   return `<div class="error-panel">
-    <div class="error-card">
-      <h2>${icon('alert')} A geração parou</h2>
-      <p>${description}</p>
-      <pre class="error-message">${esc(project.error || 'Erro desconhecido.')}</pre>
-      <div class="error-actions">
-        ${
-          hasLog && hasFiles
-            ? `<button class="btn primary" type="button" data-action="fix-build">${icon('wrench')} Corrigir com IA</button>
-               <button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>
-               <button class="btn" type="button" data-action="tab" data-tab="log">${icon('terminal')} Ver log</button>`
-            : `<button class="btn primary" type="button" data-action="retry-generation">${icon('refresh')} Tentar de novo</button>
-               ${hasFiles ? `<button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>` : ''}
-               ${hasLog ? `<button class="btn" type="button" data-action="tab" data-tab="log">${icon('terminal')} Ver log</button>` : ''}`
-        }
+    <section class="error-card">
+      <header class="error-head">
+        <div class="error-icon">${icon('alert')}</div>
+        <div class="error-head-text">
+          <span class="error-kicker">Geração interrompida</span>
+          <h2>${hasFiles ? 'O build não foi concluído' : 'Não foi possível gerar o app'}</h2>
+        </div>
+        <span class="error-badge">${hasFiles ? 'build' : 'geração'}</span>
+      </header>
+      <div class="error-body">
+        <p>${description}</p>
+        <span class="error-message-label">Detalhe técnico</span>
+        <pre class="error-message">${esc(project.error || 'Erro desconhecido.')}</pre>
+        <div class="error-actions">
+          ${
+            hasLog && hasFiles
+              ? `<button class="btn primary" type="button" data-action="fix-build">${icon('wrench')} Corrigir com IA</button>
+                 <button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>
+                 <button class="btn" type="button" data-action="tab" data-tab="log">${icon('terminal')} Ver log</button>`
+              : `<button class="btn primary" type="button" data-action="retry-generation">${icon('refresh')} Tentar de novo</button>
+                 ${hasFiles ? `<button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>` : ''}
+                 ${hasLog ? `<button class="btn" type="button" data-action="tab" data-tab="log">${icon('terminal')} Ver log</button>` : ''}`
+          }
+        </div>
       </div>
-    </div>
+      <footer class="error-foot">${icon('info')} ${nextStep}</footer>
+    </section>
   </div>`;
 }
 
