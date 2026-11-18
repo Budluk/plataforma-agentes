@@ -1,7 +1,7 @@
 # plataforma-agentes
 
 Plataforma multiagente em hardware restrito (Celeron N4500, 3,78 GB de RAM, sem GPU).
-Estado atual: fundação + área de Economia (somente análise e alerta).
+Estado atual: fundação, áreas de análise e a área studio (CloneStudio vendorizado).
 
 ## Como reproduzir
 
@@ -23,9 +23,11 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 ## Estrutura
 
 - core/: contratos Pydantic, hard gate, tool monitor, permissões, logger JSONL, memória SQLite, cliente LLM
-- agents/: base_agent (call_tool final), finance/ (analista, gestor de risco, ferramentas)
+- agents/: base_agent (call_tool final), finance/ (analista, gestor de risco, ferramentas), studio/ (cliente supervisionado)
 - pipelines/: Analista -> Risco -> Gate -> Alerta
-- scripts/: init_db, smoke tests, demo
+- scripts/: init_db, smoke tests, demo, studio_cli
+- clonestudio/: CloneStudio AI inteiro (Node 22, React + Vite), vendorizado e executado como serviço local
+- config/studio_hosts.txt: hosts de loopback autorizados para a área studio
 - tests/: pytest
 
 ## Cenários testados (adversariais)
@@ -61,6 +63,7 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 | Música | pronta (simbólica, MIDI) | Acorde, transposição, tablatura de violão | Sem áudio (Basic Pitch, Demucs, librosa exigem torch/tf) |
 | Vendas | pronta | Margem, preço-alvo, ponto de equilíbrio | Não transaciona |
 | Funil low ticket | pronto | ROAS, CPA, lucro real, taxas por etapa, recomendação | Não mexe em campanha nem em verba; recomenda e você executa |
+| Studio (CloneStudio) | pronta (serviço local) | Cria, importa, itera por chat, corrige, recompila e valida apps React via CloneStudio | Não executa o código gerado; build fica no processo Node isolado |
 
 Ferramentas vetadas por nome (nunca existem): execution_order, place_order, checkout, purchase,
 payment, charge_card, launch_campaign, set_budget, send_whatsapp, publish_page.
@@ -78,6 +81,7 @@ front gera "dados insuficientes"; dados incoerentes (ex.: mais bumps que vendas)
 | Funil low ticket | ROAS, CPA, lucro real, recomendação | Não mexe em campanha nem verba |
 | Pesquisa | Resume 1 página de domínio permitido (`config/allowed_domains.txt`) | Só leitura de texto; página é dado, nunca instrução |
 | Desenvolvimento | LLM escreve código como texto; análise estática (`ast`) aprova e salva em `data/dev_output/` | NUNCA executa o código; leia antes de rodar |
+| Studio | Cliente supervisionado do CloneStudio local: cria, importa, itera por chat, corrige, recompila e valida apps React | Não executa o código gerado; build e preview ficam no serviço Node |
 
 Uso: `scripts/research_live.py "<url>" "<pergunta>"`, `scripts/dev_cli.py write "<tarefa>"`, `scripts/dev_cli.py review <arquivo.py>`.
 Módulos que o código gerado pode importar: `config/dev_allowed_imports.txt` (lista de permitidos).
@@ -86,12 +90,93 @@ Limite conhecido: os gates validam formato e regras, não a veracidade nem a cor
 ## Agente Central
 
 `scripts/central_cli.py "<pedido>"` recebe um pedido em linguagem natural e o roteia para uma área.
-- O LLM só pode devolver uma área de uma lista fechada (`finance`, `music`, `sales`, `funnel`, `research`, `dev`) ou `none`.
+- O LLM só pode devolver uma área de uma lista fechada (`finance`, `music`, `sales`, `funnel`, `research`, `dev`, `studio`) ou `none`.
   Qualquer outra coisa, campo extra, JSON inválido ou dúvida vira `none` e nada é despachado.
 - O roteador não tem ferramentas nem permissões. O texto que o LLM escreve em `reason` só vai para o log.
 - Cada área continua passando pelos seus próprios contratos, gates e permissões: um pedido mal roteado ainda é barrado.
 - Finanças exige uma fonte de portfólio real; sem ela, recusa (não inventa dados).
 - Revisão de código não passa pelo roteador: use `scripts/dev_cli.py review <arquivo.py>`.
+
+## CloneStudio (área studio)
+
+O CloneStudio inteiro está vendorizado em `clonestudio/` (Node 22, React 19 + Vite 8). Ele roda
+como processo separado: a plataforma Python nunca importa nem executa o JavaScript dele.
+
+A área `studio` é a mais supervisionada da plataforma. Cada ação passa por:
+
+1. contrato Pydantic fechado (`agents/studio/contracts.py`);
+2. gate determinístico (`agents/studio/gate.py`): lista fechada de ações, descrição de 10 a 2000
+   caracteres, sem URL, sem caractere de controle e `project_id` em UUID;
+3. `BaseAgent.call_tool` → monitor de 5 cabeças + permissões + log JSONL;
+4. cliente HTTP local (`agents/studio/client.py`): só `http`, só hosts de
+   `config/studio_hosts.txt`, sem redirecionamento, teto de 64 KB, timeout e resposta reduzida a
+   campos conhecidos (nunca `files`, `buildLog`, `messages` ou `prompt`).
+
+Ações: `health`, `list`, `create`, `status`, `validate`, `messages`, `fix`, `fix-validation`,
+`rebuild`, `retry`, `versions`, `restore`, `import` (site, repositório do GitHub ou cópia de um app
+existente) e `inspiration`/`inspiration_create` (análise pública de canal/página e criação de um app
+original a partir dela). `studio_health` é obrigatório antes de qualquer outra ferramenta (regra de
+sequência do monitor).
+
+O histórico de versões guarda o `src/` de cada build bem-sucedido no CloneStudio. `versions` só lê a
+lista (número, rótulo, tipo, data e quantidade de arquivos) e `restore` recompila a versão escolhida,
+salvando antes o estado atual como `pre-restore` para não perder trabalho. A restauração aceita
+apenas `project_id` e `version` (inteiro de 1 a 1.000.000).
+
+A inspiração de redes sociais (`inspiration`) aceita apenas URL pública de YouTube, TikTok, Instagram
+ou Facebook e devolve a análise já reduzida a campos conhecidos: plataforma, título, descrição,
+handle, métricas públicas (seguidores/inscritos, curtidas, posts), estimativa de porte do público,
+alcance público, temas, hashtags e limitações — nunca o HTML, o avatar nem os links da página. O
+token da análise vale por 15 minutos e é o único dado aceito por `inspiration_create`, que também
+aceita uma ideia opcional (10 a 2.000 caracteres). O app criado é original: a plataforma não copia
+marca, textos, fotos ou vídeos e não baixa mídia. Números ausentes ficam vazios; alcance real,
+impressões e demografia não são inventados.
+
+A importação aceita apenas `http`/`https` público: nada de loopback, faixa privada, link-local,
+credenciais na URL, fragmento ou host fora de `github.com` no modo repositório. A resolução de DNS,
+o bloqueio de rebinding e os redirecionamentos são feitos pelo próprio serviço Node
+(`clonestudio/server/net-safety.mjs`), que fixa o IP validado na conexão. Importação de `.zip`
+continua só no painel do CloneStudio: o arquivo não passa pela plataforma.
+
+Início do serviço (Node 22):
+
+    cd clonestudio
+    Copy-Item .env.example .env    # preencher FREELLMAPI_*
+    node server/index.mjs          # painel em http://127.0.0.1:8787
+
+Uso pela plataforma:
+
+    .\.venv\Scripts\python.exe scripts\studio_cli.py health
+    .\.venv\Scripts\python.exe scripts\studio_cli.py create "loja de café com carrinho"
+    .\.venv\Scripts\python.exe scripts\studio_cli.py list
+    .\.venv\Scripts\python.exe scripts\studio_cli.py status <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py validate <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py message <project_id> "troque o azul por verde"
+    .\.venv\Scripts\python.exe scripts\studio_cli.py fix <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py fix-validation <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py rebuild <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py retry <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py versions <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py restore <project_id> 2
+    .\.venv\Scripts\python.exe scripts\studio_cli.py import-site https://exemplo.com
+    .\.venv\Scripts\python.exe scripts\studio_cli.py import-github https://github.com/usuario/repo
+    .\.venv\Scripts\python.exe scripts\studio_cli.py import-app <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py inspiration https://www.youtube.com/@LofiGirl
+    .\.venv\Scripts\python.exe scripts\studio_cli.py create-inspiration <token> "app de foco e estudo"
+
+Ou pelo agente central: `scripts\central_cli.py "crie um app de notas com etiquetas"`,
+`"importar https://exemplo.com"`, `"corrigir a validação <project_id>"`,
+`"versões <project_id>"`, `"restaurar a versão 2 <project_id>"`,
+`"inspiração https://www.youtube.com/@LofiGirl"` ou
+`"criar inspiração <token> app de foco e estudo"`.
+
+Limites: o build e o preview acontecem no processo Node, no workspace dele (`clonestudio/data/`).
+A plataforma não executa o código gerado, não instala pacotes npm e não aceita URL como descrição.
+O CloneStudio precisa de Node 22 e de um provedor OpenAI-compatible (FreeLLMAPI por padrão).
+A análise de inspiração lê só HTML público e falha fechada: YouTube expõe inscritos, título,
+descrição e palavras-chave; TikTok costuma exigir login; Instagram e Facebook bloqueiam leitura
+anônima com frequência. Alcance real, impressões e demografia não são públicos e nunca são
+inventados.
 
 ## Regras do hard gate (Economia)
 

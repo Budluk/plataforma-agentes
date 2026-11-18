@@ -42,7 +42,7 @@ def _finance(pipeline, text: str, portfolio_provider) -> AreaOutcome:
 
 
 def build_handlers(*, finance=None, music=None, sales=None, funnel=None, research=None, dev=None,
-                   portfolio_provider=None) -> dict:
+                   studio=None, portfolio_provider=None) -> dict:
     h = {}
     if finance is not None:
         h["finance"] = lambda t: _finance(finance, t, portfolio_provider)
@@ -56,4 +56,6 @@ def build_handlers(*, finance=None, music=None, sales=None, funnel=None, researc
         h["research"] = lambda t: _research(research, t)
     if dev is not None:
         h["dev"] = lambda t: _norm(dev.write(t))
+    if studio is not None:
+        h["studio"] = lambda t: _norm(studio.run(t))
     return h
