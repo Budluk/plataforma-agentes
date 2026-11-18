@@ -1523,9 +1523,12 @@ function renderLogView(project) {
   const log = project.buildLog
     ? project.buildLog
     : 'Nenhum log de build disponível. Gere o app ou use "Recompilar" para produzir um log.';
+  const lines = String(log).split('\n').length;
   return `<div class="log-view">
     <div class="code-head">
-      <span class="left">${icon('terminal')} <span class="path">build.log</span></span>
+      <span class="left">${icon('terminal')} <span class="path">build.log</span>
+        <span class="badge">${lines} linha(s)</span>
+      </span>
       <button class="btn small" type="button" data-action="rebuild">${icon('refresh')} Recompilar</button>
     </div>
     <pre class="log-box">${esc(log)}</pre>
@@ -1793,7 +1796,10 @@ function renderVersionsView(project) {
       <h2>${icon('clock')} Histórico de versões</h2>
       <p>Cada build bem-sucedido vira uma versão restaurável. Restaurar recompila o app e salva o estado atual antes da troca.</p>
     </div>
-    <button class="btn small" type="button" data-action="refresh-versions" ${state.versionsBusy ? 'disabled' : ''}>${icon('refresh', state.versionsBusy ? 'spin' : '')} Atualizar</button>
+    <div class="versions-head-actions">
+      <span class="versions-count">${versions.length} versão(ões)</span>
+      <button class="btn small" type="button" data-action="refresh-versions" ${state.versionsBusy ? 'disabled' : ''}>${icon('refresh', state.versionsBusy ? 'spin' : '')} Atualizar</button>
+    </div>
   </div>`;
 
   if (loading) {
@@ -1831,25 +1837,41 @@ function renderVersionsView(project) {
   </div>`;
 }
 
+function fileKind(path) {
+  const ext = String(path).split('.').pop().toLowerCase();
+  if (['tsx', 'ts', 'jsx', 'js'].includes(ext)) return 'tsx';
+  if (['css', 'scss', 'less'].includes(ext)) return 'css';
+  if (['json', 'jsonc'].includes(ext)) return 'json';
+  if (['html', 'htm'].includes(ext)) return 'html';
+  if (['md', 'mdx', 'txt'].includes(ext)) return 'md';
+  return 'file';
+}
+
 function renderCodeView(project) {
   const files = project.files || [];
   ensureSelectedFile();
   const selected = files.find((file) => file.path === state.selectedFile) || files[0] || null;
+  const selectedLines = selected ? String(selected.content || '').split('\n').length : 0;
+  const selectedPath = selected ? String(selected.path) : '';
+  const slash = selectedPath.lastIndexOf('/');
+  const dir = slash >= 0 ? selectedPath.slice(0, slash + 1) : '';
+  const name = slash >= 0 ? selectedPath.slice(slash + 1) : selectedPath;
   return `<div class="code-view">
     <div class="file-tree">
-      <div class="file-tree-head"><span>src/</span><span>${files.length}</span></div>
+      <div class="file-tree-head"><span>Arquivos</span><span class="count">${files.length}</span></div>
       ${files
         .map(
-          (file) => `<button class="file-btn ${selected && file.path === selected.path ? 'active' : ''}" type="button" data-action="select-file" data-file="${esc(file.path)}">
-            ${icon(file.path.endsWith('.css') ? 'layers' : 'file')}<span>${esc(file.path.replace(/^src\//, ''))}</span>
+          (file) => `<button class="file-btn file-${fileKind(file.path)} ${selected && file.path === selected.path ? 'active' : ''}" type="button" data-action="select-file" data-file="${esc(file.path)}">
+            ${icon(fileKind(file.path) === 'css' ? 'layers' : 'file')}<span>${esc(file.path.replace(/^src\//, ''))}</span>
           </button>`,
         )
         .join('')}
     </div>
     <div class="code-pane">
       <div class="code-head">
-        <span class="left">${icon('file')} <span class="path">${esc(selected ? selected.path : 'nenhum arquivo')}</span>
+        <span class="left">${icon('file')} <span class="path">${dir ? `<span class="dir">${esc(dir)}</span>` : ''}<strong>${esc(name || 'nenhum arquivo')}</strong></span>
           ${selected && selected.path === 'src/main.tsx' ? '<span class="badge">fixo</span>' : ''}
+          ${selected ? `<span class="badge">${selectedLines} linha(s)</span>` : ''}
         </span>
         ${selected ? `<button class="copy-btn" type="button" data-action="copy-code" title="Copiar código" aria-label="Copiar código">${icon('copy')}</button>` : ''}
       </div>
