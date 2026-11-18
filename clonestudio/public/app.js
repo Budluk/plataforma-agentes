@@ -832,7 +832,8 @@ function renderSidebar(active) {
       <span class="brand-mark">${icon('sparkles')}</span>
       <span>CloneStudio<span class="brand-ai">AI</span></span>
     </a>
-    <nav class="nav">
+    <nav class="nav" aria-label="Navegação principal">
+      <span class="nav-section" aria-hidden="true">Navegação</span>
       ${navItems
         .map(
           ([id, href, iconName, text]) => `<a class="nav-link ${active === id ? 'active' : ''}" href="${href}">
@@ -845,7 +846,11 @@ function renderSidebar(active) {
       <span class="dot ${provider ? 'good' : 'bad'}"></span>
       <div><strong>${esc(label)}</strong><small>${provider ? 'provedor configurado' : 'configure o .env'}</small></div>
     </div>
-    <div class="sidebar-foot">Núcleo local · v${esc(state.config?.version || '0.2.0')}</div>
+    <div class="sidebar-foot">
+      <span class="dot good"></span>
+      <span>Núcleo local</span>
+      <span class="sidebar-version">v${esc(state.config?.version || '0.2.0')}</span>
+    </div>
   </aside>`;
 }
 
@@ -2362,6 +2367,9 @@ function closeWindow() {
 /* ---------- skills ---------- */
 
 function renderSkills() {
+  const installed = state.skills.filter((skill) => skill.installed).length;
+  const installable = state.skills.filter((skill) => skill.status === 'instalável').length;
+  const needsConfig = state.skills.filter((skill) => skill.status === 'configuração necessária').length;
   return renderShell(
     'skills',
     `<div class="page">
@@ -2370,6 +2378,12 @@ function renderSkills() {
         'Skills para o agente',
         'Instruções e ferramentas oficiais que podem ser acopladas ao fluxo de geração. As marcadas como instaladas já vêm neste pacote.',
       )}
+      <div class="summary-grid">
+        <div class="summary-card"><strong>${state.skills.length}</strong><span>skills no catálogo</span></div>
+        <div class="summary-card"><strong>${installed}</strong><span>já incluídas no pacote</span></div>
+        <div class="summary-card"><strong>${installable}</strong><span>instaláveis via script</span></div>
+        <div class="summary-card"><strong>${needsConfig}</strong><span>exigem configuração</span></div>
+      </div>
       <div class="note">${icon('info')}
         <div>Instale as skills de terceiros com <code class="mono">.\\scripts\\install-skills.ps1</code>. O script pergunta antes de executar cada instalação e usa os repositórios oficiais.</div>
       </div>
@@ -2509,6 +2523,7 @@ function renderProviders() {
           return `<div class="provider-card">
             <div>
               <div class="provider-title">
+                <span class="dot ${provider.configured ? 'good' : 'bad'}"></span>
                 <h3>${esc(provider.label)}</h3>
                 <span class="tag ${provider.configured ? 'nativo' : 'externo'}">${provider.configured ? 'configurado' : 'não configurado'}</span>
               </div>
