@@ -37,6 +37,12 @@ const ICONS = {
     '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>',
   window:
     '<rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 21h11a2 2 0 0 0 2-2V8"/>',
+  users:
+    '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
+  heart:
+    '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>',
+  trending: '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
 };
 
 const STATUS = {
@@ -147,6 +153,10 @@ const state = {
   inspection: null,
   inspectionBusy: false,
   inspectionLabel: '',
+  inspiration: null,
+  inspirationToken: '',
+  inspirationBusy: false,
+  inspirationLabel: '',
   versions: [],
   versionsBusy: false,
   versionsError: '',
@@ -398,6 +408,92 @@ function isGithubUrl(value) {
   }
 }
 
+function isInspirationUrl(value) {
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+    return (
+      host === 'youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'youtu.be' ||
+      host === 'tiktok.com' ||
+      host.endsWith('.tiktok.com') ||
+      host === 'instagram.com' ||
+      host.endsWith('.instagram.com') ||
+      host === 'facebook.com' ||
+      host === 'fb.com' ||
+      host === 'm.facebook.com'
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function analyzeInspiration(url, label) {
+  if (state.importBusy || state.inspectionBusy || state.inspirationBusy) return;
+  state.inspirationBusy = true;
+  state.inspirationLabel = label || url;
+  state.inspiration = null;
+  state.inspirationToken = '';
+  if (state.promptDraft.trim() === url) state.promptDraft = '';
+  render();
+  try {
+    const data = await api('/api/inspiration/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+    state.inspirationBusy = false;
+    state.inspirationLabel = '';
+    state.inspiration = data.inspiration || null;
+    state.inspirationToken = data.token || '';
+    render();
+    if (state.inspiration) {
+      requestAnimationFrame(() => {
+        document.querySelector('.inspire-card')?.scrollIntoView({ block: 'nearest' });
+      });
+    }
+  } catch (error) {
+    state.inspirationBusy = false;
+    state.inspirationLabel = '';
+    render();
+    showToast(error.message, 'error');
+  }
+}
+
+async function createFromInspiration() {
+  const report = state.inspiration;
+  if (!report || !state.inspirationToken || state.importBusy) return;
+  const draft = state.promptDraft.trim();
+  const idea = /^https?:\/\/\S+$/i.test(draft) ? '' : draft;
+  state.importBusy = true;
+  state.importLabel = report.title || report.handle || 'inspiração analisada';
+  render();
+  try {
+    const data = await api('/api/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: 'inspiration',
+        inspirationToken: state.inspirationToken,
+        url: report.url,
+        prompt: idea,
+      }),
+    });
+    state.importBusy = false;
+    state.importLabel = '';
+    state.inspiration = null;
+    state.inspirationToken = '';
+    state.promptDraft = '';
+    const project = data.project;
+    showToast(`Criação iniciada: ${project?.name || 'novo app'}.`, 'success');
+    await refreshHomeProjects();
+    if (project?.id) location.hash = projectHash(project.id);
+  } catch (error) {
+    state.importBusy = false;
+    state.importLabel = '';
+    render();
+    showToast(error.message, 'error');
+  }
+}
+
 async function importFromDrop(payload, label) {
   if (state.importBusy) return;
   state.importBusy = true;
@@ -517,10 +613,17 @@ function knowledgeChip(project) {
 function referenceChip(project) {
   const reference = project?.reference;
   if (!reference?.url) return '';
-  const label = reference.kind === 'site' ? 'Site' : 'Referência';
+  const label =
+    reference.kind === 'site'
+      ? 'Site'
+      : reference.kind === 'inspiration'
+        ? 'Inspiração'
+        : 'Referência';
   const fullTitle = reference.title || reference.url;
   const title = fullTitle.length > 38 ? `${fullTitle.slice(0, 38)}…` : fullTitle;
-  return `<a class="knowledge-chip reference-chip" href="${esc(reference.url)}" target="_blank" rel="noreferrer" data-action="open-reference" title="Referência baixada: ${esc(reference.url)}">${icon('external')} ${label}: ${esc(title)}</a>`;
+  const origin =
+    reference.kind === 'inspiration' ? 'Análise pública de inspiração' : 'Referência baixada';
+  return `<a class="knowledge-chip reference-chip" href="${esc(reference.url)}" target="_blank" rel="noreferrer" data-action="open-reference" title="${origin}: ${esc(reference.url)}">${icon('external')} ${label}: ${esc(title)}</a>`;
 }
 
 function validationIssueCount(validation) {
@@ -877,6 +980,96 @@ function renderInspectionCard(inspection) {
   </section>`;
 }
 
+/* ---------- inspiration card ---------- */
+
+function formatMetric(value) {
+  const number = Number(value);
+  if (value == null || !Number.isFinite(number)) return '—';
+  return new Intl.NumberFormat('pt-BR').format(number);
+}
+
+function renderInspirationCard(report) {
+  const metrics = report.metrics || {};
+  const audience = report.audience || {};
+  const reach = report.reach || {};
+  const content = report.content || {};
+  const stats = [
+    ['Público', audience.sizeLabel || 'desconhecido'],
+    ['Seguidores/inscritos', formatMetric(metrics.followers)],
+    ['Visualizações', formatMetric(metrics.totalViews)],
+    ['Curtidas', formatMetric(metrics.totalLikes)],
+    ['Comentários', formatMetric(metrics.totalComments)],
+    ['Engajamento', metrics.engagementRate == null ? '—' : `${metrics.engagementRate}%`],
+  ];
+  const themes = content.themes || [];
+  const hashtags = report.hashtags || [];
+  const limitations = report.limitations || [];
+  return `<section class="inspire-card" aria-live="polite">
+    <header class="inspect-head">
+      <span class="eyebrow">${icon('trending')} Inspiração · ${esc(report.platformLabel || report.platform)}</span>
+      <h3>${esc(report.title || report.handle || 'Página analisada')}</h3>
+      <p>${esc(report.description || 'Sem descrição pública disponível.')}</p>
+      <div class="inspect-tags">
+        ${report.handle ? `<span class="inspect-tag">${esc(report.handle)}</span>` : ''}
+        ${themes.map((theme) => `<span class="inspect-tag">${esc(theme)}</span>`).join('')}
+        <a class="inspect-tag" href="${esc(report.url)}" target="_blank" rel="noreferrer">Abrir página</a>
+      </div>
+    </header>
+    <div class="inspect-body">
+      <div class="inspect-stats">
+        ${stats
+          .map(
+            ([label, value]) =>
+              `<div class="inspect-stat"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`,
+          )
+          .join('')}
+      </div>
+
+      <div class="inspire-grid">
+        <div class="inspect-section">
+          <h4>${icon('users')} Público estimado</h4>
+          <p>${esc(audience.summary || 'Sem métricas públicas suficientes para estimar o público.')}</p>
+        </div>
+        <div class="inspect-section">
+          <h4>${icon('eye')} Alcance público</h4>
+          <p>${esc(reach.summary || 'A plataforma não informou alcance público.')}</p>
+        </div>
+      </div>
+
+      <div class="inspect-section">
+        <h4>${icon('layers')} Formato e temas</h4>
+        <p>Formato: ${esc(content.format || 'não informado')}.</p>
+        ${
+          hashtags.length
+            ? `<div class="dep-chips">${hashtags
+                .map((tag) => `<span class="dep-chip route">${esc(tag)}</span>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <div class="inspire-note">
+        <span class="inspect-status-icon">${icon('info')}</span>
+        <div>
+          <strong>Métricas públicas usadas como proxy</strong>
+          <p>Alcance real, impressões e demografia são privados da conta. A recriação usa esta análise como referência de posicionamento — sem copiar marca, textos ou mídia.</p>
+          ${
+            limitations.length
+              ? `<ul class="inspect-blockers">${limitations
+                  .map((item) => `<li>${esc(item)}</li>`)
+                  .join('')}</ul>`
+              : ''
+          }
+        </div>
+      </div>
+    </div>
+    <footer class="inspect-actions">
+      <button class="btn primary" type="button" data-action="create-inspiration">${icon('sparkles')} Recriar com a mesma ideia</button>
+      <button class="btn ghost" type="button" data-action="dismiss-inspiration">${icon('x')} Fechar análise</button>
+    </footer>
+  </section>`;
+}
+
 /* ---------- home ---------- */
 
 function renderHome() {
@@ -898,6 +1091,11 @@ function renderHome() {
             ? `<div class="import-banner">${icon('loader', 'spin')} <span>Analisando ${esc(state.inspectionLabel || 'projeto')} para descobrir o que ele faz…</span></div>`
             : ''
         }
+        ${
+          state.inspirationBusy
+            ? `<div class="import-banner">${icon('loader', 'spin')} <span>Analisando ${esc(state.inspirationLabel || 'canal')} e estimando público e alcance públicos…</span></div>`
+            : ''
+        }
         <form id="create-form" class="composer">
           <textarea id="prompt" maxlength="6000" placeholder="Ex.: crie um CRM com dashboard de vendas, funil kanban e cadastro de contatos…">${esc(state.promptDraft)}</textarea>
           <div class="composer-foot">
@@ -913,6 +1111,7 @@ function renderHome() {
           ).join('')}
         </div>
         ${state.inspection ? renderInspectionCard(state.inspection) : ''}
+        ${state.inspiration ? renderInspirationCard(state.inspiration) : ''}
       </section>
 
       ${renderOpenProjectsStrip()}
@@ -1838,6 +2037,10 @@ async function createFromComposer() {
     await inspectFromDrop({ kind: 'github', url: prompt }, prompt);
     return;
   }
+  if (/^https?:\/\/\S+$/i.test(prompt) && isInspirationUrl(prompt)) {
+    await analyzeInspiration(prompt, prompt);
+    return;
+  }
   if (state.creating) return;
   state.creating = true;
   const button = document.querySelector('#create-form button[type="submit"]');
@@ -2392,6 +2595,8 @@ document.addEventListener('drop', async (event) => {
   }
   if (isGithubUrl(url)) {
     await inspectFromDrop({ kind: 'github', url }, url);
+  } else if (isInspirationUrl(url)) {
+    await analyzeInspiration(url, url);
   } else {
     await importFromDrop({ kind: 'site', url, prompt: state.promptDraft }, url);
   }
@@ -2533,6 +2738,14 @@ document.addEventListener('click', async (event) => {
       break;
     case 'dismiss-inspection':
       state.inspection = null;
+      render();
+      break;
+    case 'create-inspiration':
+      createFromInspiration();
+      break;
+    case 'dismiss-inspiration':
+      state.inspiration = null;
+      state.inspirationToken = '';
       render();
       break;
     case 'refresh-projects':

@@ -51,3 +51,10 @@ class StudioAgent(BaseAgent):
 
     def import_app(self, project_id: str) -> dict:
         return self.call_tool("studio_import_app", project_id=project_id)
+
+    def analyze_inspiration(self, url: str) -> dict:
+        return self.call_tool("studio_analyze_inspiration", url=url)
+
+    def create_inspiration(self, inspiration_token: str, prompt: str | None = None) -> dict:
+        return self.call_tool("studio_create_inspiration",
+                              inspiration_token=inspiration_token, prompt=prompt)

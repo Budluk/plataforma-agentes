@@ -31,7 +31,9 @@ USAGE = """uso:
   studio_cli.py restore <project_id> <versão>
   studio_cli.py import-site <url> ["<descrição opcional>"]
   studio_cli.py import-github <url>
-  studio_cli.py import-app <project_id>"""
+  studio_cli.py import-app <project_id>
+  studio_cli.py inspiration <url do YouTube/TikTok/Instagram/Facebook>
+  studio_cli.py create-inspiration <token> ["<ideia opcional>"]"""
 
 
 def main() -> int:
@@ -85,6 +87,10 @@ def main() -> int:
         result = pipeline.import_github(rest[0])
     elif cmd == "import-app" and len(rest) == 1:
         result = pipeline.import_app(rest[0])
+    elif cmd == "inspiration" and len(rest) == 1:
+        result = pipeline.inspiration(rest[0])
+    elif cmd == "create-inspiration" and len(rest) >= 1:
+        result = pipeline.create_inspiration(rest[0], " ".join(rest[1:]).strip() or None)
     else:
         print(USAGE)
         return 1

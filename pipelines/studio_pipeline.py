@@ -8,7 +8,7 @@ from agents.base_agent import RunContext, ToolBlocked
 from agents.studio.agent import StudioAgent
 from agents.studio.client import StudioError
 from agents.studio.contracts import StudioRequest
-from agents.studio.gate import check_request
+from agents.studio.gate import check_request, is_social_host
 from agents.studio.tools import build_studio_tools
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
@@ -31,6 +31,16 @@ _VERSIONS = re.compile(r"\b(vers(?:ão|ões|ao|oes)|hist[óo]rico|versions)\b", 
 _VERSION_NUMBER = re.compile(r"\b(?:vers(?:ão|ao)|v)\s*#?\s*(\d{1,6})\b", re.IGNORECASE)
 _FIX = re.compile(r"\b(corrigir|corrija|fix)\b", re.IGNORECASE)
 _URL_IN_TEXT = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_URL_ONLY = re.compile(r"^https?://\S+$", re.IGNORECASE)
+_INSPIRATION = re.compile(
+    r"\b(inspira(?:ção|cao|r)|analis(?:ar|e)\s+(?:o\s+)?(?:canal|perfil|p[áa]gina)"
+    r"|p[uú]blico\s+(?:d[oa]|e)\s+(?:canal|perfil|p[áa]gina))\b",
+    re.IGNORECASE,
+)
+_INSPIRATION_CREATE = re.compile(
+    r"^\s*(?:criar|crie|recriar|recrie)\b[^\n]{0,80}\binspira(?:ção|cao)\b",
+    re.IGNORECASE,
+)
 _GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
 
 
@@ -64,7 +74,8 @@ class StudioPipeline:
 
     def _ok(self, ctx: RunContext, data: dict) -> StudioResult:
         self.logger.log("studio_result", run_id=ctx.run_id, agent="studio_agent", ok=True)
-        detail = str(data.get("id") or data.get("count") or data.get("status") or "")[:500]
+        detail = str(data.get("id") or data.get("count") or data.get("status")
+                     or data.get("platform") or "")[:500]
         self.memory.record_run("studio_agent", None, "ok", detail)
         return StudioResult(ok=True, data=data)
 
@@ -75,10 +86,12 @@ class StudioPipeline:
     def _execute(self, ctx: RunContext, action: str, *, prompt: str | None = None,
                  project_id: str | None = None, message: str | None = None,
                  url: str | None = None, kind: str | None = None,
-                 version: int | None = None) -> StudioResult:
+                 version: int | None = None,
+                 inspiration_token: str | None = None) -> StudioResult:
         try:
             req = StudioRequest(action=action, prompt=prompt, project_id=project_id,
-                                message=message, url=url, kind=kind, version=version)
+                                message=message, url=url, kind=kind, version=version,
+                                inspiration_token=inspiration_token)
         except ValidationError:
             return self._reject(ctx, ["pedido inválido (ação ou parâmetro fora do formato)"])
         reasons = check_request(req)
@@ -114,6 +127,11 @@ class StudioPipeline:
             if req.action == "restore":
                 return self._ok(ctx, agent.restore_version(project_id=req.project_id,
                                                            version=req.version))
+            if req.action == "inspiration":
+                return self._ok(ctx, agent.analyze_inspiration(url=req.url))
+            if req.action == "inspiration_create":
+                return self._ok(ctx, agent.create_inspiration(
+                    inspiration_token=req.inspiration_token, prompt=req.prompt))
             # import
             if req.kind == "app":
                 return self._ok(ctx, agent.import_app(project_id=req.project_id))
@@ -169,6 +187,14 @@ class StudioPipeline:
     def import_app(self, project_id: str) -> StudioResult:
         return self._execute(new_context(), "import", project_id=project_id, kind="app")
 
+    def inspiration(self, url: str) -> StudioResult:
+        return self._execute(new_context(), "inspiration", url=url)
+
+    def create_inspiration(self, inspiration_token: str,
+                           prompt: str | None = None) -> StudioResult:
+        return self._execute(new_context(), "inspiration_create",
+                             inspiration_token=inspiration_token, prompt=prompt)
+
     # --- entrada do agente central (texto livre) --------------------------
     def run(self, text: str) -> StudioResult:
         ctx = new_context()
@@ -181,6 +207,26 @@ class StudioPipeline:
             return self._execute(ctx, "messages", project_id=match.group(1).lower(),
                                  message=match.group(2).strip())
 
+        if _INSPIRATION_CREATE.match(cleaned):
+            token_match = _UUID.search(cleaned)
+            if not token_match:
+                return self._reject(ctx, ["criação por inspiração exige o token da análise"])
+            idea = cleaned[token_match.end():].strip(" :-\t")
+            if idea and len(idea) < 10:
+                return self._reject(ctx,
+                                    ["descrição da inspiração muito curta (mínimo 10 caracteres)"])
+            return self._execute(ctx, "inspiration_create",
+                                 inspiration_token=token_match.group(0).lower(),
+                                 prompt=idea or None)
+
+        social = _URL_IN_TEXT.search(cleaned)
+        if social:
+            candidate = social.group(0).rstrip(".,;:!?)]}\"'")
+            host = (urlsplit(candidate).hostname or "").lower()
+            if is_social_host(host) and (_INSPIRATION.search(cleaned)
+                                         or _URL_ONLY.fullmatch(candidate)):
+                return self._execute(ctx, "inspiration", url=candidate)
+
         match = _IMPORT.match(cleaned)
         if match:
             url_match = _URL_IN_TEXT.search(match.group(2))
@@ -188,6 +234,8 @@ class StudioPipeline:
                 return self._reject(ctx, ["importação exige uma URL"])
             url = url_match.group(0).rstrip(".,;:!?)]}\"'")
             host = (urlsplit(url).hostname or "").lower()
+            if is_social_host(host):
+                return self._execute(ctx, "inspiration", url=url)
             kind = "github" if host in _GITHUB_HOSTS else "site"
             return self._execute(ctx, "import", url=url, kind=kind)
 

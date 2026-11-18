@@ -827,6 +827,79 @@ button {
   background: rgba(0, 0, 0, 0.16);
 }
 
+/* ---------- inspiration card ---------- */
+
+.inspire-card {
+  margin: 22px 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(64, 196, 180, 0.14), transparent 42%),
+    var(--panel);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.inspire-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.inspire-grid .inspect-section {
+  margin: 0;
+}
+
+.inspire-card .inspect-section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.inspire-card .inspect-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspire-card .inspect-section h4 .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-2);
+}
+
+.inspire-card .inspect-section .dep-chips {
+  margin-top: 10px;
+}
+
+.inspire-note {
+  display: flex;
+  gap: 10px;
+  border: 1px solid rgba(64, 196, 180, 0.28);
+  border-radius: 14px;
+  background: rgba(64, 196, 180, 0.07);
+  padding: 12px 14px;
+}
+
+.inspire-note .inspect-status-icon {
+  color: var(--accent-2);
+}
+
+.inspire-note strong {
+  display: block;
+  font-size: 13px;
+}
+
+.inspire-note p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .project-card[draggable='true'] {
   cursor: grab;
 }

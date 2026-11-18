@@ -112,3 +112,28 @@ test('initialInstruction não inventa referência quando não existe', () => {
   const text = initialInstruction({ prompt: 'Crie um app de notas' });
   assert.doesNotMatch(text, /REFERÊNCIA BAIXADA/);
 });
+
+test('initialInstruction trata inspiração social com originalidade e sem mídia', () => {
+  const text = initialInstruction({
+    prompt: 'Crie um app original de treinos',
+    reference: {
+      kind: 'inspiration',
+      platform: 'youtube',
+      url: 'https://www.youtube.com/@treinoemcasa',
+      title: 'Treino em Casa',
+      text: 'Plataforma: YouTube\nPúblico estimado: médio (100 mil a 1 mi)',
+      images: [{ src: 'https://www.youtube.com/avatar.jpg' }],
+      videos: [{ url: 'https://www.youtube.com/watch?v=abc' }],
+      links: [{ label: 'Site', href: 'https://exemplo.com' }],
+    },
+  });
+  assert.match(text, /ANÁLISE DE INSPIRAÇÃO/);
+  assert.match(text, /Público estimado: médio/);
+  assert.match(text, /app ORIGINAL/);
+  assert.match(text, /Não copie/);
+  assert.match(text, /NÃO invente alcance real/);
+  assert.doesNotMatch(text, /IMAGENS REAIS ENCONTRADAS/);
+  assert.doesNotMatch(text, /VÍDEOS\/TRAILERS REAIS/);
+  assert.doesNotMatch(text, /youtube\.com\/avatar\.jpg/);
+  assert.doesNotMatch(text, /youtube\.com\/watch/);
+});

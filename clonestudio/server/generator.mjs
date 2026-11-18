@@ -101,9 +101,28 @@ function knowledgeSection(knowledgeText) {
   return knowledgeText ? `\n\n${knowledgeText}` : '';
 }
 
+function inspirationSection(reference) {
+  const lines = [
+    '',
+    '',
+    `ANÁLISE DE INSPIRAÇÃO (dados públicos de ${reference.url || 'uma página social'})`,
+    reference.title ? `Página analisada: ${reference.title}` : '',
+    '',
+    truncate(reference.text, 9000),
+    '',
+    'Use esta análise apenas como referência de posicionamento, público, temas e estrutura de conteúdo.',
+    'Crie um app ORIGINAL: nome, marca, logotipo, textos, imagens e identidade visual próprios. Não copie nem parafraseie textos literais, não reutilize fotos, vídeos, áudio ou logo do canal/página.',
+    'Não baixe nem embuta mídia da plataforma analisada. Se precisar de imagens, use gradientes CSS, formas, iniciais ou SVGs locais.',
+    'Os números do relatório são métricas públicas usadas como proxy. NÃO invente alcance real, impressões, demografia ou retenção; se um dado não estiver no relatório, omita.',
+    'Entregue uma experiência completa e funcional que atenda ao mesmo tipo de público com uma proposta própria.',
+  ].filter(Boolean);
+  return `\n${lines.join('\n')}`;
+}
+
 function referenceSection(project) {
   const reference = project?.reference;
   if (!reference?.text) return '';
+  if (reference.kind === 'inspiration') return inspirationSection(reference);
   const images = Array.isArray(reference.images) ? reference.images.slice(0, 24) : [];
   const links = Array.isArray(reference.links) ? reference.links.slice(0, 20) : [];
   const headings = Array.isArray(reference.headings) ? reference.headings.slice(0, 20) : [];

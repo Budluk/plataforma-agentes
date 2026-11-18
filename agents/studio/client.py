@@ -117,6 +117,67 @@ def _version(value) -> dict | None:
     }
 
 
+def _opt_int(value) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _opt_number(value) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if number == number and number not in (float("inf"), float("-inf")) else None
+
+
+def _inspiration(report) -> dict | None:
+    """Análise social reduzida a campos conhecidos (sem HTML, avatar ou links)."""
+    if not isinstance(report, dict):
+        return None
+    platform = _text(report.get("platform"), 20)
+    if platform not in ("youtube", "tiktok", "instagram", "facebook"):
+        return None
+    metrics = report.get("metrics") if isinstance(report.get("metrics"), dict) else {}
+    audience = report.get("audience") if isinstance(report.get("audience"), dict) else {}
+    reach = report.get("reach") if isinstance(report.get("reach"), dict) else {}
+    content = report.get("content") if isinstance(report.get("content"), dict) else {}
+    return {
+        "platform": platform,
+        "platformLabel": _text(report.get("platformLabel"), 40),
+        "url": _text(report.get("url"), 500),
+        "title": _text(report.get("title"), 160),
+        "description": _text(report.get("description"), 600),
+        "handle": _text(report.get("handle"), 80),
+        "metrics": {
+            "followers": _opt_int(metrics.get("followers")),
+            "following": _opt_int(metrics.get("following")),
+            "posts": _opt_int(metrics.get("posts")),
+            "totalViews": _opt_int(metrics.get("totalViews")),
+            "totalLikes": _opt_int(metrics.get("totalLikes")),
+            "totalComments": _opt_int(metrics.get("totalComments")),
+            "engagementRate": _opt_number(metrics.get("engagementRate")),
+        },
+        "audience": {
+            "size": _text(audience.get("size"), 40),
+            "sizeLabel": _text(audience.get("sizeLabel"), 80),
+            "summary": _text(audience.get("summary"), 400),
+            "signals": _text_list(audience.get("signals"), 6, 60),
+        },
+        "reach": {
+            "level": _text(reach.get("level"), 40),
+            "summary": _text(reach.get("summary"), 400),
+        },
+        "content": {
+            "themes": _text_list(content.get("themes"), 6, 60),
+            "format": _text(content.get("format"), 80),
+            "hashtags": _text_list(content.get("hashtags"), 12, 40),
+            "pillars": _text_list(content.get("pillars"), 6, 60),
+        },
+        "hashtags": _text_list(report.get("hashtags"), 12, 40),
+        "limitations": _text_list(report.get("limitations"), 8, 240),
+        "fetchedAt": _text(report.get("fetchedAt"), 40),
+    }
+
+
+
 class StudioClient:
     """Cliente HTTP mínimo para o CloneStudio local.
 
@@ -257,6 +318,31 @@ class StudioClient:
         detail = _detail(project)
         meta = _version(data.get("version"))
         detail["restoredVersion"] = meta["version"] if meta else _int(version)
+        return detail
+
+    # --- inspiração de redes sociais --------------------------------------
+    def analyze_inspiration(self, url: str) -> dict:
+        data = self._request("POST", "/api/inspiration/analyze", {"url": url})
+        report = _inspiration(data.get("inspiration"))
+        if report is None:
+            raise StudioError("resposta sem análise de inspiração válida")
+        token = _text(data.get("token"), 64)
+        if len(token) < 32:
+            raise StudioError("resposta sem token de inspiração")
+        return {"token": token, "inspiration": report}
+
+    def create_inspiration(self, inspiration_token: str, prompt: str | None = None) -> dict:
+        payload = {"kind": "inspiration", "inspirationToken": inspiration_token}
+        if prompt:
+            payload["prompt"] = prompt
+        data = self._request("POST", "/api/import", payload)
+        project = data.get("project")
+        if not isinstance(project, dict):
+            raise StudioError("resposta sem projeto inspirado")
+        if _text(data.get("kind"), 20) != "inspiration":
+            raise StudioError("resposta não confirma criação por inspiração")
+        detail = _detail(project)
+        detail["kind"] = "inspiration"
         return detail
 
     # --- importação -------------------------------------------------------

@@ -46,6 +46,14 @@ import {
 } from './importer.mjs';
 import { integrationGroups, integrationSummary } from './integrations.mjs';
 import {
+  fetchInspiration,
+  isInspirationUrl,
+} from './inspiration.mjs';
+import {
+  importInspiration,
+  rememberInspiration,
+} from './inspiration-import.mjs';
+import {
   context7Status,
   queryLibraryDocs,
   resolveLibraryId,
@@ -363,7 +371,18 @@ const server = http.createServer(async (req, res) => {
       if (prompt.length < 3) throw new HttpError(400, 'Descreva o app com pelo menos 3 caracteres.');
       if (prompt.length > 6000) throw new HttpError(400, 'A descrição deve ter no máximo 6000 caracteres.');
       if (/^https?:\/\/\S+$/i.test(prompt)) {
+        const social = isInspirationUrl(prompt);
         try {
+          if (social) {
+            const report = await fetchInspiration(prompt);
+            const token = rememberInspiration(report);
+            const project = importInspiration({ token, url: prompt });
+            return sendJson(res, 201, {
+              kind: 'inspiration',
+              inspiration: report,
+              project: projectDetail(getProject(project.id), previewBaseFor(req)),
+            });
+          }
           const project = parseGithubUrl(prompt)
             ? await importFromGithub(prompt)
             : await importSite(prompt, '');
@@ -372,6 +391,9 @@ const server = http.createServer(async (req, res) => {
             project: projectDetail(getProject(project.id), previewBaseFor(req)),
           });
         } catch (error) {
+          if (social) {
+            return sendError(res, 502, error.message || 'Não foi possível analisar a página.');
+          }
           console.warn(`[import] URL no prompt não pôde ser baixada: ${error.message}`);
         }
       }
@@ -381,6 +403,20 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 201, {
         project: projectDetail(getProject(project.id), previewBaseFor(req)),
       });
+    }
+
+    if (method === 'POST' && pathname === '/api/inspiration/analyze') {
+      const body = await readBody(req);
+      const url = String(body.url || '').trim();
+      if (!url) throw new HttpError(400, 'Cole um link de canal ou página para analisar.');
+      if (url.length > 2000) throw new HttpError(400, 'O link é longo demais.');
+      try {
+        const inspiration = await fetchInspiration(url);
+        const token = rememberInspiration(inspiration);
+        return sendJson(res, 200, { ok: true, inspiration, token });
+      } catch (error) {
+        return sendError(res, 502, error.message || 'Não foi possível analisar a página.');
+      }
     }
 
     if (method === 'POST' && pathname === '/api/inspect') {
@@ -482,7 +518,23 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      throw new HttpError(400, 'Tipo de importação inválido (site, app, github ou zip).');
+      if (kind === 'inspiration') {
+        try {
+          const project = importInspiration({
+            token: String(body.inspirationToken || '').trim(),
+            url: String(body.url || '').slice(0, 2000),
+            prompt: String(body.prompt || '').slice(0, 6000),
+          });
+          return sendJson(res, 201, {
+            kind,
+            project: projectDetail(getProject(project.id), base),
+          });
+        } catch (error) {
+          return sendError(res, 400, error.message || 'Não foi possível criar o app.');
+        }
+      }
+
+      throw new HttpError(400, 'Tipo de importação inválido (site, app, github, zip ou inspiration).');
     }
 
     const screenshotMatch = pathname.match(

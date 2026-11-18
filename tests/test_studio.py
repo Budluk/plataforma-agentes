@@ -25,7 +25,13 @@ STUDIO_TOOLS = {"studio_health", "studio_list_apps", "studio_create_app",
                 "studio_app_status", "studio_validate_app", "studio_send_message",
                 "studio_fix_app", "studio_fix_validation", "studio_rebuild_app",
                 "studio_retry_app", "studio_import_site", "studio_import_github",
-                "studio_import_app", "studio_list_versions", "studio_restore_version"}
+                "studio_import_app", "studio_list_versions", "studio_restore_version",
+                "studio_analyze_inspiration", "studio_create_inspiration"}
+INSPIRATION_TOKEN = "64803b8e-fcca-49ff-bbbd-d2a424c6b4f9"
+YOUTUBE_URL = "https://www.youtube.com/@LofiGirl"
+SOCIAL_URLS = [YOUTUBE_URL, "https://www.tiktok.com/@perfil",
+               "https://www.instagram.com/perfil/", "https://www.facebook.com/pagina",
+               "https://youtu.be/abc123"]
 
 
 def make_client(handler, base="http://127.0.0.1:8787"):
@@ -119,6 +125,29 @@ def test_hosts_file_fails_closed_and_ignores_comments(tmp_path):
     dict(action="import", kind="app"),
     dict(action="import", kind="app", project_id=PROJECT, url="https://example.com"),
     dict(action="import", kind="app", project_id=PROJECT, prompt="a" * 10),
+    # inspiração de redes sociais
+    dict(action="inspiration"),
+    dict(action="inspiration", url="https://example.com/perfil"),
+    dict(action="inspiration", url="http://127.0.0.1/perfil"),
+    dict(action="inspiration", url="https://www.youtube.com/@x", prompt="a" * 10),
+    dict(action="inspiration", url="https://www.youtube.com/@x", message="analise"),
+    dict(action="inspiration", url="https://www.youtube.com/@x", kind="site"),
+    dict(action="inspiration", url="https://www.youtube.com/@x", project_id=PROJECT),
+    dict(action="inspiration", url="https://www.youtube.com/@x",
+         inspiration_token=INSPIRATION_TOKEN),
+    dict(action="inspiration_create"),
+    dict(action="inspiration_create", inspiration_token=INSPIRATION_TOKEN,
+         url="https://www.youtube.com/@x"),
+    dict(action="inspiration_create", inspiration_token=INSPIRATION_TOKEN, kind="site"),
+    dict(action="inspiration_create", inspiration_token=INSPIRATION_TOKEN,
+         project_id=PROJECT),
+    dict(action="inspiration_create", inspiration_token=INSPIRATION_TOKEN,
+         message="crie um app"),
+    dict(action="create", prompt="loja de café com carrinho",
+         inspiration_token=INSPIRATION_TOKEN),
+    dict(action="status", project_id=PROJECT, inspiration_token=INSPIRATION_TOKEN),
+    dict(action="import", kind="site", url="https://example.com",
+         inspiration_token=INSPIRATION_TOKEN),
 ])
 def test_gate_rejects_invalid_combinations(kw):
     assert check_request(StudioRequest(**kw))
@@ -141,7 +170,19 @@ def test_gate_rejects_invalid_combinations(kw):
                                      prompt="inspirado neste layout"),
                                 dict(action="import", kind="github",
                                      url="https://github.com/Budluk/plataforma-agentes"),
-                                dict(action="import", kind="app", project_id=PROJECT)])
+                                dict(action="import", kind="app", project_id=PROJECT),
+                                dict(action="inspiration", url=YOUTUBE_URL),
+                                dict(action="inspiration",
+                                     url="https://www.tiktok.com/@perfil"),
+                                dict(action="inspiration",
+                                     url="https://www.instagram.com/perfil/"),
+                                dict(action="inspiration",
+                                     url="https://www.facebook.com/pagina"),
+                                dict(action="inspiration_create",
+                                     inspiration_token=INSPIRATION_TOKEN),
+                                dict(action="inspiration_create",
+                                     inspiration_token=INSPIRATION_TOKEN,
+                                     prompt="app de foco e estudo")])
 def test_gate_accepts_only_the_expected_shapes(kw):
     assert check_request(StudioRequest(**kw)) == []
 
@@ -152,6 +193,10 @@ def test_gate_accepts_only_the_expected_shapes(kw):
                                 dict(action="restore", project_id=PROJECT, version=0),
                                 dict(action="restore", project_id=PROJECT, version=1_000_001),
                                 dict(action="import", kind="zip", url="https://example.com"),
+                                dict(action="inspiration", url="curta"),
+                                dict(action="inspiration_create", inspiration_token="abc"),
+                                dict(action="inspiration_create",
+                                     inspiration_token="Z" * 36),
                                 dict(action="executar")])
 def test_contract_rejects_before_any_http(kw):
     with pytest.raises(ValidationError):
@@ -286,6 +331,90 @@ def test_restore_posts_only_the_version_and_hides_the_code(env):
     assert "SEGREDO" not in json.dumps(result.data)
 
 
+# --- inspiração de redes sociais -----------------------------------------
+def inspiration_payload(**extra):
+    base = {
+        "platform": "youtube", "platformLabel": "YouTube", "url": YOUTUBE_URL,
+        "title": "Lofi Girl", "description": "música para estudar e relaxar",
+        "handle": "@LofiGirl", "avatar": "https://yt3.googleusercontent.com/avatar.jpg",
+        "metrics": {"followers": 15800000, "following": None, "posts": None,
+                    "totalViews": None, "totalLikes": None, "totalComments": None,
+                    "engagementRate": None},
+        "audience": {"size": "grande", "sizeLabel": "grande (1 mi+)",
+                     "summary": "Público estimado: 15.800.000 seguidores/inscritos.",
+                     "signals": ["seguidores/inscritos: 15.800.000"]},
+        "reach": {"level": "alto",
+                  "summary": "Alcance público estimado: 15.800.000 seguidores/inscritos.",
+                  "publicMetrics": {"followers": 15800000}},
+        "content": {"themes": ["música e foco"],
+                    "format": "vídeos longos e transmissões",
+                    "hashtags": ["#lofi"], "pillars": ["música e foco"]},
+        "hashtags": ["#lofi"],
+        "limitations": ["Visualizações não estão públicas nesta página."],
+        "fetchedAt": "2026-11-17T02:14:37.000Z",
+        "html": "SEGREDO", "links": [{"href": "SEGREDO"}],
+    }
+    base.update(extra)
+    return base
+
+
+def test_analyze_inspiration_posts_the_url_and_hides_raw_html(env):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/inspiration/analyze"): {
+            "ok": True, "token": INSPIRATION_TOKEN, "inspiration": inspiration_payload()},
+    }, calls)
+    result = pipe(env, handler).inspiration(YOUTUBE_URL)
+    assert result.ok and result.data["token"] == INSPIRATION_TOKEN
+    report = result.data["inspiration"]
+    assert report["platform"] == "youtube" and report["metrics"]["followers"] == 15800000
+    assert report["audience"]["size"] == "grande"
+    assert report["reach"]["level"] == "alto"
+    assert report["content"]["themes"] == ["música e foco"]
+    assert "avatar" not in report and "html" not in report and "links" not in report
+    assert "SEGREDO" not in json.dumps(result.data)
+    assert json.loads(calls[1]["body"]) == {"url": YOUTUBE_URL}
+    assert (calls[1]["method"], calls[1]["path"]) == ("POST", "/api/inspiration/analyze")
+
+
+def test_analyze_inspiration_fails_closed_without_a_valid_report(env):
+    for payload in ({}, {"ok": True, "token": INSPIRATION_TOKEN},
+                    {"ok": True, "token": INSPIRATION_TOKEN,
+                     "inspiration": inspiration_payload(platform="myspace")},
+                    {"ok": True, "inspiration": inspiration_payload()}):
+        result = pipe(env, routes_handler({
+            ("GET", "/api/health"): {"ok": True},
+            ("POST", "/api/inspiration/analyze"): payload})).inspiration(YOUTUBE_URL)
+        assert not result.ok
+
+
+@pytest.mark.parametrize("prompt,payload", [
+    (None, {"kind": "inspiration", "inspirationToken": INSPIRATION_TOKEN}),
+    ("app de foco e estudo", {"kind": "inspiration",
+                              "inspirationToken": INSPIRATION_TOKEN,
+                              "prompt": "app de foco e estudo"}),
+])
+def test_create_inspiration_posts_only_the_token_and_optional_idea(env, prompt, payload):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/import"): {"kind": "inspiration", "project": project_payload()},
+    }, calls)
+    result = pipe(env, handler).create_inspiration(INSPIRATION_TOKEN, prompt)
+    assert result.ok and result.data["kind"] == "inspiration"
+    assert json.loads(calls[1]["body"]) == payload
+    assert "SEGREDO" not in json.dumps(result.data)
+
+
+def test_create_inspiration_requires_the_server_to_confirm_the_kind(env):
+    result = pipe(env, routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/import"): {"kind": "site", "project": project_payload()},
+    })).create_inspiration(INSPIRATION_TOKEN)
+    assert not result.ok and "inspiração" in result.reasons[0]
+
+
 def test_redirect_is_refused(env):
     def handler(request):
         return httpx.Response(302, headers={"location": "http://evil.com"})
@@ -370,6 +499,8 @@ def test_permissions_block_the_tool_when_capability_is_missing(env):
     ("studio_import_app", {"project_id": PROJECT}),
     ("studio_list_versions", {"project_id": PROJECT}),
     ("studio_restore_version", {"project_id": PROJECT, "version": 1}),
+    ("studio_analyze_inspiration", {"url": YOUTUBE_URL}),
+    ("studio_create_inspiration", {"inspiration_token": INSPIRATION_TOKEN}),
 ])
 def test_every_studio_tool_requires_health_in_the_same_run(env, tool, kwargs):
     ctx = RunContext(run_id="t1")
@@ -638,4 +769,46 @@ def test_run_maps_import_text(env):
 def test_run_import_without_url_is_rejected(env):
     calls = []
     assert not pipe(env, routes_handler({}, calls)).run("importar isto aqui").ok
+    assert calls == []
+
+
+def test_run_maps_social_inspiration_text_to_analysis(env):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/inspiration/analyze"): {
+            "ok": True, "token": INSPIRATION_TOKEN, "inspiration": inspiration_payload()},
+    }, calls)
+    pipeline = pipe(env, handler)
+    for text in (YOUTUBE_URL, f"inspiração {YOUTUBE_URL}",
+                 f"analisar canal {YOUTUBE_URL}",
+                 "importar https://www.tiktok.com/@perfil"):
+        assert pipeline.run(text).ok, text
+        assert (calls[-1]["method"], calls[-1]["path"]) == (
+            "POST", "/api/inspiration/analyze")
+        assert json.loads(calls[-1]["body"])["url"].startswith("https://")
+
+
+def test_run_maps_inspiration_create_text(env):
+    calls = []
+    handler = routes_handler({
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/import"): {"kind": "inspiration", "project": project_payload()},
+    }, calls)
+    pipeline = pipe(env, handler)
+    assert pipeline.run(
+        f"criar inspiração {INSPIRATION_TOKEN} app de foco e estudo").ok
+    assert json.loads(calls[-1]["body"]) == {
+        "kind": "inspiration", "inspirationToken": INSPIRATION_TOKEN,
+        "prompt": "app de foco e estudo"}
+    assert pipeline.run(f"recriar inspiração {INSPIRATION_TOKEN}").ok
+    assert json.loads(calls[-1]["body"]) == {
+        "kind": "inspiration", "inspirationToken": INSPIRATION_TOKEN}
+
+
+def test_run_inspiration_create_without_token_is_rejected_without_http(env):
+    calls = []
+    pipeline = pipe(env, routes_handler({}, calls))
+    assert not pipeline.run("criar inspiração sem token").ok
+    assert not pipeline.run(f"criar inspiração {INSPIRATION_TOKEN} ok").ok
     assert calls == []

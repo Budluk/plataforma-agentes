@@ -22,6 +22,8 @@ SEED = [
     ("studio_agent", "studio_import_app"),
     ("studio_agent", "studio_list_versions"),
     ("studio_agent", "studio_restore_version"),
+    ("studio_agent", "studio_analyze_inspiration"),
+    ("studio_agent", "studio_create_inspiration"),
 ]
 
 

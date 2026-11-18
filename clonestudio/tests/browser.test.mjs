@@ -319,7 +319,72 @@ test('abas, janelas e persistência do workspace', async (t) => {
     assert.equal(await page.locator('.ws-tab').count(), 2);
   });
 
-  await t.test('15. nenhum erro de console ou de página', async () => {
+  await t.test('15. análise de inspiração mostra público, alcance e aviso de proxy', async () => {
+    await page.route('**/api/inspiration/analyze', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          token: 'token-de-teste',
+          inspiration: {
+            platform: 'youtube',
+            platformLabel: 'YouTube',
+            url: 'https://www.youtube.com/@treinoemcasa',
+            title: 'Treino em Casa',
+            description: 'Treinos rápidos e saúde',
+            handle: '@treinoemcasa',
+            avatar: '',
+            metrics: {
+              followers: 123000,
+              following: null,
+              posts: null,
+              totalViews: null,
+              totalLikes: null,
+              totalComments: null,
+              engagementRate: null,
+            },
+            hashtags: ['#fitness'],
+            links: [],
+            limitations: ['Total de visualizações do canal não é público.'],
+            audience: {
+              size: 'médio',
+              sizeLabel: 'médio (100 mil a 1 mi)',
+              summary: 'Público estimado: 123.000 seguidores/inscritos.',
+              signals: [],
+            },
+            reach: {
+              level: 'médio',
+              summary: 'Alcance público estimado: 123.000 seguidores/inscritos.',
+              publicMetrics: {},
+            },
+            content: {
+              themes: ['fitness e saúde'],
+              format: 'vídeos longos e Shorts',
+              hashtags: ['#fitness'],
+              pillars: ['fitness e saúde'],
+            },
+          },
+        }),
+      });
+    });
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#create-form');
+    await page.fill('#prompt', 'https://www.youtube.com/@treinoemcasa');
+    await page.click('#create-form button[type="submit"]');
+    await page.waitForSelector('.inspire-card');
+    const text = await page.locator('.inspire-card').innerText();
+    assert.match(text, /Treino em Casa/);
+    assert.match(text, /Público estimado/);
+    assert.match(text, /Alcance público/);
+    assert.match(text, /Métricas públicas usadas como proxy/);
+    assert.match(text, /123\.000/);
+    await page.click('[data-action="dismiss-inspiration"]');
+    assert.equal(await page.locator('.inspire-card').count(), 0);
+    await page.unroute('**/api/inspiration/analyze');
+  });
+
+  await t.test('16. nenhum erro de console ou de página', async () => {
     assert.deepEqual(errors, []);
   });
 });

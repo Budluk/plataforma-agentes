@@ -48,6 +48,12 @@ def build_studio_tools(client: StudioClient) -> dict:
     def studio_import_app(project_id: str) -> dict:
         return client.import_app(project_id)
 
+    def studio_analyze_inspiration(url: str) -> dict:
+        return client.analyze_inspiration(url)
+
+    def studio_create_inspiration(inspiration_token: str, prompt: str | None = None) -> dict:
+        return client.create_inspiration(inspiration_token, prompt)
+
     return {
         "studio_health": studio_health,
         "studio_list_apps": studio_list_apps,
@@ -64,4 +70,6 @@ def build_studio_tools(client: StudioClient) -> dict:
         "studio_import_site": studio_import_site,
         "studio_import_github": studio_import_github,
         "studio_import_app": studio_import_app,
+        "studio_analyze_inspiration": studio_analyze_inspiration,
+        "studio_create_inspiration": studio_create_inspiration,
     }

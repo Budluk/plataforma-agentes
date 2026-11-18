@@ -83,6 +83,7 @@ Para desligar o agrupamento ou o cache de varredura, defina `PERSIST_DELAY_MS=0`
 - **Context7:** quando o pedido menciona gráficos, animações, ícones ou classes condicionais, o gerador busca documentação atual via MCP e injeta no prompt. O selo “Context7” no projeto mostra o que foi usado; em Integrações, “Testar Context7” verifica a conexão real. Funciona sem chave; `CONTEXT7_API_KEY` é opcional.
 - **Arrastar e soltar:** arraste um link de site, um card de app já criado, um link do GitHub ou um arquivo `.zip` para o quadro de perguntas. O CloneStudio baixa o conteúdo e cria um projeto novo na hora: sites são abertos em Edge/Chrome headless para capturar o DOM já renderizado (textos, navegação, imagens reais, cores de fundo/texto, fontes e vídeos/trailers) e viram um app gerado com essa referência; cards são copiados sem LLM. GitHub e `.zip` passam primeiro por uma **análise**: o painel mostra stack, rotas, componentes, dependências e todas as funcionalidades detectadas, e só então exibe o botão “Criar site do GitHub”/“Criar site do ZIP”. Se o projeto não for compatível com o template React + Vite, o relatório completo aparece sem criar nada. Soltar fora do quadro apenas mostra um aviso, sem abrir o arquivo no navegador.
 - **Vídeos e trailers:** o importador de sites procura `<video>`, `<source>`, iframes, links e payloads de SPA (ex.: `trailerUrl` do Next.js), além de abrir as fichas dos primeiros cards de uma listagem para achar o trailer de cada título. A referência guarda `url`/`embedUrl` reais, e o gerador é instruído a criar um player funcional: modal com `<iframe>` para YouTube/Vimeo ou `<video controls>` para arquivo direto. O preview libera `frame-src` para o embed e usa `strict-origin-when-cross-origin` para o player do YouTube funcionar.
+- **Inspiração de redes sociais:** cole (ou arraste) um link de canal/página do YouTube, TikTok, Instagram ou Facebook. O CloneStudio lê apenas dados públicos — sem login, sem burlar bloqueios e sem baixar vídeos ou mídia — e mostra título, bio, seguidores/inscritos, curtidas públicas, temas e hashtags, estimando o porte do público e o alcance público. Alcance real, impressões e demografia são privados da conta: a tela deixa claro que os números são um proxy. “Recriar com a mesma ideia” cria um app **original**, com nome, textos, identidade visual e mídia próprios; a marca e o conteúdo do canal analisado não são copiados. Quando a plataforma não expõe uma métrica, o campo fica vazio em vez de inventar números.
 - **Abrir:** abre o preview em uma nova aba.
 - **Skills/Integrações/Provedores:** catálogo e configuração do ecossistema.
 
@@ -105,6 +106,8 @@ CloneStudioAI/
 │   ├── video-core.mjs       parsing/normalização de YouTube, Vimeo e arquivos de vídeo
 │   ├── context7.mjs         cliente MCP, detecção de libs e cache de docs
 │   ├── importer.mjs         download/importação de site, GitHub, .zip e cópia de app
+│   ├── inspiration.mjs      análise pública de YouTube, TikTok, Instagram e Facebook
+│   ├── inspiration-import.mjs cache de análises e criação de projeto inspirado
 │   ├── project-inspector.mjs análise de stack, rotas, dependências e funcionalidades
 │   ├── preview.mjs          servidor de preview isolado
 │   ├── skills.mjs           catálogo de Skills
@@ -199,3 +202,4 @@ A integração só consulta a rede quando detecta Recharts, Framer Motion, Lucid
 - O preview é estático (`dist`), não um dev server com HMR. Cada iteração gera um novo build.
 - O histórico guarda apenas o `src/` de cada versão (o build é refeito na restauração). Recompilar sem mudar o código não cria versão nova, e o limite padrão é 30 versões por projeto (`MAX_VERSIONS`). Se a restauração não compilar, o projeto fica em erro e a versão anterior do estado atual continua disponível no histórico.
 - O nome do projeto pode vir do prompt quando o modelo não devolve `name`.
+- A análise de inspiração usa somente HTML público: YouTube expõe inscritos, título, descrição e palavras-chave (views, vídeos e curtidas do canal não são públicos na página inicial); TikTok varia e costuma exigir login; Instagram e Facebook bloqueiam leitura anônima com frequência. Nesses casos os campos ficam vazios e a tela lista as limitações. Alcance real, impressões e demografia nunca são estimados sem métrica pública.

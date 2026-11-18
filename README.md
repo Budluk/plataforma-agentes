@@ -113,14 +113,24 @@ A área `studio` é a mais supervisionada da plataforma. Cada ação passa por:
    campos conhecidos (nunca `files`, `buildLog`, `messages` ou `prompt`).
 
 Ações: `health`, `list`, `create`, `status`, `validate`, `messages`, `fix`, `fix-validation`,
-`rebuild`, `retry`, `versions`, `restore` e `import` (site, repositório do GitHub ou cópia de um app
-existente). `studio_health` é obrigatório antes de qualquer outra ferramenta (regra de sequência do
-monitor).
+`rebuild`, `retry`, `versions`, `restore`, `import` (site, repositório do GitHub ou cópia de um app
+existente) e `inspiration`/`inspiration_create` (análise pública de canal/página e criação de um app
+original a partir dela). `studio_health` é obrigatório antes de qualquer outra ferramenta (regra de
+sequência do monitor).
 
 O histórico de versões guarda o `src/` de cada build bem-sucedido no CloneStudio. `versions` só lê a
 lista (número, rótulo, tipo, data e quantidade de arquivos) e `restore` recompila a versão escolhida,
 salvando antes o estado atual como `pre-restore` para não perder trabalho. A restauração aceita
 apenas `project_id` e `version` (inteiro de 1 a 1.000.000).
+
+A inspiração de redes sociais (`inspiration`) aceita apenas URL pública de YouTube, TikTok, Instagram
+ou Facebook e devolve a análise já reduzida a campos conhecidos: plataforma, título, descrição,
+handle, métricas públicas (seguidores/inscritos, curtidas, posts), estimativa de porte do público,
+alcance público, temas, hashtags e limitações — nunca o HTML, o avatar nem os links da página. O
+token da análise vale por 15 minutos e é o único dado aceito por `inspiration_create`, que também
+aceita uma ideia opcional (10 a 2.000 caracteres). O app criado é original: a plataforma não copia
+marca, textos, fotos ou vídeos e não baixa mídia. Números ausentes ficam vazios; alcance real,
+impressões e demografia não são inventados.
 
 A importação aceita apenas `http`/`https` público: nada de loopback, faixa privada, link-local,
 credenciais na URL, fragmento ou host fora de `github.com` no modo repositório. A resolução de DNS,
@@ -151,14 +161,22 @@ Uso pela plataforma:
     .\.venv\Scripts\python.exe scripts\studio_cli.py import-site https://exemplo.com
     .\.venv\Scripts\python.exe scripts\studio_cli.py import-github https://github.com/usuario/repo
     .\.venv\Scripts\python.exe scripts\studio_cli.py import-app <project_id>
+    .\.venv\Scripts\python.exe scripts\studio_cli.py inspiration https://www.youtube.com/@LofiGirl
+    .\.venv\Scripts\python.exe scripts\studio_cli.py create-inspiration <token> "app de foco e estudo"
 
 Ou pelo agente central: `scripts\central_cli.py "crie um app de notas com etiquetas"`,
 `"importar https://exemplo.com"`, `"corrigir a validação <project_id>"`,
-`"versões <project_id>"` ou `"restaurar a versão 2 <project_id>"`.
+`"versões <project_id>"`, `"restaurar a versão 2 <project_id>"`,
+`"inspiração https://www.youtube.com/@LofiGirl"` ou
+`"criar inspiração <token> app de foco e estudo"`.
 
 Limites: o build e o preview acontecem no processo Node, no workspace dele (`clonestudio/data/`).
 A plataforma não executa o código gerado, não instala pacotes npm e não aceita URL como descrição.
 O CloneStudio precisa de Node 22 e de um provedor OpenAI-compatible (FreeLLMAPI por padrão).
+A análise de inspiração lê só HTML público e falha fechada: YouTube expõe inscritos, título,
+descrição e palavras-chave; TikTok costuma exigir login; Instagram e Facebook bloqueiam leitura
+anônima com frequência. Alcance real, impressões e demografia não são públicos e nunca são
+inventados.
 
 ## Regras do hard gate (Economia)
 
