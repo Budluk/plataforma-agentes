@@ -1402,12 +1402,36 @@ function renderWorkspace() {
       </section>
       <aside class="chat">
         <div class="chat-head">
-          <span class="left">${icon('message')} Conversa</span>
-          <span class="count">${(project.messages || []).length}</span>
+          <div class="chat-head-main">
+            <span class="chat-avatar ${busy ? 'busy' : ''}" aria-hidden="true">CS</span>
+            <div class="chat-head-text">
+              <strong>Conversa</strong>
+              <span>${busy ? esc(project.stage || 'Trabalhando no app…') : 'Peça ajustes no app gerado'}</span>
+            </div>
+          </div>
+          <span class="chat-count" title="Mensagens na conversa">${(project.messages || []).length}</span>
         </div>
-        <div class="messages" id="messages">
-          ${renderMessages(project)}
-          ${busy ? `<div class="message"><div class="avatar">CS</div><div class="message-body"><div class="typing"><span></span><span></span><span></span></div></div></div>` : ''}
+        <div class="messages ${(project.messages || []).length ? '' : 'empty'}" id="messages">
+          ${
+            (project.messages || []).length
+              ? renderMessages(project)
+              : `<div class="chat-empty">
+                  <div class="chat-empty-icon">${icon('sparkles')}</div>
+                  <h3>Comece a conversa</h3>
+                  <p>Peça uma alteração, corrija algo ou descreva o próximo passo do app.</p>
+                </div>`
+          }
+          ${
+            busy
+              ? `<div class="message assistant typing-message">
+                  <div class="avatar">CS</div>
+                  <div class="message-body">
+                    <div class="message-meta"><span class="message-author">CloneStudio</span><span class="message-kind working">trabalhando</span></div>
+                    <div class="typing"><span></span><span></span><span></span></div>
+                  </div>
+                </div>`
+              : ''
+          }
         </div>
         <div class="chat-foot">
           ${
@@ -1895,12 +1919,18 @@ function renderMessages(project) {
   return (project.messages || [])
     .map((message) => {
       const user = message.role === 'user';
-      const kind = message.kind === 'error' ? ' error' : message.kind === 'info' ? ' info' : '';
-      return `<div class="message ${user ? 'user' : 'assistant'}${kind}">
+      const kind = message.kind === 'error' ? 'error' : message.kind === 'info' ? 'info' : '';
+      const kindLabel = kind === 'error' ? 'Erro' : kind === 'info' ? 'Aviso' : '';
+      const when = message.createdAt ? fmtTime(message.createdAt) : '';
+      return `<div class="message ${user ? 'user' : 'assistant'}${kind ? ` ${kind}` : ''}">
         <div class="avatar">${user ? 'EU' : 'CS'}</div>
         <div class="message-body">
+          <div class="message-meta">
+            <span class="message-author">${user ? 'Você' : 'CloneStudio'}</span>
+            ${kind ? `<span class="message-kind ${kind}">${icon(kind === 'error' ? 'alert' : 'info')} ${kindLabel}</span>` : ''}
+            ${when ? `<time class="message-time" datetime="${esc(message.createdAt)}">${when}</time>` : ''}
+          </div>
           <div class="bubble">${esc(message.content)}</div>
-          <div class="message-time">${fmtTime(message.createdAt)}</div>
         </div>
       </div>`;
     })
