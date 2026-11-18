@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 METRICAS_CONHECIDAS = frozenset({
     "views",
     "search_index",
+    "approx_traffic",
     "outlier_ratio",
 })
 
