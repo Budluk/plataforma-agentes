@@ -393,7 +393,94 @@ test('abas, janelas e persistência do workspace', async (t) => {
     await page.unroute('**/api/inspiration/analyze');
   });
 
-  await t.test('16. nenhum erro de console ou de página', async () => {
+  await t.test('16. acessibilidade: rótulos, contraste, atalho e abas por teclado', async () => {
+    await page.goto(`${baseUrl}?a11y=1`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#prompt');
+
+    const basics = await page.evaluate(() => {
+      const name = (el) =>
+        el.getAttribute('aria-label') ||
+        (el.labels && [...el.labels].map((label) => label.textContent).join(' ').trim()) ||
+        el.textContent.replace(/\s+/g, ' ').trim() ||
+        el.getAttribute('title') ||
+        '';
+      const visible = (el) => {
+        const style = getComputedStyle(el);
+        return (
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          el.getBoundingClientRect().width > 0
+        );
+      };
+      const unnamed = [...document.querySelectorAll('button, a[href], textarea, iframe')]
+        .filter(visible)
+        .filter((el) => !name(el))
+        .map((el) => el.outerHTML.slice(0, 80));
+      const style = getComputedStyle(document.documentElement);
+      const sample = (value) => {
+        const probe = document.createElement('span');
+        probe.style.color = value;
+        document.body.append(probe);
+        const rgb = getComputedStyle(probe).color;
+        probe.remove();
+        return rgb;
+      };
+      const parse = (value) => value.match(/\d+/g).slice(0, 3).map(Number);
+      const lum = (rgb) => {
+        const [r, g, b] = rgb.map((v) => {
+          const c = v / 255;
+          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const contrast = (a, b) => {
+        const l1 = lum(parse(a));
+        const l2 = lum(parse(b));
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      };
+      return {
+        promptLabel: name(document.getElementById('prompt')),
+        unnamed,
+        mutedContrast: contrast(
+          sample(style.getPropertyValue('--muted-2')),
+          sample(style.getPropertyValue('--panel')),
+        ),
+      };
+    });
+    assert.match(basics.promptLabel, /aplicativo/i);
+    assert.deepEqual(basics.unnamed, []);
+    assert.ok(basics.mutedContrast >= 4.5, `contraste muted-2/panel: ${basics.mutedContrast}`);
+
+    // Primeiro Tab alcança o atalho e Enter leva o foco para o conteúdo.
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset?.action), 'skip-main');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'main');
+
+    await page.goto(`${baseUrl}#/p/${alpha.id}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#view-tab-preview');
+    const chatLabel = await page.evaluate(() => {
+      const el = document.getElementById('chat-input');
+      return el.labels?.length ? el.labels[0].textContent.trim() : el.getAttribute('aria-label');
+    });
+    assert.match(chatLabel, /altera/i);
+
+    await page.locator('#view-tab-preview').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(300);
+    const tabs = await page.evaluate(() => ({
+      selected: document.querySelector('[role="tab"][aria-selected="true"]')?.id,
+      focused: document.activeElement?.id,
+      controls: [...document.querySelectorAll('[role="tab"]')].every((el) =>
+        document.getElementById(el.getAttribute('aria-controls') || ''),
+      ),
+    }));
+    assert.equal(tabs.selected, 'view-tab-validation');
+    assert.equal(tabs.focused, 'view-tab-validation');
+    assert.equal(tabs.controls, true);
+  });
+
+  await t.test('17. nenhum erro de console ou de página', async () => {
     assert.deepEqual(errors, []);
   });
 });
