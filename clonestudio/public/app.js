@@ -1539,12 +1539,13 @@ function renderCanvas(project) {
   }
   const src = `${esc(project.previewUrl)}?v=${project.previewVersion}-${state.previewNonce}`;
   const prettyUrl = esc(String(project.previewUrl || '').replace(/^https?:\/\//, ''));
+  const shownVersion = project.currentVersion || project.previewVersion;
   return `<div class="preview-wrap">
     <div class="preview-frame ${state.device === 'mobile' ? 'mobile' : ''}">
       <div class="preview-chrome">
         <span class="preview-dots" aria-hidden="true"><span></span><span></span><span></span></span>
         <span class="preview-address" title="${esc(project.previewUrl)}">${icon('monitor')}<span>${prettyUrl}</span></span>
-        <span class="preview-version">v${esc(String(project.previewVersion))}</span>
+        <span class="preview-version" title="Versão atual">v${esc(String(shownVersion))}</span>
         <a class="preview-open" href="${esc(project.previewUrl)}" target="_blank" rel="noreferrer" title="Abrir preview em nova aba" aria-label="Abrir preview em nova aba">${icon('external')}</a>
       </div>
       <div class="preview-stage">

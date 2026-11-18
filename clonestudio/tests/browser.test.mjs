@@ -131,6 +131,8 @@ test('abas, janelas e persistência do workspace', async (t) => {
       previewVersion: 1,
     });
   }
+  // Simula um projeto restaurado: o build atual é o 4, mas a versão atual é a 2.
+  storage.updateProject(alpha.id, { previewVersion: 4, currentVersion: 2 });
   await storage.flushPersistence();
 
   const port = await freePort();
@@ -459,6 +461,13 @@ test('abas, janelas e persistência do workspace', async (t) => {
 
     await page.goto(`${baseUrl}#/p/${alpha.id}`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#view-tab-preview');
+    await page.waitForSelector('.preview-version');
+    const previewVersion = (await page.locator('.preview-version').innerText()).trim();
+    assert.equal(
+      previewVersion,
+      'v2',
+      'o chip do preview deve mostrar a versão atual, não o número do build',
+    );
     const chatLabel = await page.evaluate(() => {
       const el = document.getElementById('chat-input');
       return el.labels?.length ? el.labels[0].textContent.trim() : el.getAttribute('aria-label');
