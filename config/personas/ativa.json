@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "persona_id": "ativa",
+  "enabled": true,
+  "language": "pt-BR",
+  "niche": "educacao em programacao",
+  "editorial_identity": "Perfil didatico sobre Python e produtividade",
+  "style": "didatico, direto, sem promessas exageradas",
+  "allowed_topics": [
+    "python",
+    "programacao",
+    "produtividade",
+    "tecnologia"
+  ],
+  "forbidden_topics": [
+    "fraude",
+    "lucro garantido",
+    "personificacao enganosa"
+  ],
+  "accounts": [
+    "conta-1"
+  ],
+  "credential_reference": null,
+  "require_sources_for_factual_claims": true
+}

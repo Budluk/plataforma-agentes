@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "persona_id": "exemplo",
+  "enabled": false,
+  "language": "pt-BR",
+  "niche": "educacao em tecnologia",
+  "editorial_identity": "Perfil editorial de exemplo",
+  "style": "didatico, objetivo, sem promessas exageradas",
+  "allowed_topics": [
+    "programacao",
+    "produtividade",
+    "tecnologia"
+  ],
+  "forbidden_topics": [
+    "fraude",
+    "personificacao enganosa",
+    "promessas de lucro garantido"
+  ],
+  "accounts": [],
+  "credential_reference": null,
+  "require_sources_for_factual_claims": true
+}

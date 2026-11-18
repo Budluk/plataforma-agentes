@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "mode": "dry_run",
+  "human_approval_required": true,
+  "auto_approval_enabled": false,
+  "max_posts_per_account_per_day": 1,
+  "allowed_platforms": [],
+  "publisher_provider": null,
+  "fail_closed": true,
+  "approval": {
+    "bind_content_hash": true,
+    "bind_media_hash": true,
+    "bind_persona": true,
+    "bind_account": true,
+    "bind_platform": true,
+    "expires_after_minutes": 60,
+    "invalidate_on_change": true
+  }
+}
