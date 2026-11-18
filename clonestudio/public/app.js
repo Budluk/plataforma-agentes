@@ -832,7 +832,8 @@ function renderSidebar(active) {
       <span class="brand-mark">${icon('sparkles')}</span>
       <span>CloneStudio<span class="brand-ai">AI</span></span>
     </a>
-    <nav class="nav">
+    <nav class="nav" aria-label="Navegação principal">
+      <span class="nav-section" aria-hidden="true">Navegação</span>
       ${navItems
         .map(
           ([id, href, iconName, text]) => `<a class="nav-link ${active === id ? 'active' : ''}" href="${href}">
@@ -845,7 +846,11 @@ function renderSidebar(active) {
       <span class="dot ${provider ? 'good' : 'bad'}"></span>
       <div><strong>${esc(label)}</strong><small>${provider ? 'provedor configurado' : 'configure o .env'}</small></div>
     </div>
-    <div class="sidebar-foot">Núcleo local · v${esc(state.config?.version || '0.2.0')}</div>
+    <div class="sidebar-foot">
+      <span class="dot good"></span>
+      <span>Núcleo local</span>
+      <span class="sidebar-version">v${esc(state.config?.version || '0.2.0')}</span>
+    </div>
   </aside>`;
 }
 
