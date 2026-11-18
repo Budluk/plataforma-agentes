@@ -112,6 +112,12 @@ const SUGGESTIONS = [
   'Uma galeria de fotos com busca, filtros e lightbox',
 ];
 
+const CHAT_SUGGESTIONS = [
+  'Deixe o layout mais responsivo',
+  'Ajuste as cores e a tipografia',
+  'Adicione uma seção de depoimentos',
+];
+
 const OPEN_PROJECTS_KEY = 'clonestudio.openProjects';
 const WORKSPACE_STATES_KEY = 'clonestudio.workspaceStates';
 const MAX_OPEN_PROJECTS = 12;
@@ -1324,6 +1330,7 @@ function renderWorkspace() {
             ? `<button class="icon-btn" type="button" data-action="close-window" title="Fechar janela" aria-label="Fechar janela">${icon('x')}</button>`
             : `<a class="icon-btn" href="#/" title="Voltar para o início" aria-label="Voltar para o início">${icon('arrowLeft')}</a>`
         }
+        <span class="ws-project-mark" aria-hidden="true">${esc(initial(project.name))}</span>
         <div class="ws-title">
           <h1>${esc(project.name)}</h1>
           <div class="ws-sub">
@@ -1375,9 +1382,12 @@ function renderWorkspace() {
           ${
             state.tab === 'preview' && project.status === 'ready'
               ? `<div class="canvas-tools">
-                  <button class="icon-btn ${state.device === 'desktop' ? 'active' : ''}" type="button" data-action="device" data-device="desktop" title="Desktop" aria-label="Visualizar em desktop" aria-pressed="${state.device === 'desktop'}">${icon('monitor')}</button>
-                  <button class="icon-btn ${state.device === 'mobile' ? 'active' : ''}" type="button" data-action="device" data-device="mobile" title="Mobile" aria-label="Visualizar em mobile" aria-pressed="${state.device === 'mobile'}">${icon('smartphone')}</button>
-                  <button class="icon-btn" type="button" data-action="refresh-preview" title="Recarregar preview" aria-label="Recarregar preview">${icon('refresh')}</button>
+                  <span class="canvas-tools-label">Visualização</span>
+                  <div class="tool-group">
+                    <button class="icon-btn ${state.device === 'desktop' ? 'active' : ''}" type="button" data-action="device" data-device="desktop" title="Desktop" aria-label="Visualizar em desktop" aria-pressed="${state.device === 'desktop'}">${icon('monitor')}</button>
+                    <button class="icon-btn ${state.device === 'mobile' ? 'active' : ''}" type="button" data-action="device" data-device="mobile" title="Mobile" aria-label="Visualizar em mobile" aria-pressed="${state.device === 'mobile'}">${icon('smartphone')}</button>
+                    <button class="icon-btn" type="button" data-action="refresh-preview" title="Recarregar preview" aria-label="Recarregar preview">${icon('refresh')}</button>
+                  </div>
                 </div>`
               : ''
           }
@@ -1394,6 +1404,17 @@ function renderWorkspace() {
           ${busy ? `<div class="message"><div class="avatar">CS</div><div class="message-body"><div class="typing"><span></span><span></span><span></span></div></div></div>` : ''}
         </div>
         <div class="chat-foot">
+          ${
+            canChat
+              ? `<div class="chat-quick">
+                  <span>Sugestões</span>
+                  ${CHAT_SUGGESTIONS.map(
+                    (suggestion) =>
+                      `<button type="button" data-action="chat-suggestion" data-prompt="${esc(suggestion)}">${esc(suggestion)}</button>`,
+                  ).join('')}
+                </div>`
+              : ''
+          }
           <form id="chat-form" class="chat-form">
             <textarea id="chat-input" maxlength="8000" placeholder="${canChat ? 'Peça uma alteração…' : 'Aguarde a geração atual…'}" ${canChat ? '' : 'disabled'}>${esc(state.chatDraft)}</textarea>
             <button class="send-btn" type="submit" ${canChat && state.chatDraft.trim() ? '' : 'disabled'} title="Enviar" aria-label="Enviar mensagem">${icon('arrowUp')}</button>
@@ -2692,6 +2713,18 @@ document.addEventListener('click', async (event) => {
       if (textarea) {
         textarea.value = state.promptDraft;
         textarea.focus();
+      }
+      break;
+    }
+    case 'chat-suggestion': {
+      const input = document.getElementById('chat-input');
+      if (input && !input.disabled) {
+        state.chatDraft = element.dataset.prompt || '';
+        input.value = state.chatDraft;
+        input.focus();
+        const button = document.querySelector('#chat-form button[type="submit"]');
+        if (button) button.disabled = !state.chatDraft.trim();
+        scheduleWorkspaceStateSave();
       }
       break;
     }
