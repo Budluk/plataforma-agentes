@@ -56,6 +56,7 @@ REGRAS DO PROJETO:
 - Ícones: lucide-react. Gráficos: recharts. Animações: framer-motion (use com moderação). Classes condicionais: clsx.
 - framer-motion: use motion.div/motion.button (ou motion.*) para whileHover, whileTap, initial, animate e transition. NUNCA passe essas props para tags HTML comuns como button/div, pois o React emite warnings.
 - Não faça chamadas de rede para APIs externas, não use chaves. Use dados mock, estado local e, se precisar persistir, localStorage com try/catch.
+- Telas de login/cadastro são DEMONSTRAÇÃO: aceite qualquer e-mail e qualquer senha, sem lista de e-mails permitidos, sem validar credenciais reais e com aviso visível de que é demo. O botão de entrar deve sempre levar ao app; nunca bloqueie o acesso com "e-mail não encontrado" nem prometa autenticação real.
 - Imagens: use SOMENTE URLs de imagem fornecidas na referência do site. Nunca invente URLs e nunca use via.placeholder.com, placehold.it, dummyimage.com ou picsum.photos (serviços instáveis ou fora do ar). Sem imagens na referência, crie pôsteres/ilustrações com CSS (gradientes, padrões) ou SVG inline. Toda <img> externa deve ter onError para cair num fundo CSS.
 - Quando houver referência de site, recrie a estrutura da página (cabeçalho, navegação, hero, filtros, listas e rodapé) e o conteúdo real extraído, em vez de entregar só uma grade genérica.
 - Vídeos: quando a referência listar vídeos/trailers, crie um player funcional (iframe do YouTube/Vimeo ou <video controls> para arquivo direto) aberto por um botão "Trailer"/"Assistir". Nunca invente URL de vídeo nem use uma thumbnail no lugar do player. Desmonte o iframe/vídeo ao fechar o modal.
@@ -101,6 +102,25 @@ function knowledgeSection(knowledgeText) {
   return knowledgeText ? `\n\n${knowledgeText}` : '';
 }
 
+const AUTH_PAGE_PATTERN =
+  /\b(sign[ -]?in|log[ -]?in|login|entrar|acessar|criar conta|create account|sign[ -]?up|cadastr\w*|welcome back|bem-vindo de volta|esqueci (a )?senha|forgot password)\b/i;
+const AUTH_EXTRA_PATTERN =
+  /\b(senha|password)\b|continue with (google|email)|entrar com|acesse sua conta/i;
+
+/**
+ * Detecta referências que são apenas a tela pública de entrada. Nesses casos o
+ * conteúdo interno exige autenticação e não foi capturado, então o gerador não
+ * pode inventar o dashboard nem prometer login real.
+ */
+export function looksLikeAuthPage(reference) {
+  if (!reference || reference.kind === 'inspiration') return false;
+  const title = String(reference.title || '');
+  const headings = Array.isArray(reference.headings) ? reference.headings.join('\n') : '';
+  const text = String(reference.text || '').slice(0, 4000);
+  const titleOrHeading = AUTH_PAGE_PATTERN.test(`${title}\n${headings}`);
+  return titleOrHeading && AUTH_EXTRA_PATTERN.test(text);
+}
+
 function inspirationSection(reference) {
   const lines = [
     '',
@@ -127,6 +147,7 @@ function referenceSection(project) {
   const links = Array.isArray(reference.links) ? reference.links.slice(0, 20) : [];
   const headings = Array.isArray(reference.headings) ? reference.headings.slice(0, 20) : [];
   const videos = Array.isArray(reference.videos) ? reference.videos.slice(0, 16) : [];
+  const authScreen = looksLikeAuthPage(reference);
   const lines = [
     '',
     '',
@@ -163,6 +184,9 @@ function referenceSection(project) {
             return `${label} → ${target}${provider}${poster}${page}`;
           })
           .join('\n- ')}\n\nCOMO TOCAR OS VÍDEOS (obrigatório):\n- Crie um player funcional. Em cada card/hero que tiver vídeo, adicione um botão "Trailer"/"Assistir" que abre um modal com <iframe src={embedUrl} title={titulo} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />. Para arquivos diretos (.mp4/.webm), use <video controls poster={poster} src={url}>.\n- O modal precisa fechar e desmontar o iframe/vídeo ao fechar. O vídeo deve tocar de verdade: não use a thumbnail no lugar do player.\n- Se um item não tiver vídeo na lista, não mostre botão de trailer nele. Não use autoplay com som; se usar autoplay, mute.`
+      : '',
+    authScreen
+      ? '\nATENÇÃO — TELA DE LOGIN (CONTEÚDO INTERNO NÃO CAPTURADO):\nA referência é apenas a entrada pública; o restante do site exige autenticação e não foi lido.\n- Recrie esta tela como DEMONSTRAÇÃO: aceite qualquer e-mail e qualquer senha, sem lista de e-mails permitidos.\n- Nunca exiba "e-mail não encontrado" nem finja validar uma conta real.\n- Mostre um aviso visível: "Demonstração — não autentica na conta real".\n- Depois de entrar, exiba um painel de exemplo, marcado como demonstração; não invente dados privados do site original.'
       : '',
     '',
     'CONTEÚDO EXTRAÍDO DA PÁGINA:',

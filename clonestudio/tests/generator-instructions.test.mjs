@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialInstruction } from '../server/generator.mjs';
+import { initialInstruction, SYSTEM_PROMPT, looksLikeAuthPage } from '../server/generator.mjs';
 
 test('initialInstruction inclui o prompt do projeto', () => {
   const text = initialInstruction({ prompt: 'Crie um CRM com funil kanban' });
@@ -136,4 +136,74 @@ test('initialInstruction trata inspiração social com originalidade e sem mídi
   assert.doesNotMatch(text, /VÍDEOS\/TRAILERS REAIS/);
   assert.doesNotMatch(text, /youtube\.com\/avatar\.jpg/);
   assert.doesNotMatch(text, /youtube\.com\/watch/);
+});
+
+test('looksLikeAuthPage reconhece tela de entrada e ignora inspiração', () => {
+  assert.equal(
+    looksLikeAuthPage({
+      kind: 'site',
+      title: 'My account | AITuber',
+      headings: ['Sign in to AITuber'],
+      text: 'Sign in to AITuber\nWelcome back!\nContinue with Google or Email address Password',
+    }),
+    true,
+  );
+  assert.equal(
+    looksLikeAuthPage({
+      kind: 'site',
+      title: 'Acervo de Doramas',
+      headings: ['Acervo completo', 'Mais populares'],
+      text: 'Catálogo de doramas com filtros e pôsteres.',
+    }),
+    false,
+  );
+  assert.equal(
+    looksLikeAuthPage({
+      kind: 'inspiration',
+      title: 'Canal de login e senha',
+      headings: ['Sign in'],
+      text: 'Password',
+    }),
+    false,
+  );
+});
+
+test('tela de login vira demonstração sem whitelist de e-mails', () => {
+  const text = initialInstruction({
+    prompt: 'Recrie a tela de login do AITuber',
+    reference: {
+      kind: 'site',
+      url: 'https://accounts.exemplo.com/sign-in',
+      title: 'My account | AITuber',
+      headings: ['Sign in to AITuber'],
+      text: 'Sign in to AITuber\nWelcome back!\nContinue with Google or Email address Password',
+    },
+  });
+  assert.match(text, /TELA DE LOGIN/);
+  assert.match(text, /DEMONSTRAÇÃO/);
+  assert.match(text, /qualquer e-mail e qualquer senha/);
+  assert.match(text, /sem lista de e-mails permitidos/);
+  assert.match(text, /não autentica na conta real/);
+  assert.match(text, /não invente dados privados/);
+});
+
+test('referência comum não recebe aviso de tela de login', () => {
+  const text = initialInstruction({
+    prompt: 'Recrie o acervo',
+    reference: {
+      kind: 'site',
+      url: 'https://exemplo.com/acervo',
+      title: 'Acervo de Doramas',
+      headings: ['Acervo completo'],
+      text: 'Catálogo de doramas com filtros e pôsteres.',
+    },
+  });
+  assert.doesNotMatch(text, /TELA DE LOGIN/);
+});
+
+test('SYSTEM_PROMPT exige login de demonstração e proíbe whitelist', () => {
+  assert.match(SYSTEM_PROMPT, /DEMONSTRAÇÃO/);
+  assert.match(SYSTEM_PROMPT, /qualquer e-mail e qualquer senha/);
+  assert.match(SYSTEM_PROMPT, /sem lista de e-mails permitidos/);
+  assert.match(SYSTEM_PROMPT, /nunca bloqueie o acesso/);
 });
