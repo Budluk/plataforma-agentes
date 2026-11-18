@@ -25,7 +25,7 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 - core/: contratos Pydantic, hard gate, tool monitor, permissões, logger JSONL, memória SQLite, cliente LLM
 - agents/: base_agent (call_tool final), finance/ (analista, gestor de risco, ferramentas), studio/ (cliente supervisionado)
 - pipelines/: Analista -> Risco -> Gate -> Alerta
-- scripts/: init_db, smoke tests, demo, studio_cli
+- scripts/: init_db, smoke tests, demo, studio_cli, studio_api
 - clonestudio/: CloneStudio AI inteiro (Node 22, React + Vite), vendorizado e executado como serviço local
 - config/studio_hosts.txt: hosts de loopback autorizados para a área studio
 - tests/: pytest
@@ -169,6 +169,42 @@ Ou pelo agente central: `scripts\central_cli.py "crie um app de notas com etique
 `"versões <project_id>"`, `"restaurar a versão 2 <project_id>"`,
 `"inspiração https://www.youtube.com/@LofiGirl"` ou
 `"criar inspiração <token> app de foco e estudo"`.
+
+### API HTTP local (opcional)
+
+`scripts/studio_api.py` expõe as mesmas 17 ferramentas por HTTP em loopback, sem dependência
+nova (só a stdlib). Cada requisição continua passando por contrato, gate, monitor, permissões e
+log JSONL; a API não executa código gerado.
+
+    .\.venv\Scripts\python.exe scripts\studio_api.py
+    # Studio API em http://127.0.0.1:8790 (auth=loopback)
+
+| Método | Rota | Uso |
+|---|---|---|
+| GET | `/health` | liveness da API (não chama o CloneStudio) |
+| GET | `/tools` | lista as 17 ferramentas e seus parâmetros |
+| GET | `/tools/<nome>` | esquema de uma ferramenta |
+| POST | `/tools/<nome>` | executa a ferramenta com um objeto JSON |
+| POST | `/run` | texto livre para `StudioPipeline.run` |
+
+Exemplos (PowerShell):
+
+    Invoke-RestMethod http://127.0.0.1:8790/tools/studio_list_apps -Method Post -Body '{}' -ContentType 'application/json'
+    Invoke-RestMethod http://127.0.0.1:8790/tools/studio_create_app -Method Post -Body '{"prompt":"loja de café com carrinho"}' -ContentType 'application/json'
+    Invoke-RestMethod http://127.0.0.1:8790/run -Method Post -Body '{"text":"listar meus apps"}' -ContentType 'application/json'
+
+Respostas: `{"ok": true, "data": ..., "reasons": []}` com HTTP 200 em sucesso e HTTP 422
+quando o gate, o monitor ou o cliente recusa. Erros de formato são 400, ferramenta desconhecida
+404, corpo acima de 64 KB 413 e token ausente/errado 401. POST com corpo exige
+`Content-Type: application/json` (415) e `Host` fora de loopback é recusado (400). O bind é
+sempre loopback (`STUDIO_API_HOST` aceita só `127.0.0.1` ou `localhost`); `STUDIO_API_PORT`
+padrão é 8790.
+Se `STUDIO_API_TOKEN` estiver definido (mínimo 16 caracteres), todas as rotas exigem
+`Authorization: Bearer <token>`. Sem token, a proteção é o bind em loopback.
+
+A API é uma porta de entrada para outros agentes/processos locais; o agente central continua
+usando a biblioteca Python diretamente, e o `studio_cli.py` continua sendo o caminho mais curto
+para testar sem LLM.
 
 Limites: o build e o preview acontecem no processo Node, no workspace dele (`clonestudio/data/`).
 A plataforma não executa o código gerado, não instala pacotes npm e não aceita URL como descrição.
