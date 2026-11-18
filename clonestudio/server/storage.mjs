@@ -143,13 +143,23 @@ function trimMessages(messages) {
   return messages.slice(-MAX_MESSAGES);
 }
 
+const MAX_PROJECT_NAME = 52;
+
+function cutAtWord(value, limit) {
+  if (value.length <= limit) return value;
+  const cut = value.slice(0, limit);
+  const space = cut.lastIndexOf(' ');
+  const base = space >= Math.floor(limit / 2) ? cut.slice(0, space) : cut;
+  return base.replace(/[\s,;:.!?\-–—]+$/u, '').trim() || cut.trim();
+}
+
 export function deriveProjectName(prompt) {
   const clean = String(prompt || '')
     .replace(/\s+/g, ' ')
     .trim();
   if (!clean) return 'Novo app';
   const first = clean.split(/[.!?\n]/)[0].trim();
-  const name = (first || clean).slice(0, 52).trim();
+  const name = cutAtWord(first || clean, MAX_PROJECT_NAME);
   return name.length < 3 ? 'Novo app' : name.charAt(0).toUpperCase() + name.slice(1);
 }
 

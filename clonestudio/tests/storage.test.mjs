@@ -17,6 +17,19 @@ test.after(async () => {
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
+test('nome derivado corta em limite de palavra', () => {
+  assert.equal(
+    storage.deriveProjectName('app de foco e estudo com timer pomodoro e lista de tarefas'),
+    'App de foco e estudo com timer pomodoro e lista de',
+  );
+  assert.equal(storage.deriveProjectName('app de notas'), 'App de notas');
+  assert.equal(
+    storage.deriveProjectName('  App   de   notas, com tags e busca. '),
+    'App de notas, com tags e busca',
+  );
+  assert.equal(storage.deriveProjectName('x'.repeat(80)).length, 52);
+});
+
 test('cache de src/ relê arquivos alterados e evita conteúdo velho', async () => {
   const project = storage.createProject({ prompt: 'Teste de cache de arquivos' });
   storage.ensureProjectWorkspace(project.id);

@@ -4,7 +4,7 @@ Cópia do app CloneStudio AI v0.2.0 (React 19 + Vite 8 + Node 22), integrada com
 local da área `studio`. A plataforma Python não importa nem executa este código: fala com ele
 apenas por HTTP em loopback.
 
-Origem: repositório CloneStudioAI, commit `75ad12c` (análise de inspiração de redes sociais).
+Origem: repositório CloneStudioAI, commit `3c28476` (nome do projeto cortado em limite de palavra).
 
 Fora desta cópia, de propósito:
 
