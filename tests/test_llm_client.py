@@ -57,3 +57,10 @@ def test_request_leaves_room_for_reasoning_tokens(monkeypatch):
     monkeypatch.setattr(llm_client.httpx, "post", fake_post(reply("OK"), seen=seen))
     client().complete("s", "u")
     assert seen["json"]["max_tokens"] >= 3000
+
+
+def test_ignores_proxy_environment(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(llm_client.httpx, "post", fake_post(reply("OK"), seen=seen))
+    client().complete("s", "u")
+    assert seen["trust_env"] is False

@@ -46,6 +46,7 @@ class HttpLLMClient:
                       "messages": [{"role": "system", "content": system},
                                    {"role": "user", "content": user}]},
                 timeout=self.timeout,
+                trust_env=False,
             )
         except httpx.HTTPError as exc:
             raise LLMError(f"erro de rede: {type(exc).__name__}") from None
