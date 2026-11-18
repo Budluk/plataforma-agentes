@@ -112,6 +112,12 @@ const SUGGESTIONS = [
   'Uma galeria de fotos com busca, filtros e lightbox',
 ];
 
+const CHAT_SUGGESTIONS = [
+  'Deixe o layout mais responsivo',
+  'Ajuste as cores e a tipografia',
+  'Adicione uma seção de depoimentos',
+];
+
 const OPEN_PROJECTS_KEY = 'clonestudio.openProjects';
 const WORKSPACE_STATES_KEY = 'clonestudio.workspaceStates';
 const MAX_OPEN_PROJECTS = 12;
@@ -1074,41 +1080,77 @@ function renderInspirationCard(report) {
 
 function renderHome() {
   const busyCount = state.projects.filter((project) => ['generating', 'building'].includes(project.status)).length;
+  const provider = configuredProvider();
   return renderShell(
     'home',
     `<div class="page">
       <section class="hero">
-        <span class="eyebrow">${icon('sparkles')} CloneStudio AI</span>
-        <h1>Descreva. A IA constrói.<br /><span class="grad">Você refina conversando.</span></h1>
-        <p>Um app React completo, compilado de verdade e com preview ao vivo. Peça mudanças pelo chat e veja o resultado em segundos.</p>
-        ${
-          state.importBusy
-            ? `<div class="import-banner">${icon('loader', 'spin')} <span>Baixando ${esc(state.importLabel || 'conteúdo')} e criando o projeto…</span></div>`
-            : ''
-        }
-        ${
-          state.inspectionBusy
-            ? `<div class="import-banner">${icon('loader', 'spin')} <span>Analisando ${esc(state.inspectionLabel || 'projeto')} para descobrir o que ele faz…</span></div>`
-            : ''
-        }
-        ${
-          state.inspirationBusy
-            ? `<div class="import-banner">${icon('loader', 'spin')} <span>Analisando ${esc(state.inspirationLabel || 'canal')} e estimando público e alcance públicos…</span></div>`
-            : ''
-        }
-        <form id="create-form" class="composer">
-          <textarea id="prompt" maxlength="6000" placeholder="Ex.: crie um CRM com dashboard de vendas, funil kanban e cadastro de contatos…">${esc(state.promptDraft)}</textarea>
-          <div class="composer-foot">
-            <span class="composer-hint">${icon('bolt')} ${busyCount ? `${busyCount} projeto(s) em andamento` : 'Ctrl + Enter para gerar'}</span>
-            <span class="composer-drop">${icon('download')} Arraste um link, app ou .zip</span>
-            <button class="btn primary" type="submit">${icon('sparkles')} Gerar app</button>
+        <div class="hero-topline">
+          <span class="eyebrow">${icon('sparkles')} CloneStudio AI</span>
+          <a class="provider-pill ${provider ? 'ready' : 'missing'}" href="#/providers" title="${provider ? 'Provedor ativo' : 'Configurar provedor'}">
+            <span class="dot ${provider ? 'good' : 'bad'}"></span>
+            <strong>${provider ? esc(provider.label) : 'Sem provedor'}</strong>
+            <span>${provider ? 'Ativo' : 'Configurar'}</span>
+          </a>
+        </div>
+        <div class="hero-grid">
+          <div class="hero-main">
+            <h1>Descreva. A IA constrói.<br /><span class="grad">Você refina conversando.</span></h1>
+            <p>Um app React completo, compilado de verdade e com preview ao vivo. Peça mudanças pelo chat e veja o resultado em segundos.</p>
+            ${
+              state.importBusy
+                ? `<div class="import-banner">${icon('loader', 'spin')} <span>Baixando ${esc(state.importLabel || 'conteúdo')} e criando o projeto…</span></div>`
+                : ''
+            }
+            ${
+              state.inspectionBusy
+                ? `<div class="import-banner">${icon('loader', 'spin')} <span>Analisando ${esc(state.inspectionLabel || 'projeto')} para descobrir o que ele faz…</span></div>`
+                : ''
+            }
+            ${
+              state.inspirationBusy
+                ? `<div class="import-banner">${icon('loader', 'spin')} <span>Analisando ${esc(state.inspirationLabel || 'canal')} e estimando público e alcance públicos…</span></div>`
+                : ''
+            }
+            <form id="create-form" class="composer">
+              <label class="sr-only" for="prompt">Descreva o aplicativo que você quer criar</label>
+              <textarea id="prompt" maxlength="6000" placeholder="Ex.: crie um CRM com dashboard de vendas, funil kanban e cadastro de contatos…">${esc(state.promptDraft)}</textarea>
+              <div class="composer-foot">
+                <span class="composer-hint">${icon('bolt')} ${busyCount ? `${busyCount} projeto(s) em andamento` : 'Ctrl + Enter para gerar'}</span>
+                <span class="composer-drop">${icon('download')} Arraste um link, app ou .zip</span>
+                <button class="btn primary" type="submit">${icon('sparkles')} Gerar app</button>
+              </div>
+            </form>
+            <div class="idea-list">
+              <span class="idea-label">Ideias para começar</span>
+              <div class="chips">
+                ${SUGGESTIONS.map(
+                  (suggestion) =>
+                    `<button class="chip" type="button" data-action="suggestion" data-prompt="${esc(suggestion)}">${icon('bolt')}<span>${esc(suggestion)}</span></button>`,
+                ).join('')}
+              </div>
+            </div>
           </div>
-        </form>
-        <div class="chips">
-          ${SUGGESTIONS.map(
-            (suggestion) =>
-              `<button class="chip" type="button" data-action="suggestion" data-prompt="${esc(suggestion)}">${esc(suggestion)}</button>`,
-          ).join('')}
+          <aside class="hero-showcase" aria-label="Recursos do CloneStudio">
+            <div class="showcase-window" aria-hidden="true">
+              <div class="showcase-bar"><span></span><span></span><span></span></div>
+              <div class="showcase-body">
+                <div class="showcase-side"><span></span><span></span><span></span></div>
+                <div class="showcase-content">
+                  <div class="showcase-kicker"></div>
+                  <div class="showcase-title"></div>
+                  <div class="showcase-cards"><span></span><span></span><span></span></div>
+                  <div class="showcase-line"></div>
+                  <div class="showcase-line short"></div>
+                </div>
+              </div>
+            </div>
+            <div class="showcase-features">
+              <span>${icon('code')} Código real</span>
+              <span>${icon('monitor')} Preview ao vivo</span>
+              <span>${icon('message')} Refino por chat</span>
+            </div>
+          </aside>
         </div>
         ${state.inspection ? renderInspectionCard(state.inspection) : ''}
         ${state.inspiration ? renderInspirationCard(state.inspiration) : ''}
@@ -1130,9 +1172,22 @@ function renderHome() {
 
 function renderProjectList() {
   if (state.projects.length === 0) {
-    return `<div class="empty">
+    return `<div class="empty onboarding">
+      <div class="empty-art" aria-hidden="true">
+        <div class="empty-window">
+          <div class="empty-window-bar"><span></span><span></span><span></span></div>
+          <div class="empty-window-body"><span></span><span></span><span></span></div>
+        </div>
+        <span class="empty-spark">${icon('sparkles')}</span>
+      </div>
       <h3>Nenhum app por aqui ainda</h3>
-      <p>Escreva uma ideia acima e gere o primeiro projeto.</p>
+      <p>Escreva uma ideia acima e gere o primeiro projeto. Você também pode começar com um exemplo.</p>
+      <ol class="empty-steps">
+        <li>${icon('message')}<span><strong>Descreva</strong> o que quer criar</span></li>
+        <li>${icon('sparkles')}<span><strong>A IA gera</strong> o app e compila</span></li>
+        <li>${icon('bolt')}<span><strong>Você refina</strong> pelo chat</span></li>
+      </ol>
+      <button class="btn primary" type="button" data-action="suggestion" data-prompt="${esc(SUGGESTIONS[0])}">${icon('sparkles')} Usar um exemplo</button>
     </div>`;
   }
   return `<div class="project-grid">${state.projects.map(renderProjectCard).join('')}</div>`;
@@ -1275,6 +1330,7 @@ function renderWorkspace() {
             ? `<button class="icon-btn" type="button" data-action="close-window" title="Fechar janela" aria-label="Fechar janela">${icon('x')}</button>`
             : `<a class="icon-btn" href="#/" title="Voltar para o início" aria-label="Voltar para o início">${icon('arrowLeft')}</a>`
         }
+        <span class="ws-project-mark" aria-hidden="true">${esc(initial(project.name))}</span>
         <div class="ws-title">
           <h1>${esc(project.name)}</h1>
           <div class="ws-sub">
@@ -1326,9 +1382,12 @@ function renderWorkspace() {
           ${
             state.tab === 'preview' && project.status === 'ready'
               ? `<div class="canvas-tools">
-                  <button class="icon-btn ${state.device === 'desktop' ? 'active' : ''}" type="button" data-action="device" data-device="desktop" title="Desktop" aria-label="Visualizar em desktop" aria-pressed="${state.device === 'desktop'}">${icon('monitor')}</button>
-                  <button class="icon-btn ${state.device === 'mobile' ? 'active' : ''}" type="button" data-action="device" data-device="mobile" title="Mobile" aria-label="Visualizar em mobile" aria-pressed="${state.device === 'mobile'}">${icon('smartphone')}</button>
-                  <button class="icon-btn" type="button" data-action="refresh-preview" title="Recarregar preview" aria-label="Recarregar preview">${icon('refresh')}</button>
+                  <span class="canvas-tools-label">Visualização</span>
+                  <div class="tool-group">
+                    <button class="icon-btn ${state.device === 'desktop' ? 'active' : ''}" type="button" data-action="device" data-device="desktop" title="Desktop" aria-label="Visualizar em desktop" aria-pressed="${state.device === 'desktop'}">${icon('monitor')}</button>
+                    <button class="icon-btn ${state.device === 'mobile' ? 'active' : ''}" type="button" data-action="device" data-device="mobile" title="Mobile" aria-label="Visualizar em mobile" aria-pressed="${state.device === 'mobile'}">${icon('smartphone')}</button>
+                    <button class="icon-btn" type="button" data-action="refresh-preview" title="Recarregar preview" aria-label="Recarregar preview">${icon('refresh')}</button>
+                  </div>
                 </div>`
               : ''
           }
@@ -1345,6 +1404,17 @@ function renderWorkspace() {
           ${busy ? `<div class="message"><div class="avatar">CS</div><div class="message-body"><div class="typing"><span></span><span></span><span></span></div></div></div>` : ''}
         </div>
         <div class="chat-foot">
+          ${
+            canChat
+              ? `<div class="chat-quick">
+                  <span>Sugestões</span>
+                  ${CHAT_SUGGESTIONS.map(
+                    (suggestion) =>
+                      `<button type="button" data-action="chat-suggestion" data-prompt="${esc(suggestion)}">${esc(suggestion)}</button>`,
+                  ).join('')}
+                </div>`
+              : ''
+          }
           <form id="chat-form" class="chat-form">
             <textarea id="chat-input" maxlength="8000" placeholder="${canChat ? 'Peça uma alteração…' : 'Aguarde a geração atual…'}" ${canChat ? '' : 'disabled'}>${esc(state.chatDraft)}</textarea>
             <button class="send-btn" type="submit" ${canChat && state.chatDraft.trim() ? '' : 'disabled'} title="Enviar" aria-label="Enviar mensagem">${icon('arrowUp')}</button>
@@ -2643,6 +2713,18 @@ document.addEventListener('click', async (event) => {
       if (textarea) {
         textarea.value = state.promptDraft;
         textarea.focus();
+      }
+      break;
+    }
+    case 'chat-suggestion': {
+      const input = document.getElementById('chat-input');
+      if (input && !input.disabled) {
+        state.chatDraft = element.dataset.prompt || '';
+        input.value = state.chatDraft;
+        input.focus();
+        const button = document.querySelector('#chat-form button[type="submit"]');
+        if (button) button.disabled = !state.chatDraft.trim();
+        scheduleWorkspaceStateSave();
       }
       break;
     }
