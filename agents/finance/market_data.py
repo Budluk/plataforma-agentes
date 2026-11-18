@@ -42,7 +42,7 @@ class HttpMarketData:
         body = bytearray()
         try:
             with httpx.Client(timeout=self.timeout, follow_redirects=False, transport=self.transport,
-                              headers={"User-Agent": self.user_agent}) as client:
+                              headers={"User-Agent": self.user_agent}, trust_env=False) as client:
                 with client.stream("GET", url) as r:
                     if 300 <= r.status_code < 400:
                         raise MarketDataError("redirecionamento não permitido")

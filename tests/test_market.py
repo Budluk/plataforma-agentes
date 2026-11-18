@@ -118,6 +118,20 @@ def test_each_provider_returns_a_validated_quote():
     assert (q.price, q.source, q.kind) == (1.0812, "frankfurter", "daily_reference")
 
 
+def test_market_data_ignores_proxy_environment(monkeypatch):
+    seen = {}
+    real_client = httpx.Client
+
+    def capture(**kw):
+        seen.update(kw)
+        return real_client(**kw)
+
+    monkeypatch.setattr(httpx, "Client", capture)
+    client, _ = http()
+    client.get_quote("PETR4")
+    assert seen["trust_env"] is False
+
+
 def test_payload_for_another_symbol_is_rejected():
     client, _ = http()
     with pytest.raises(MarketDataError):

@@ -19,6 +19,7 @@ import {
   updateProject,
 } from './storage.mjs';
 import { isNotModified, weakEtag } from './http-cache.mjs';
+import { assertLoopbackHost } from './net-safety.mjs';
 import {
   callChat,
   listProviderModels,
@@ -68,7 +69,13 @@ import {
 } from './preview-validator.mjs';
 
 const VERSION = '0.2.0';
-const HOST = process.env.HOST || '127.0.0.1';
+let HOST;
+try {
+  HOST = assertLoopbackHost(process.env.HOST || '127.0.0.1');
+} catch (error) {
+  console.error(`[server] ${error.message} Valor recebido: ${String(process.env.HOST)}.`);
+  process.exit(1);
+}
 const PORT = Number(process.env.PORT || 8787);
 const PREVIEW_PORT = Number(process.env.PREVIEW_PORT || 8788);
 

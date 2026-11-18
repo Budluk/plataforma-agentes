@@ -28,7 +28,10 @@ foreach ($s in "finance","music","sales","funnel","research","dev","central") {
 }
 if ($Live) { Check "dados de mercado reais (rede)" { & $py scripts\market_check.py *> $null; $LASTEXITCODE -eq 0 }; Check "LLM real responde (rede)" { & $py scripts\test_llm.py *> $null; $LASTEXITCODE -eq 0 } }
 
-Check ".env sem chaves repetidas" { -not (Select-String -Path .env -Pattern '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Group-Object | Where-Object Count -gt 1) }
+Check ".env sem chaves repetidas (se existir)" {
+    if (-not (Test-Path -LiteralPath .env -PathType Leaf)) { return $true }
+    -not (Select-String -LiteralPath .env -Pattern '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Group-Object | Where-Object Count -gt 1)
+}
 
 $rows | Format-Table -AutoSize
 if ($rows.Status -contains "FALHA") { "HÁ GATES FALHANDO."; exit 1 } else { "Todos os gates passaram."; exit 0 }

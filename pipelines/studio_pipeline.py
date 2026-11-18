@@ -13,6 +13,10 @@ from agents.studio.tools import build_studio_tools
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
 _LIST = re.compile(r"^\s*(listar|lista|list|meus apps|meus aplicativos)\b", re.IGNORECASE)
+_CREATE = re.compile(
+    r"^\s*(?:por favor,?\s+)?(?:criar|crie|cria|faça|faca|fazer|gere|gerar|quero|montar|monte)\b",
+    re.IGNORECASE,
+)
 _VALIDATE = re.compile(r"\b(validar|valide|valida\u00e7\u00e3o|verificar|verifique)\b", re.IGNORECASE)
 _HEALTH = re.compile(r"^\s*(status|sa\u00fade|health|ping)\s*[.!?]?\s*$", re.IGNORECASE)
 _IMPORT = re.compile(r"^\s*(importar|importe|import)\b\s*(.*)$", re.IGNORECASE | re.DOTALL)
@@ -268,4 +272,9 @@ class StudioPipeline:
             return self._execute(ctx, "list")
         if _HEALTH.match(cleaned):
             return self._execute(ctx, "health")
-        return self._execute(ctx, "create", prompt=cleaned)
+        if _CREATE.match(cleaned):
+            return self._execute(ctx, "create", prompt=cleaned)
+        return self._reject(ctx, [
+            "não entendi o pedido; comece com 'criar <descrição>' ou use "
+            "'listar', 'status', 'validar' ou um project_id",
+        ])

@@ -52,6 +52,53 @@ def test_logger_thread_safe(tmp_path):
     assert len(lines) == 50 and all(json.loads(x) for x in lines)
 
 
+def test_logger_scrubs_secrets_inside_values(tmp_path):
+    log = JsonlLogger(tmp_path / "l.jsonl")
+    message = ("Bearer abcdefgh12345678 sk-ABCDEFGHIJKLMNOP "
+               "ghp_ABCDEFGHIJKLMNOPQRST AIzaABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh")
+    log.log("prompt", mensagem=message, nested={"texto": "Bearer ZZZZZZZZ9999"})
+
+    text = (tmp_path / "l.jsonl").read_text(encoding="utf-8")
+    assert "abcdefgh12345678" not in text
+    assert "sk-ABCDEFGHIJKLMNOP" not in text
+    assert "ghp_ABCDEFGHIJKLMNOPQRST" not in text
+    assert "AIzaABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh" not in text
+    assert "ZZZZZZZZ9999" not in text
+    assert "***" in text
+
+
+def test_logger_rotates_jsonl(tmp_path):
+    path = tmp_path / "l.jsonl"
+    log = JsonlLogger(path, max_bytes=1, backups=2)
+    for event in ("um", "dois", "tres"):
+        log.log(event)
+
+    assert json.loads(path.read_text(encoding="utf-8"))["event"] == "tres"
+    assert json.loads((tmp_path / "l.jsonl.1").read_text(encoding="utf-8"))["event"] == "dois"
+    assert json.loads((tmp_path / "l.jsonl.2").read_text(encoding="utf-8"))["event"] == "um"
+
+
+def test_logger_rotation_respects_backup_limit(tmp_path):
+    path = tmp_path / "l.jsonl"
+    log = JsonlLogger(path, max_bytes=1, backups=1)
+    for i in range(4):
+        log.log("e", i=i)
+
+    assert not (tmp_path / "l.jsonl.2").exists()
+    assert json.loads(path.read_text(encoding="utf-8"))["i"] == 3
+    assert json.loads((tmp_path / "l.jsonl.1").read_text(encoding="utf-8"))["i"] == 2
+
+
+def test_logger_without_backups_keeps_only_current_file(tmp_path):
+    path = tmp_path / "l.jsonl"
+    log = JsonlLogger(path, max_bytes=1, backups=0)
+    for i in range(3):
+        log.log("e", i=i)
+
+    assert not (tmp_path / "l.jsonl.1").exists()
+    assert json.loads(path.read_text(encoding="utf-8"))["i"] == 2
+
+
 def test_memory_run_and_alert(tmp_path):
     m = Memory(tmp_path / "m.db")
     m.init_schema()

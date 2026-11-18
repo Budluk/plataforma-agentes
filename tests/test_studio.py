@@ -563,6 +563,30 @@ def test_empty_run_is_rejected(env):
     assert not pipe(env, routes_handler({})).run("   ").ok
 
 
+def test_unknown_run_text_is_rejected_without_creating_an_app(env):
+    calls = []
+    result = pipe(env, routes_handler({}, calls)).run("oi, tudo bem?")
+
+    assert not result.ok
+    assert any("não entendi" in reason for reason in result.reasons)
+    assert calls == []  # nenhuma chamada HTTP: falha fechada antes da rede
+
+
+def test_polite_create_text_still_creates(env):
+    calls = []
+    routes = {
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/projects"): {
+            "project": {"id": PROJECT, "name": "Novo", "status": "generating"},
+        },
+    }
+    result = pipe(env, routes_handler(routes, calls)).run(
+        "por favor, crie um app de lista de tarefas")
+
+    assert result.ok
+    assert (calls[-1]["method"], calls[-1]["path"]) == ("POST", "/api/projects")
+
+
 def test_central_dispatches_studio_and_reports_the_area(env, tmp_path):
     calls = []
     handler = routes_handler({

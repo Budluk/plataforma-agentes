@@ -87,6 +87,19 @@ def html_response(body="<p>ok</p>", ctype="text/html; charset=utf-8"):
     return httpx.Response(200, headers={"content-type": ctype}, content=body.encode())
 
 
+def test_fetcher_ignores_proxy_environment(monkeypatch):
+    seen = {}
+    real_client = httpx.Client
+
+    def capture(**kw):
+        seen.update(kw)
+        return real_client(**kw)
+
+    monkeypatch.setattr(httpx, "Client", capture)
+    fetcher_with(lambda r: html_response()).fetch(URL)
+    assert seen["trust_env"] is False
+
+
 def test_fetcher_ok():
     page = fetcher_with(lambda r: html_response()).fetch(URL)
     assert page.url == URL and "ok" in page.text and not page.truncated

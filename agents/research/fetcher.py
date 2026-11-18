@@ -29,7 +29,8 @@ class HttpFetcher:
         current = url
         headers = {"User-Agent": self.user_agent}
         with httpx.Client(timeout=self.timeout, follow_redirects=False,
-                          transport=self.transport, headers=headers) as client:
+                          transport=self.transport, headers=headers,
+                          trust_env=False) as client:
             for _ in range(self.max_redirects + 1):
                 reasons = check_url(current, self.allowed)
                 if reasons:

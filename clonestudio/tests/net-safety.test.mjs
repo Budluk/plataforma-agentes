@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import zlib from 'node:zlib';
 import {
+  assertLoopbackHost,
   assertPublicHttpUrl,
   assertPublicHttpUrlResolved,
   followSafeRedirects,
+  isLoopbackHost,
   isPrivateAddress,
   isPrivateIpv4,
   pinnedLookup,
@@ -90,6 +92,41 @@ test('isPrivateAddress cobre IPv6, IPv4 mapeado e hosts vazios', () => {
   }
   assert.equal(isPrivateAddress('2001:4860:4860::8888'), false);
   assert.equal(isPrivateAddress(PUBLIC_IP), false);
+});
+
+test('isLoopbackHost aceita apenas endereços de loopback', () => {
+  for (const host of [
+    '127.0.0.1',
+    '127.0.0.2',
+    '::1',
+    '0:0:0:0:0:0:0:1',
+    '[::1]',
+    '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    'localhost',
+    'app.localhost',
+  ]) {
+    assert.equal(isLoopbackHost(host), true, host);
+  }
+  for (const host of [
+    '',
+    '0.0.0.0',
+    '::',
+    '192.168.1.10',
+    '10.0.0.1',
+    'example.com',
+    'localhost.example.com',
+  ]) {
+    assert.equal(isLoopbackHost(host), false, host);
+  }
+});
+
+test('assertLoopbackHost normaliza e rejeita HOST não-loopback', () => {
+  assert.equal(assertLoopbackHost('  [::1]  '), '::1');
+  assert.equal(assertLoopbackHost('LOCALHOST'), 'localhost');
+  for (const host of ['0.0.0.0', '::', '192.168.0.10', undefined]) {
+    assert.throws(() => assertLoopbackHost(host), /loopback/i, String(host));
+  }
 });
 
 test('assertPublicHttpUrl aceita IP público e rejeita esquemas/hosts internos', () => {
