@@ -9,7 +9,7 @@
   --line-strong: #2a3a57;
   --text: #e9eefb;
   --muted: #96a3bf;
-  --muted-2: #64728f;
+  --muted-2: #7b8aa6;
   --accent: #8b7cff;
   --accent-2: #5eead4;
   --accent-strong: #a89cff;
@@ -171,6 +171,28 @@ button {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Atalho para quem navega por teclado: aparece só quando recebe foco. */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 12px;
+  z-index: 200;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 0 0 10px 10px;
+  background: var(--accent-deep);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 0;
 }
 
 .page-subtle {
@@ -3309,7 +3331,8 @@ a.inspect-tag:hover {
   padding-right: 14px;
   border-right: 1px solid rgba(255, 255, 255, 0.035);
   text-align: right;
-  color: #3d4b66;
+  color: var(--muted-2);
+  user-select: none;
   user-select: none;
   font-variant-numeric: tabular-nums;
 }

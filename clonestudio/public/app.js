@@ -360,6 +360,7 @@ async function api(path, options = {}) {
 function showToast(message, kind = 'info') {
   clearTimeout(state.toastTimer);
   toastEl.textContent = message;
+  toastEl.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
   toastEl.className = `toast show ${kind}`;
   state.toastTimer = setTimeout(() => {
     toastEl.className = 'toast';
@@ -771,7 +772,19 @@ async function routeChanged(initial = false) {
   if (previous.name !== state.route.name) {
     window.scrollTo({ top: 0 });
   }
+  const changedRoute =
+    previous.name !== state.route.name ||
+    (state.route.name === 'project' && previous.id !== state.route.id);
   render();
+  if (changedRoute && !initial) {
+    // Move o foco para o novo conteúdo para leitores de tela anunciarem a troca.
+    const target =
+      document.getElementById('main') || document.querySelector('.workspace .ws-title h1');
+    if (target) {
+      if (target.tagName === 'H1') target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    }
+  }
 }
 
 function stopTimers() {
@@ -785,7 +798,33 @@ function stopTimers() {
   state.projectPollFailures = 0;
 }
 
+/* Preserva o foco do teclado quando um render recria o DOM. */
+function focusSnapshot() {
+  const el = document.activeElement;
+  if (!el || el === document.body || !app.contains(el)) return null;
+  if (['TEXTAREA', 'INPUT', 'SELECT'].includes(el.tagName)) return null;
+  const action = el.dataset?.action || '';
+  if (!el.id && !action) return null;
+  return { id: el.id, action, dataset: { ...el.dataset } };
+}
+
+function restoreFocus(snapshot) {
+  if (!snapshot) return;
+  const pool = snapshot.action
+    ? [...app.querySelectorAll('[data-action]')].filter(
+        (el) => el.dataset.action === snapshot.action,
+      )
+    : snapshot.id
+      ? [document.getElementById(snapshot.id)].filter(Boolean)
+      : [];
+  const target = pool.find((el) =>
+    Object.entries(snapshot.dataset).every(([key, value]) => (el.dataset[key] || '') === value),
+  );
+  if (target && target !== document.activeElement) target.focus({ preventScroll: true });
+}
+
 function render() {
+  const focus = focusSnapshot();
   if (state.loading) {
     app.innerHTML = `<div class="boot"><div class="boot-mark">CS</div><p>Carregando CloneStudio AI…</p></div>`;
     return;
@@ -793,6 +832,7 @@ function render() {
   if (state.route.name === 'project') {
     app.innerHTML = renderWorkspace();
     afterRenderWorkspace();
+    restoreFocus(focus);
     return;
   }
   const page =
@@ -805,6 +845,7 @@ function render() {
           : renderHome();
   app.innerHTML = page;
   if (state.route.name === 'home') scheduleHomePoll();
+  restoreFocus(focus);
 }
 
 function renderFatal(error) {
@@ -855,7 +896,11 @@ function renderSidebar(active) {
 }
 
 function renderShell(active, content) {
-  return `<div class="shell">${renderSidebar(active)}<main class="main">${content}</main></div>`;
+  return `<div class="shell">
+    <button class="skip-link" type="button" data-action="skip-main">Pular para o conteúdo</button>
+    ${renderSidebar(active)}
+    <main class="main" id="main" tabindex="-1">${content}</main>
+  </div>`;
 }
 
 function pageHead(eyebrow, title, description) {
@@ -1251,7 +1296,7 @@ function renderProjectCard(project) {
         project.previewUrl && project.previewVersion
           ? `<div class="project-link">
               <a class="project-url" href="${esc(project.previewUrl)}" target="_blank" rel="noreferrer" data-action="open-preview" data-url="${esc(project.previewUrl)}" title="Abrir ${esc(project.previewUrl)}">${icon('external')}<span>${esc(project.previewUrl)}</span></a>
-              <button class="copy-btn" type="button" data-action="copy-preview-link" data-copy="${esc(project.previewUrl)}" title="Copiar link do preview">${icon('copy')}</button>
+              <button class="copy-btn" type="button" data-action="copy-preview-link" data-copy="${esc(project.previewUrl)}" title="Copiar link do preview" aria-label="Copiar link do preview de ${esc(project.name)}">${icon('copy')}</button>
             </div>`
           : ''
       }
@@ -1284,8 +1329,8 @@ function renderWorkspaceTabsList() {
     .map((project) => {
       const info = statusInfo(project.status);
       const active = project.id === activeId;
-      return `<div class="ws-tab ${active ? 'active' : ''}" role="presentation">
-        <button class="ws-tab-main" type="button" role="tab" aria-selected="${active}" data-action="switch-project" data-id="${esc(project.id)}" title="${esc(project.name)}">
+      return `<div class="ws-tab ${active ? 'active' : ''}">
+        <button class="ws-tab-main" type="button" data-action="switch-project" data-id="${esc(project.id)}" title="${esc(project.name)}" aria-current="${active ? 'page' : 'false'}">
           <span class="dot ${info.dot}"></span>
           <span class="ws-tab-name">${esc(project.name)}</span>
           ${isBusy(project) ? icon('loader', 'spin ws-tab-spin') : ''}
@@ -1298,9 +1343,14 @@ function renderWorkspaceTabsList() {
 
 function renderWorkspaceTabs() {
   return `<nav class="ws-tabs" aria-label="Projetos abertos">
-    <div class="ws-tabs-list" id="ws-tabs-list" role="tablist">${renderWorkspaceTabsList()}</div>
+    <div class="ws-tabs-list" id="ws-tabs-list">${renderWorkspaceTabsList()}</div>
     <a class="ws-tab-add" href="#/" title="Abrir outro projeto" aria-label="Abrir outro projeto">${icon('plus')}</a>
   </nav>`;
+}
+
+function viewTabAttrs(id) {
+  const selected = state.tab === id;
+  return `role="tab" id="view-tab-${id}" aria-selected="${selected}" aria-controls="canvas-body" tabindex="${selected ? '0' : '-1'}"`;
 }
 
 function renderWorkspace() {
@@ -1378,12 +1428,12 @@ function renderWorkspace() {
     <div class="ws-grid">
       <section class="canvas">
         <div class="canvas-bar">
-          <div class="tabs">
-            <button class="tab ${state.tab === 'preview' ? 'active' : ''}" type="button" data-action="tab" data-tab="preview">${icon('monitor')} Preview</button>
-            <button class="tab ${state.tab === 'validation' ? 'active' : ''}" type="button" data-action="tab" data-tab="validation">${icon(validationRunning ? 'loader' : 'shield', validationRunning ? 'spin' : '')} Validação${validationIssues && !validationRunning ? `<span class="tab-badge">${validationIssues}</span>` : ''}</button>
-            <button class="tab ${state.tab === 'code' ? 'active' : ''}" type="button" data-action="tab" data-tab="code">${icon('code')} Código</button>
-            <button class="tab ${state.tab === 'versions' ? 'active' : ''}" type="button" data-action="tab" data-tab="versions">${icon('clock')} Histórico</button>
-            <button class="tab ${state.tab === 'log' ? 'active' : ''}" type="button" data-action="tab" data-tab="log">${icon('terminal')} Log</button>
+          <div class="tabs" role="tablist" aria-label="Visões do projeto">
+            <button class="tab ${state.tab === 'preview' ? 'active' : ''}" type="button" ${viewTabAttrs('preview')} data-action="tab" data-tab="preview">${icon('monitor')} Preview</button>
+            <button class="tab ${state.tab === 'validation' ? 'active' : ''}" type="button" ${viewTabAttrs('validation')} data-action="tab" data-tab="validation">${icon(validationRunning ? 'loader' : 'shield', validationRunning ? 'spin' : '')} Validação${validationIssues && !validationRunning ? `<span class="tab-badge">${validationIssues}</span>` : ''}</button>
+            <button class="tab ${state.tab === 'code' ? 'active' : ''}" type="button" ${viewTabAttrs('code')} data-action="tab" data-tab="code">${icon('code')} Código</button>
+            <button class="tab ${state.tab === 'versions' ? 'active' : ''}" type="button" ${viewTabAttrs('versions')} data-action="tab" data-tab="versions">${icon('clock')} Histórico</button>
+            <button class="tab ${state.tab === 'log' ? 'active' : ''}" type="button" ${viewTabAttrs('log')} data-action="tab" data-tab="log">${icon('terminal')} Log</button>
           </div>
           ${
             state.tab === 'preview' && project.status === 'ready'
@@ -1398,7 +1448,7 @@ function renderWorkspace() {
               : ''
           }
         </div>
-        <div class="canvas-body">${renderCanvas(project)}</div>
+        <div class="canvas-body" id="canvas-body" role="tabpanel" aria-labelledby="view-tab-${state.tab}" aria-busy="${busy}">${renderCanvas(project)}</div>
       </section>
       <aside class="chat">
         <div class="chat-head">
@@ -1411,7 +1461,7 @@ function renderWorkspace() {
           </div>
           <span class="chat-count" title="Mensagens na conversa">${(project.messages || []).length}</span>
         </div>
-        <div class="messages ${(project.messages || []).length ? '' : 'empty'}" id="messages">
+        <div class="messages ${(project.messages || []).length ? '' : 'empty'}" id="messages" aria-busy="${busy}">
           ${
             (project.messages || []).length
               ? renderMessages(project)
@@ -1446,6 +1496,7 @@ function renderWorkspace() {
               : ''
           }
           <form id="chat-form" class="chat-form">
+            <label class="sr-only" for="chat-input">Descreva a alteração que você quer no app</label>
             <textarea id="chat-input" maxlength="8000" placeholder="${canChat ? 'Peça uma alteração…' : 'Aguarde a geração atual…'}" ${canChat ? '' : 'disabled'}>${esc(state.chatDraft)}</textarea>
             <button class="send-btn" type="submit" ${canChat && state.chatDraft.trim() ? '' : 'disabled'} title="Enviar" aria-label="Enviar mensagem">${icon('arrowUp')}</button>
           </form>
@@ -1954,7 +2005,7 @@ function renderCode(content) {
   return `<pre class="code"><code>${lines
     .map(
       (line, index) =>
-        `<span class="code-line"><span class="ln">${index + 1}</span><span class="lc">${esc(line) || ' '}</span></span>`,
+        `<span class="code-line"><span class="ln" aria-hidden="true">${index + 1}</span><span class="lc">${esc(line) || ' '}</span></span>`,
     )
     .join('')}</code></pre>`;
 }
@@ -2484,6 +2535,7 @@ function renderSkills() {
       <div class="note">${icon('info')}
         <div>Instale as skills de terceiros com <code class="mono">.\\scripts\\install-skills.ps1</code>. O script pergunta antes de executar cada instalação e usa os repositórios oficiais.</div>
       </div>
+      <h2 class="sr-only">Catálogo de skills</h2>
       <div class="catalog-grid">
         ${state.skills
           .map(
@@ -2497,7 +2549,7 @@ function renderSkills() {
               </div>
               <p>${esc(skill.description)}</p>
               ${skill.summary ? `<p class="muted">${esc(skill.summary)}</p>` : ''}
-              <div class="code-snippet"><code>${esc(skill.install)}</code><button class="copy-btn" type="button" data-action="copy-text" data-copy="${esc(skill.install)}" title="Copiar comando">${icon('copy')}</button></div>
+              <div class="code-snippet"><code>${esc(skill.install)}</code><button class="copy-btn" type="button" data-action="copy-text" data-copy="${esc(skill.install)}" title="Copiar comando" aria-label="Copiar comando de instalação de ${esc(skill.name)}">${icon('copy')}</button></div>
               <div class="catalog-actions">
                 ${skill.repo ? `<a class="link" href="${esc(skill.repo)}" target="_blank" rel="noreferrer">${icon('github')} Repositório</a>` : ''}
                 ${skill.installed ? `<span class="badge">SKILL.md incluso</span>` : ''}
@@ -2614,6 +2666,7 @@ function renderProviders() {
       <div class="note">${icon(anyConfigured ? 'check' : 'alert')}
         <div>${anyConfigured ? 'Há pelo menos um provedor configurado. O primeiro da ordem AI_PROVIDER_ORDER que responder será usado.' : 'Nenhum provedor configurado. Preencha FREELLMAPI_BASE_URL e FREELLMAPI_API_KEY no .env e reinicie o servidor.'}</div>
       </div>
+      <h2 class="sr-only">Provedores disponíveis</h2>
       ${state.providers
         .map((provider) => {
           const models = state.models[provider.id];
@@ -2796,6 +2849,25 @@ document.addEventListener('keydown', (event) => {
     sendChat();
     return;
   }
+  if (
+    target.getAttribute?.('role') === 'tab' &&
+    ['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)
+  ) {
+    const list = target.closest('[role="tablist"]');
+    const tabs = list ? [...list.querySelectorAll('[role="tab"]')] : [];
+    if (tabs.length) {
+      event.preventDefault();
+      const current = Math.max(0, tabs.indexOf(target));
+      let next = current;
+      if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      tabs[next].focus();
+      tabs[next].click();
+    }
+    return;
+  }
   if (event.key === 'Enter' || event.key === ' ') {
     const card = target.closest?.('[data-action="open-project"]');
     if (card && target === card) {
@@ -2819,6 +2891,11 @@ document.addEventListener('click', async (event) => {
   const action = element.dataset.action;
 
   switch (action) {
+    case 'skip-main': {
+      const main = document.getElementById('main');
+      if (main) main.focus();
+      break;
+    }
     case 'suggestion': {
       state.promptDraft = element.dataset.prompt || '';
       const textarea = document.getElementById('prompt');
