@@ -65,6 +65,28 @@ export function isPrivateAddress(value) {
   return false;
 }
 
+/** HOST de escuta: só loopback, para não expor o painel sem autenticação. */
+export function isLoopbackHost(value) {
+  const host = String(value ?? '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (net.isIPv4(host)) return host.startsWith('127.');
+  if (net.isIPv6(host)) {
+    if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+    const mapped = mappedIpv4(host);
+    return Boolean(mapped && mapped.startsWith('127.'));
+  }
+  return false;
+}
+
+export function assertLoopbackHost(value) {
+  const host = String(value ?? '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (!isLoopbackHost(host)) {
+    throw new Error('HOST deve ser loopback (127.0.0.1, ::1 ou localhost).');
+  }
+  return host;
+}
+
 function isBlockedHostname(value) {
   const host = String(value || '').trim().toLowerCase().replace(/\.+$/, '');
   return (
