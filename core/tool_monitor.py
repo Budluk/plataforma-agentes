@@ -1,15 +1,21 @@
 from __future__ import annotations
+import re
+import unicodedata
+from urllib.parse import unquote
 from core.contracts import MonitorVerdict, ToolCall
 from core.hard_gate import ExecutionToolForbidden, assert_no_execution_tool
 
 KNOWN_TOOLS = frozenset({"get_market_data", "read_portfolio", "write_research_note", "emit_alert", "identify_chord", "transpose_notes", "to_guitar_tab", "compute_margin", "suggest_price", "break_even", "analyze_funnel", "fetch_page", "analyze_code", "save_code_file", "studio_health", "studio_list_apps", "studio_create_app", "studio_app_status", "studio_validate_app", "studio_send_message", "studio_fix_app", "studio_fix_validation", "studio_rebuild_app", "studio_retry_app", "studio_import_site", "studio_import_github", "studio_import_app", "studio_list_versions", "studio_restore_version", "studio_analyze_inspiration", "studio_create_inspiration"})
 STUDIO_TOOLS = frozenset({"studio_list_apps", "studio_create_app", "studio_app_status", "studio_validate_app", "studio_send_message", "studio_fix_app", "studio_fix_validation", "studio_rebuild_app", "studio_retry_app", "studio_import_site", "studio_import_github", "studio_import_app", "studio_list_versions", "studio_restore_version", "studio_analyze_inspiration", "studio_create_inspiration"})
-DANGEROUS_PATTERNS = ("__import__", "eval(", "exec(", "os.system", "subprocess", "$(", "`", "../", "..\\", "&&")
+# Só campos que podem virar caminho de arquivo recebem validação de conteúdo.
+# Texto livre (prompt, nota, mensagem) vai para LLM/arquivo de dados, nunca para shell.
+PATH_KEYS = frozenset({"filename", "filepath", "path", "dir", "directory"})
+SAFE_PATH = re.compile(r"[A-Za-z0-9][A-Za-z0-9_. -]{0,119}\Z")
 MAX_STR_LEN = 5000
 MAX_DEPTH = 5
 
 
-def _scan(value, depth: int = 0) -> str | None:
+def _scan(value, depth: int = 0, key: str | None = None) -> str | None:
     if depth > MAX_DEPTH:
         return "parâmetros aninhados demais"
     if value is None or isinstance(value, (bool, int, float)):
@@ -17,10 +23,11 @@ def _scan(value, depth: int = 0) -> str | None:
     if isinstance(value, str):
         if len(value) > MAX_STR_LEN:
             return "string de parâmetro longa demais"
-        low = value.lower()
-        for pattern in DANGEROUS_PATTERNS:
-            if pattern in low:
-                return f"padrão perigoso em parâmetro: {pattern!r}"
+        if key in PATH_KEYS:
+            # NFKC + unquote evitam traversal por caracteres Unicode ou %-encoding.
+            normalized = unquote(unicodedata.normalize("NFKC", value))
+            if not SAFE_PATH.fullmatch(normalized):
+                return f"caminho de parâmetro inválido: {key!r}"
         return None
     if isinstance(value, (list, tuple)):
         for item in value:
@@ -29,10 +36,10 @@ def _scan(value, depth: int = 0) -> str | None:
                 return reason
         return None
     if isinstance(value, dict):
-        for key, item in value.items():
-            if not isinstance(key, str):
+        for k, item in value.items():
+            if not isinstance(k, str):
                 return "chave de parâmetro não é string"
-            reason = _scan(key, depth + 1) or _scan(item, depth + 1)
+            reason = _scan(k, depth + 1) or _scan(item, depth + 1, key=k)
             if reason:
                 return reason
         return None

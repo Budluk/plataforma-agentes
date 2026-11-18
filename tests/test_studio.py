@@ -463,12 +463,18 @@ def test_short_prompt_is_rejected_without_any_http(env):
     assert calls == []
 
 
-def test_monitor_blocks_dangerous_prompt_before_the_post(env):
+def test_monitor_does_not_block_shell_like_text_in_prompt(env):
     calls = []
-    handler = routes_handler({("GET", "/api/health"): {"ok": True}}, calls)
-    result = pipe(env, handler).create("crie um app $(rm -rf /) com login")
-    assert not result.ok and "ToolBlocked" in result.reasons[0]
-    assert [c["method"] for c in calls] == ["GET"]
+    routes = {
+        ("GET", "/api/health"): {"ok": True},
+        ("POST", "/api/projects"): {
+            "project": {"id": PROJECT, "name": "Novo", "status": "generating"},
+        },
+    }
+    result = pipe(env, routes_handler(routes, calls)).create("crie um app $(rm -rf /) com login")
+
+    assert result.ok
+    assert [c["method"] for c in calls] == ["GET", "POST"]
 
 
 def test_permissions_block_the_tool_when_capability_is_missing(env):
