@@ -531,7 +531,7 @@ function applyDocumentMeta(id, project) {
   }
 }
 
-async function doBuild(id) {
+async function doBuild(id, { afterBuild } = {}) {
   const project = getProject(id);
   if (!project) throw new Error('Projeto removido durante o build.');
   updateProject(id, {
@@ -597,14 +597,29 @@ async function doBuild(id) {
     }
   }
   if (!getProject(id)) return null;
-  updateProject(id, { status: 'ready', stage: '' });
+  await finishBuild(id, afterBuild);
   return output;
 }
 
-export function buildProject(id) {
+/**
+ * Marca o projeto como pronto só depois que `afterBuild` terminar. Assim o
+ * painel nunca vê `ready` enquanto a versão recém-gerada ainda não está no
+ * histórico (o snapshot acontece dentro de `afterBuild`).
+ */
+export async function finishBuild(id, afterBuild, deps = { getProject, updateProject }) {
+  if (!deps.getProject(id)) return null;
+  if (afterBuild) {
+    await afterBuild();
+    if (!deps.getProject(id)) return null;
+  }
+  deps.updateProject(id, { status: 'ready', stage: '' });
+  return deps.getProject(id);
+}
+
+export function buildProject(id, { afterBuild } = {}) {
   const run = buildChain.then(
-    () => doBuild(id),
-    () => doBuild(id),
+    () => doBuild(id, { afterBuild }),
+    () => doBuild(id, { afterBuild }),
   );
   buildChain = run.catch(() => {});
   return run;
@@ -723,8 +738,6 @@ async function runGeneration(id, options = {}) {
     updateProject(id, patch);
 
     setStage(id, 'Compilando o app');
-    await buildProject(id);
-
     const versionLabel = generationVersionLabel({
       fresh: isFresh,
       validationFix: isValidationFix,
@@ -732,12 +745,15 @@ async function runGeneration(id, options = {}) {
       fileCount: files.length,
       hasVersions: isFresh ? listVersions(id).length > 0 : false,
     });
-    await snapshotVersion(id, {
-      label: versionLabel,
-      kind: 'generation',
-      messageId: currentMessageId,
-    }).catch((error) => {
-      console.warn(`[versions] projeto ${id}: ${error.message}`);
+    await buildProject(id, {
+      afterBuild: () =>
+        snapshotVersion(id, {
+          label: versionLabel,
+          kind: 'generation',
+          messageId: currentMessageId,
+        }).catch((error) => {
+          console.warn(`[versions] projeto ${id}: ${error.message}`);
+        }),
     });
 
     const summary =
@@ -797,9 +813,11 @@ export function requestRebuild(id) {
     .then(() => new Promise((resolve) => setImmediate(resolve)))
     .then(async () => {
       try {
-        await buildProject(id);
-        await snapshotVersion(id, { label: 'Recompilação', kind: 'rebuild' }).catch((error) => {
-          console.warn(`[versions] projeto ${id}: ${error.message}`);
+        await buildProject(id, {
+          afterBuild: () =>
+            snapshotVersion(id, { label: 'Recompilação', kind: 'rebuild' }).catch((error) => {
+              console.warn(`[versions] projeto ${id}: ${error.message}`);
+            }),
         });
         addMessage(id, {
           role: 'assistant',
