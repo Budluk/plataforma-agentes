@@ -7,6 +7,7 @@ import {
   distDir,
   getProject,
   listSourceFiles,
+  listVersions,
   readSourceFiles,
   restoreVersion,
   snapshotVersion,
@@ -609,6 +610,19 @@ export function buildProject(id) {
   return run;
 }
 
+export function generationVersionLabel({
+  fresh = false,
+  validationFix = false,
+  fix = false,
+  fileCount = 0,
+  hasVersions = false,
+} = {}) {
+  if (fresh) return hasVersions ? 'Geração reiniciada' : 'Geração inicial';
+  if (validationFix) return 'Correção da validação';
+  if (fix) return 'Correção de build';
+  return fileCount ? 'Alteração por chat' : 'Geração inicial';
+}
+
 async function runGeneration(id, options = {}) {
   const project = getProject(id);
   if (!project) return;
@@ -711,15 +725,13 @@ async function runGeneration(id, options = {}) {
     setStage(id, 'Compilando o app');
     await buildProject(id);
 
-    const versionLabel = isFresh
-      ? 'Geração reiniciada'
-      : isValidationFix
-        ? 'Correção da validação'
-        : isFix
-          ? 'Correção de build'
-          : files.length
-            ? 'Alteração por chat'
-            : 'Geração inicial';
+    const versionLabel = generationVersionLabel({
+      fresh: isFresh,
+      validationFix: isValidationFix,
+      fix: isFix,
+      fileCount: files.length,
+      hasVersions: isFresh ? listVersions(id).length > 0 : false,
+    });
     await snapshotVersion(id, {
       label: versionLabel,
       kind: 'generation',
