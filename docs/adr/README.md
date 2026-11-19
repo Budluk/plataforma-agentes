@@ -11,6 +11,7 @@ Este diretório registra as decisões tomadas no **plano de produção** do Clon
 | [0005](./0005-sse-opt-in.md) | SSE opt-in com fallback para polling | 5 | Desligado por padrão; stream leva só `scope`/`id`/`revision` |
 | [0006](./0006-centralia-branch-substituida.md) | Branch `centralia/lote-1-acoes` substituída pelo painel CentralIA | — | Branch preservada como histórico; painel é a implementação ativa |
 | [0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md) | Preparação para o alvo B com Cloudflare Tunnel | gate B | Preparação documental; ADR-0001 segue em vigor até exposição ser aprovada |
+| [0008](./0008-isolamento-build-appcontainer.md) | Isolamento real do build com AppContainer + Job Object | gate B | Desenho para o alvo B; sem VM/container no Home, falha fechada |
 
 ## Estado do plano
 
@@ -21,10 +22,10 @@ Este diretório registra as decisões tomadas no **plano de produção** do Clon
 - **Fase 4** ✅ hardening de build sem Docker (ADR-0002)
 - **Fase 5** ✅ SSE opt-in com fallback (ADR-0005)
 - **Fase 6** ✅ documentação e validação final
-- **Alvo B** ⏳ preparação documentada em [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md); exposição depende de gate explícito
+- **Alvo B** ⏳ preparação documentada em [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md) e desenho de isolamento em [ADR-0008](./0008-isolamento-build-appcontainer.md); exposição depende de gate explícito
 
 ## Limites que permanecem
 
-O hardening da Fase 4 reduz a superfície de ataque, mas **não é isolamento de segurança real**: o build roda com o mesmo usuário do servidor. Para exposição em rede (alvos B/C) seriam necessários container/VM, auth, rate limiting e uma nova decisão explícita.
+O hardening da Fase 4 reduz a superfície de ataque, mas **não é isolamento de segurança real**: o build roda com o mesmo usuário do servidor. Para exposição em rede (alvos B/C) são necessários auth, rate limiting e uma nova decisão explícita; o desenho de isolamento do build para o alvo B está no [ADR-0008](./0008-isolamento-build-appcontainer.md), usando AppContainer + Job Object porque VM/container não cabem neste ambiente (ver ADR-0002 e ADR-0007).
 
 As dívidas antes listadas aqui foram fechadas: agentes e pipelines derivam os nomes de ferramentas de `core.tool_registry` (sem literais `studio_*`, `get_market_data` etc. duplicados), e o gate de música rejeita acordes com mais de 6 notas antes de chamar `to_guitar_tab`. O agente de funil também passou a ter identidade própria (`funnel_agent`) no registro, nas permissões e na auditoria, em vez de compartilhar `sales_agent`.
