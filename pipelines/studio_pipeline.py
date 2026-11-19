@@ -11,6 +11,7 @@ from agents.studio.contracts import StudioRequest
 from agents.studio.gate import check_request, is_social_host
 from agents.studio.tools import build_studio_tools
 from core.memory import safe_record_run
+from core.tool_registry import STUDIO_ACTION_TOOL, STUDIO_PARAM_ALIASES, TOOL_SPECS
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
 _LIST = re.compile(r"^\s*(listar|lista|list|meus apps|meus aplicativos)\b", re.IGNORECASE)
@@ -108,46 +109,24 @@ class StudioPipeline:
         if reasons:
             return self._reject(ctx, reasons)
 
+        # Ação fechada (ação + kind de importação) -> ferramenta. O registro é
+        # a única fonte de nomes; este pipeline apenas monta os parâmetros.
+        tool = STUDIO_ACTION_TOOL.get((req.action, req.kind or ""))
+        if tool is None:
+            return self._reject(ctx, ["ação não implementada"])
+        spec = TOOL_SPECS[tool]
+
+        params = {}
+        for field in (*spec.required, *spec.optional):
+            source = STUDIO_PARAM_ALIASES.get(field, field)
+            params[field] = getattr(req, source)
+
         agent = self._agent(ctx)
         try:
-            if req.action == "health":
-                return self._ok(ctx, agent.health())
-            agent.health()  # sonda obrigatória antes de qualquer outra ação
-            if req.action == "list":
-                return self._ok(ctx, agent.list_apps())
-            if req.action == "create":
-                return self._ok(ctx, agent.create_app(prompt=req.prompt))
-            if req.action == "status":
-                return self._ok(ctx, agent.app_status(project_id=req.project_id))
-            if req.action == "validate":
-                return self._ok(ctx, agent.validate_app(project_id=req.project_id))
-            if req.action == "messages":
-                return self._ok(ctx, agent.send_message(project_id=req.project_id,
-                                                        content=req.message))
-            if req.action == "fix":
-                return self._ok(ctx, agent.fix_app(project_id=req.project_id))
-            if req.action == "fix_validation":
-                return self._ok(ctx, agent.fix_validation(project_id=req.project_id))
-            if req.action == "rebuild":
-                return self._ok(ctx, agent.rebuild_app(project_id=req.project_id))
-            if req.action == "retry":
-                return self._ok(ctx, agent.retry_app(project_id=req.project_id))
-            if req.action == "versions":
-                return self._ok(ctx, agent.list_versions(project_id=req.project_id))
-            if req.action == "restore":
-                return self._ok(ctx, agent.restore_version(project_id=req.project_id,
-                                                           version=req.version))
-            if req.action == "inspiration":
-                return self._ok(ctx, agent.analyze_inspiration(url=req.url))
-            if req.action == "inspiration_create":
-                return self._ok(ctx, agent.create_inspiration(
-                    inspiration_token=req.inspiration_token, prompt=req.prompt))
-            # import
-            if req.kind == "app":
-                return self._ok(ctx, agent.import_app(project_id=req.project_id))
-            if req.kind == "github":
-                return self._ok(ctx, agent.import_github(url=req.url))
-            return self._ok(ctx, agent.import_site(url=req.url, prompt=req.prompt))
+            agent_method = getattr(agent, spec.agent_method)
+            if req.action != "health":
+                agent.health()  # sonda obrigatória antes de qualquer outra ação
+            return self._ok(ctx, agent_method(**params))
         except (ToolBlocked, StudioError, ValueError) as exc:
             return self._reject(ctx, [f"{type(exc).__name__}: {exc}"])
 

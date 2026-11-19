@@ -8,6 +8,9 @@ e pela fabrica de ferramentas do studio sao todas derivadas de ``REGISTRY``:
 * ``STUDIO_TOOLS``    -> ferramentas que exigem a sonda de saude antes delas;
 * ``SEED``            -> pares (agente, ferramenta) aplicados no banco;
 * ``TOOL_SPECS``      -> contrato publico da API HTTP/CLI da area studio;
+* ``STUDIO_ACTION_TOOL`` -> (acao, kind) da StudioRequest -> nome da ferramenta;
+* ``STUDIO_AGENT_TOOL`` -> metodo do StudioAgent -> nome da ferramenta;
+* ``STUDIO_PARAM_ALIASES`` -> campo da ferramenta -> campo da StudioRequest;
 * ``build_studio_tools`` -> callables Python entregues ao StudioAgent.
 
 Somente stdlib: nenhum import de ``core.*``, ``agents.*``, ``pipelines.*`` ou
@@ -25,7 +28,13 @@ class ToolSpec:
 
     Os cinco primeiros campos preservam a ordem posicional original usada por
     ``scripts/studio_api.RUN_SPEC``. Os demais descrevem o dono da ferramenta,
-    a regra de sequencia e o metodo do cliente chamado pela fabrica.
+    a regra de sequencia, o metodo do cliente chamado pela fabrica e o
+    mapeamento da acao fechada de StudioRequest.
+
+    ``param_aliases`` liga um campo da ferramenta ao campo correspondente do
+    contrato (por exemplo ``content`` <- ``message``). Assim o pipeline nao
+    repete nomes em if/elif e o StudioAgent nao grava nomes de ferramenta: o
+    registro e a unica fonte de verdade.
     """
 
     method: str = ""
@@ -37,6 +46,10 @@ class ToolSpec:
     group: str = ""
     requires: tuple[str, ...] = ()
     client_method: str = ""
+    action: str = ""
+    kind: str = ""
+    agent_method: str = ""
+    param_aliases: tuple[tuple[str, str], ...] = ()
 
     def schema(self, name: str) -> dict:
         """Contrato exposto por ``GET /tools`` e ``GET /tools/<nome>``."""
@@ -71,12 +84,14 @@ REGISTRY: dict[str, ToolSpec] = {
         method="health",
         description="Confirma que o CloneStudio local está saudável.",
         agent="studio_agent", group="studio", client_method="health",
+        action="health", agent_method="health",
     ),
     "studio_list_apps": ToolSpec(
         method="list_apps",
         description="Lista os apps do CloneStudio (até 20, sem código).",
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="list_apps",
+        action="list", agent_method="list_apps",
     ),
     "studio_create_app": ToolSpec(
         method="create",
@@ -84,6 +99,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("prompt",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="create",
+        action="create", agent_method="create_app",
     ),
     "studio_app_status": ToolSpec(
         method="status",
@@ -91,6 +107,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="status",
+        action="status", agent_method="app_status",
     ),
     "studio_validate_app": ToolSpec(
         method="validate",
@@ -98,6 +115,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="validate",
+        action="validate", agent_method="validate_app",
     ),
     "studio_send_message": ToolSpec(
         method="message",
@@ -105,6 +123,8 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id", "content"),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="send_message",
+        action="messages", agent_method="send_message",
+        param_aliases=(("content", "message"),),
     ),
     "studio_fix_app": ToolSpec(
         method="fix",
@@ -112,6 +132,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="fix",
+        action="fix", agent_method="fix_app",
     ),
     "studio_fix_validation": ToolSpec(
         method="fix_validation",
@@ -119,6 +140,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="fix_validation",
+        action="fix_validation", agent_method="fix_validation",
     ),
     "studio_rebuild_app": ToolSpec(
         method="rebuild",
@@ -126,6 +148,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="rebuild",
+        action="rebuild", agent_method="rebuild_app",
     ),
     "studio_retry_app": ToolSpec(
         method="retry",
@@ -133,6 +156,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="retry",
+        action="retry", agent_method="retry_app",
     ),
     "studio_list_versions": ToolSpec(
         method="versions",
@@ -140,6 +164,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="versions",
+        action="versions", agent_method="list_versions",
     ),
     "studio_restore_version": ToolSpec(
         method="restore",
@@ -148,6 +173,7 @@ REGISTRY: dict[str, ToolSpec] = {
         integers=("version",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="restore",
+        action="restore", agent_method="restore_version",
     ),
     "studio_import_site": ToolSpec(
         method="import_site",
@@ -155,6 +181,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("url",), optional=("prompt",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="import_site",
+        action="import", kind="site", agent_method="import_site",
     ),
     "studio_import_github": ToolSpec(
         method="import_github",
@@ -162,6 +189,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("url",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="import_github",
+        action="import", kind="github", agent_method="import_github",
     ),
     "studio_import_app": ToolSpec(
         method="import_app",
@@ -169,6 +197,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("project_id",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="import_app",
+        action="import", kind="app", agent_method="import_app",
     ),
     "studio_analyze_inspiration": ToolSpec(
         method="inspiration",
@@ -176,6 +205,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("url",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="analyze_inspiration",
+        action="inspiration", agent_method="analyze_inspiration",
     ),
     "studio_create_inspiration": ToolSpec(
         method="create_inspiration",
@@ -183,6 +213,7 @@ REGISTRY: dict[str, ToolSpec] = {
         required=("inspiration_token",), optional=("prompt",),
         agent="studio_agent", group="studio", requires=("studio_health",),
         client_method="create_inspiration",
+        action="inspiration_create", agent_method="create_inspiration",
     ),
 }
 
@@ -196,4 +227,28 @@ STUDIO_AGENT_TOOLS = frozenset(
 SEED = [(spec.agent, name) for name, spec in REGISTRY.items()]
 TOOL_SPECS: dict[str, ToolSpec] = {
     name: spec for name, spec in REGISTRY.items() if spec.method
+}
+
+# Acoes fechadas de StudioRequest -> ferramenta. ``kind`` faz parte da chave
+# porque ``import`` tem tres ferramentas (site, github, app); as demais acoes
+# usam ``""`` como kind. 14 acoes simples + 3 importacoes = 17 ferramentas.
+STUDIO_ACTION_TOOL: dict[tuple[str, str], str] = {
+    (spec.action, spec.kind): name
+    for name, spec in REGISTRY.items()
+    if spec.agent == "studio_agent" and spec.action
+}
+
+# Metodos publicos do StudioAgent -> ferramenta. Usado pelo agente e pelo
+# pipeline para nao repetir ``studio_*`` em nenhuma das duas camadas.
+STUDIO_AGENT_TOOL: dict[str, str] = {
+    spec.agent_method: name
+    for name, spec in REGISTRY.items()
+    if spec.agent == "studio_agent" and spec.agent_method
+}
+
+# Unico desvio de nome entre StudioRequest e uma ferramenta studio.
+STUDIO_PARAM_ALIASES: dict[str, str] = {
+    param: source
+    for spec in REGISTRY.values()
+    for param, source in spec.param_aliases
 }
