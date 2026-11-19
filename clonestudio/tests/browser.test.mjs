@@ -149,6 +149,7 @@ test('abas, janelas e persistência do workspace', async (t) => {
       PORT: String(port),
       PREVIEW_PORT: String(previewPort),
       PREVIEW_ALLOW_UNSAFE_EVAL: '0',
+      CLONESTUDIO_SSE_ENABLED: '1',
       CONTEXT7_ENABLED: 'off',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -199,6 +200,10 @@ test('abas, janelas e persistência do workspace', async (t) => {
   page = await context.newPage();
   page.setDefaultTimeout(15000);
   track(page);
+  const sseRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/events')) sseRequests.push(request);
+  });
 
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#project-list .project-card');
@@ -497,7 +502,25 @@ test('abas, janelas e persistência do workspace', async (t) => {
     assert.equal(tabs.controls, true);
   });
 
-  await t.test('17. nenhum erro de console ou de página', async () => {
+  await t.test('17. SSE opt-in conecta sem quebrar o painel', async () => {
+    const config = await (await fetch(`${baseUrl}api/config`)).json();
+    assert.equal(config.sse, true);
+    assert.ok(sseRequests.length >= 1, 'o painel deve abrir /api/events');
+
+    const controller = new AbortController();
+    try {
+      const response = await fetch(`${baseUrl}api/events`, { signal: controller.signal });
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type') || '', /text\/event-stream/);
+      const reader = response.body.getReader();
+      const { value } = await reader.read();
+      assert.match(new TextDecoder().decode(value || new Uint8Array()), /event: hello/);
+    } finally {
+      controller.abort();
+    }
+  });
+
+  await t.test('18. nenhum erro de console ou de página', async () => {
     assert.deepEqual(errors, []);
   });
 });

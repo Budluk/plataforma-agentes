@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ROOT } from './env.mjs';
+import { publishChange } from './change-events.mjs';
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
 export const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
@@ -238,6 +239,7 @@ export function createProject({ prompt, name }) {
     }
   }
   persist({ immediate: true });
+  publishChange('projects', project.id);
   return project;
 }
 
@@ -248,6 +250,7 @@ export function updateProject(id, patch) {
   Object.assign(project, patch, { updatedAt: now() });
   if (Array.isArray(project.messages)) project.messages = trimMessages(project.messages);
   persist();
+  publishChange('project', id);
   return project;
 }
 
@@ -265,6 +268,7 @@ export function addMessage(id, message) {
   ]);
   project.updatedAt = now();
   persist({ immediate: true });
+  publishChange('project', id);
   return project;
 }
 
@@ -275,6 +279,7 @@ export function deleteProject(id) {
   db.projects.splice(index, 1);
   invalidateSourceCache(id);
   persist({ immediate: true });
+  publishChange('projects', id);
   removeProjectDir(id).catch(() => {});
   return true;
 }
@@ -605,6 +610,7 @@ export async function writeGeneratedFiles(id, files) {
     await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => {});
     invalidateSourceCache(id);
   }
+  publishChange('project', id);
 }
 
 function scanSourceEntries(dir) {

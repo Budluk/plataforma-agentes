@@ -23,6 +23,7 @@ import {
 } from './storage.mjs';
 import { isNotModified, weakEtag } from './http-cache.mjs';
 import { assertLoopbackHost } from './net-safety.mjs';
+import { handleSse, sseEnabled, sseStatus } from './sse.mjs';
 import {
   callChat,
   listProviderModels,
@@ -98,6 +99,7 @@ const STATIC_ROUTES = new Map([
   ['/js/renderer.js', 'js/renderer.js'],
   ['/js/versions.js', 'js/versions.js'],
   ['/js/polling.js', 'js/polling.js'],
+  ['/js/sse.js', 'js/sse.js'],
   ['/js/imports.js', 'js/imports.js'],
   ['/js/actions.js', 'js/actions.js'],
   ['/js/routing.js', 'js/routing.js'],
@@ -303,7 +305,14 @@ async function handleRequest(req, res) {
         time: new Date().toISOString(),
         providers: providerOrder().map((provider) => provider.id),
         ...generatorStats(),
+        ...sseStatus(),
       });
+    }
+
+    // SSE e opt-in: desligado, o painel permanece somente com polling.
+    if (method === 'GET' && pathname === '/api/events') {
+      if (!sseEnabled()) throw new HttpError(404, 'Eventos em tempo real desativados.');
+      return handleSse(req, res);
     }
 
     if (method === 'GET' && pathname === '/api/config') {
@@ -313,6 +322,7 @@ async function handleRequest(req, res) {
         previewPort: PREVIEW_PORT,
         previewBase: previewBaseFor(req),
         allowedPackages: ALLOWED_PACKAGES,
+        sse: sseEnabled(),
         providers: providerStatuses(),
         integrations: integrationSummary(),
       });
@@ -842,6 +852,7 @@ async function handleRequest(req, res) {
         version: VERSION,
         endpoints: [
           '/api/health',
+          '/api/events',
           '/api/config',
           '/api/projects',
           '/api/projects/:id/validate',

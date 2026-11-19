@@ -24,6 +24,7 @@ export function afterRenderWorkspace() {
 }
 
 export function scheduleProjectPoll(delay = 1600) {
+  if (state.sseConnected) return;
   if (state.route.name !== 'project' || !isBusy()) return;
   // Um timer já agendado basta: renderizações frequentes não podem adiar o
   // polling indefinidamente.
@@ -35,6 +36,7 @@ export function scheduleProjectPoll(delay = 1600) {
 }
 
 export function scheduleTabsPoll() {
+  if (state.sseConnected) return;
   if (state.route.name !== 'project' || state.tabsPollTimer) return;
   const backgroundBusy = state.openProjects.some((id) => {
     if (id === state.project?.id) return false;
@@ -132,6 +134,7 @@ export async function refreshProject() {
 
 export function scheduleHomePoll() {
   clearTimeout(state.homePollTimer);
+  if (state.sseConnected) return;
   if (state.route.name !== 'home') return;
   const busy = state.projects.some((project) =>
     ['generating', 'building'].includes(project.status),
