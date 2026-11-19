@@ -538,6 +538,7 @@ async function doBuild(id, { afterBuild } = {}) {
     status: 'building',
     stage: 'Preparando dependências',
     error: null,
+    errorKind: null,
     buildLog: '',
   });
 
@@ -773,6 +774,9 @@ async function runGeneration(id, options = {}) {
       status: 'error',
       stage: '',
       error: truncate(message, 5000),
+      // Diferencia falha de build de falha de geração: o painel escolhe a ação
+      // certa mesmo quando existe um log de build anterior bem-sucedido.
+      errorKind: error.buildLog ? 'build' : 'generation',
       ...(error.buildLog ? { buildLog: truncate(error.buildLog, 16000) } : {}),
     });
     addMessage(id, {
@@ -808,7 +812,7 @@ export function requestRebuild(id) {
   if (jobs.has(id)) return false;
   // Marca o estado antes de devolver a resposta: o painel já começa a
   // acompanhar o build em vez de continuar exibindo o preview antigo.
-  updateProject(id, { status: 'building', stage: 'Recompilando', error: null });
+  updateProject(id, { status: 'building', stage: 'Recompilando', error: null, errorKind: null });
   const promise = Promise.resolve()
     .then(() => new Promise((resolve) => setImmediate(resolve)))
     .then(async () => {
@@ -831,6 +835,7 @@ export function requestRebuild(id) {
           status: 'error',
           stage: '',
           error: truncate(error.message, 5000),
+          errorKind: 'build',
           buildLog: truncate(error.message, 16000),
         });
         addMessage(id, {
@@ -853,6 +858,7 @@ export function requestRestore(id, version) {
     status: 'building',
     stage: `Restaurando a versão ${version}`,
     error: null,
+    errorKind: null,
   });
   const promise = Promise.resolve()
     .then(() => new Promise((resolve) => setImmediate(resolve)))
@@ -872,6 +878,7 @@ export function requestRestore(id, version) {
           status: 'error',
           stage: '',
           error: truncate(error.message, 5000),
+          errorKind: 'build',
           buildLog: truncate(error.message, 16000),
         });
         addMessage(id, {

@@ -1406,7 +1406,7 @@ function renderWorkspace() {
         }
         ${
           project.status === 'error'
-            ? project.buildLog
+            ? errorKindOf(project) === 'build'
               ? `<button class="btn small" type="button" data-action="fix-build">${icon('wrench')} Corrigir build</button>`
               : `<button class="btn small primary" type="button" data-action="retry-generation">${icon('refresh')} Tentar de novo</button>`
             : ''
@@ -1600,24 +1600,52 @@ function renderStage(project) {
   </div>`;
 }
 
+function errorKindOf(project) {
+  if (project.errorKind) return project.errorKind;
+  return project.buildLog && project.files?.length ? 'build' : 'generation';
+}
+
 function renderErrorView(project) {
   const hasFiles = Boolean(project.files?.length);
   const hasLog = Boolean(project.buildLog);
-  const description = hasFiles
-    ? 'O código foi gravado, mas o build falhou. Peça uma correção automática ou ajuste pelo chat.'
-    : 'O modelo não conseguiu concluir. Tente novamente — o prompt original será enviado de novo.';
-  const nextStep = hasFiles
-    ? 'O código atual foi preservado. Corrija o build ou descreva o ajuste no chat.'
-    : 'Nenhum arquivo foi gravado. Tentar de novo reenvia o prompt original.';
+  const kind = errorKindOf(project);
+  const buildFailed = kind === 'build';
+  const interrupted = kind === 'interrupted';
+  let description;
+  let nextStep;
+  let title;
+  let badge;
+  if (interrupted) {
+    description = hasFiles
+      ? 'O servidor reiniciou no meio da geração. O código atual foi preservado; tentar de novo recomeça a partir do prompt original.'
+      : 'O servidor reiniciou antes de o app ser gerado. Tentar de novo reenvia o prompt original.';
+    nextStep = hasFiles
+      ? 'O código atual foi preservado. Tentar de novo recomeça a geração do zero.'
+      : 'Nenhum arquivo foi gravado. Tentar de novo reenvia o prompt original.';
+    title = 'Geração interrompida';
+    badge = 'interrompida';
+  } else if (buildFailed) {
+    description =
+      'O código foi gravado, mas o build falhou. Peça uma correção automática ou ajuste pelo chat.';
+    nextStep = 'O código atual foi preservado. Corrija o build ou descreva o ajuste no chat.';
+    title = 'O build não foi concluído';
+    badge = 'build';
+  } else {
+    description =
+      'O modelo não conseguiu concluir. Tente novamente — o prompt original será enviado de novo.';
+    nextStep = 'Nenhum arquivo foi gravado. Tentar de novo reenvia o prompt original.';
+    title = 'Não foi possível gerar o app';
+    badge = 'geração';
+  }
   return `<div class="error-panel">
     <section class="error-card">
       <header class="error-head">
         <div class="error-icon">${icon('alert')}</div>
         <div class="error-head-text">
-          <span class="error-kicker">Geração interrompida</span>
-          <h2>${hasFiles ? 'O build não foi concluído' : 'Não foi possível gerar o app'}</h2>
+          <span class="error-kicker">${buildFailed ? 'Build não concluído' : 'Geração interrompida'}</span>
+          <h2>${title}</h2>
         </div>
-        <span class="error-badge">${hasFiles ? 'build' : 'geração'}</span>
+        <span class="error-badge">${badge}</span>
       </header>
       <div class="error-body">
         <p>${description}</p>
@@ -1625,13 +1653,12 @@ function renderErrorView(project) {
         <pre class="error-message">${esc(project.error || 'Erro desconhecido.')}</pre>
         <div class="error-actions">
           ${
-            hasLog && hasFiles
+            buildFailed && hasFiles
               ? `<button class="btn primary" type="button" data-action="fix-build">${icon('wrench')} Corrigir com IA</button>
                  <button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>
-                 <button class="btn" type="button" data-action="tab" data-tab="log">${icon('terminal')} Ver log</button>`
-              : `<button class="btn primary" type="button" data-action="retry-generation">${icon('refresh')} Tentar de novo</button>
-                 ${hasFiles ? `<button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>` : ''}
                  ${hasLog ? `<button class="btn" type="button" data-action="tab" data-tab="log">${icon('terminal')} Ver log</button>` : ''}`
+              : `<button class="btn primary" type="button" data-action="retry-generation">${icon('refresh')} Tentar de novo</button>
+                 ${hasFiles ? `<button class="btn" type="button" data-action="rebuild">${icon('refresh')} Tentar build de novo</button>` : ''}`
           }
         </div>
       </div>

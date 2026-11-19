@@ -723,6 +723,7 @@ export function projectSummary(project, previewBase) {
     status: project.status,
     stage: project.stage || '',
     error: project.error || null,
+    errorKind: project.errorKind || null,
     provider: project.provider || null,
     model: project.model || null,
     previewVersion: project.previewVersion || 0,

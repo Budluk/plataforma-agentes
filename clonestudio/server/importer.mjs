@@ -819,6 +819,7 @@ function startImportJob(id, files, sourceLabel) {
           status: 'error',
           stage: '',
           error: String(error.message || 'O build do app importado falhou.').slice(0, 5000),
+          errorKind: 'build',
           buildLog: String(error.message || '').slice(0, 16000),
         });
         addMessage(id, {
@@ -835,6 +836,7 @@ function startImportJob(id, files, sourceLabel) {
         status: 'error',
         stage: '',
         error: String(error.message || 'Falha ao importar o app.').slice(0, 5000),
+        errorKind: 'generation',
       });
     })
     .finally(() => importJobs.delete(id));

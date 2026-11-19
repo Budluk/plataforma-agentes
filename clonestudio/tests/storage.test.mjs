@@ -249,4 +249,19 @@ test('renameWithRetry repete bloqueios transitórios e desiste em erro definitiv
   assert.equal(fatalAttempts, 1, 'ENOENT não deve ser repetido');
 });
 
+test('projectSummary expõe errorKind para o painel escolher a ação', () => {
+  const project = storage.createProject({ prompt: 'App de teste', name: 'Teste' });
+  storage.updateProject(project.id, {
+    status: 'error',
+    error: 'A geração foi interrompida por um reinício do servidor.',
+    errorKind: 'interrupted',
+  });
+  const summary = storage.projectSummary(storage.getProject(project.id), null);
+  assert.equal(summary.errorKind, 'interrupted');
+  assert.match(summary.error, /interrompida/);
+
+  storage.updateProject(project.id, { errorKind: null });
+  assert.equal(storage.projectSummary(storage.getProject(project.id), null).errorKind, null);
+});
+
 
