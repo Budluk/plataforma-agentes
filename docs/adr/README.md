@@ -24,4 +24,4 @@ Este diretório registra as decisões tomadas no **plano de produção** do Clon
 
 O hardening da Fase 4 reduz a superfície de ataque, mas **não é isolamento de segurança real**: o build roda com o mesmo usuário do servidor. Para exposição em rede (alvos B/C) seriam necessários container/VM, auth, rate limiting e uma nova decisão explícita.
 
-As dívidas antes listadas aqui foram fechadas: agentes e pipelines derivam os nomes de ferramentas de `core.tool_registry` (sem literais `studio_*`, `get_market_data` etc. duplicados), e o gate de música rejeita acordes com mais de 6 notas antes de chamar `to_guitar_tab`.
+As dívidas antes listadas aqui foram fechadas: agentes e pipelines derivam os nomes de ferramentas de `core.tool_registry` (sem literais `studio_*`, `get_market_data` etc. duplicados), e o gate de música rejeita acordes com mais de 6 notas antes de chamar `to_guitar_tab`. O agente de funil também passou a ter identidade própria (`funnel_agent`) no registro, nas permissões e na auditoria, em vez de compartilhar `sales_agent`.

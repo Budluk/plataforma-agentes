@@ -150,3 +150,20 @@ def test_funnel_agent_cannot_use_finance_tool(env):
         make_agent(env).call_tool("read_portfolio")
     assert exc.value.head == "permissions"
 
+
+def test_funnel_agent_has_its_own_identity_and_permissions(env):
+    agent = make_agent(env)
+    assert agent.name == "funnel_agent"
+    assert agent.name != "sales_agent"
+    assert env.perms.is_allowed("funnel_agent", "analyze_funnel")
+    assert not env.perms.is_allowed("funnel_agent", "compute_margin")
+    assert not env.perms.is_allowed("sales_agent", "analyze_funnel")
+
+
+def test_pipeline_audit_labels_funnel_agent(env):
+    result = pipe(env, j()).run("x")
+    assert result.ok
+    labeled = [e for e in env.events() if "agent" in e]
+    assert labeled
+    assert {e["agent"] for e in labeled} == {"funnel_agent"}
+

@@ -52,16 +52,16 @@ class FunnelPipeline:
         self.logger, self.monitor = logger, monitor
 
     def _reject(self, ctx: RunContext, reasons: list[str]) -> FunnelResult:
-        self.logger.log("rejection", run_id=ctx.run_id, agent="sales_agent", reasons=reasons)
-        self.memory.record_run("sales_agent", None, "rejected", "; ".join(reasons))
+        self.logger.log("rejection", run_id=ctx.run_id, agent="funnel_agent", reasons=reasons)
+        self.memory.record_run("funnel_agent", None, "rejected", "; ".join(reasons))
         return FunnelResult(ok=False, reasons=reasons)
 
     def run(self, text: str) -> FunnelResult:
         ctx = RunContext(run_id=uuid.uuid4().hex[:8])
         try:
-            self.logger.log("llm_request", run_id=ctx.run_id, agent="sales_agent")
+            self.logger.log("llm_request", run_id=ctx.run_id, agent="funnel_agent")
             raw = self.llm.complete(SYSTEM, text)
-            self.logger.log("llm_response", run_id=ctx.run_id, agent="sales_agent", chars=len(raw))
+            self.logger.log("llm_response", run_id=ctx.run_id, agent="funnel_agent", chars=len(raw))
             req = parse_request(raw)
         except (FunnelRequestInvalid, LLMError) as exc:
             return self._reject(ctx, [f"{type(exc).__name__}: {exc}"])
@@ -80,5 +80,5 @@ class FunnelPipeline:
             data = agent.execute(req)
         except (ValueError, ToolBlocked) as exc:
             return self._reject(ctx, [f"{type(exc).__name__}: {exc}"])
-        self.memory.record_run("sales_agent", None, "ok", f"funnel:{data['decision']}")
+        self.memory.record_run("funnel_agent", None, "ok", f"funnel:{data['decision']}")
         return FunnelResult(ok=True, data=data)

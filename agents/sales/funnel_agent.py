@@ -9,11 +9,11 @@ def build_funnel_tools() -> dict:
     def analyze_funnel(**params) -> dict:
         return funnel.analyze(**params)
 
-    return {AGENT_TOOL[("sales_agent", "funnel")]: analyze_funnel}
+    return {AGENT_TOOL[("funnel_agent", "funnel")]: analyze_funnel}
 
 
 class FunnelAgent(BaseAgent):
-    name = "sales_agent"
+    name = "funnel_agent"
 
     def execute(self, req: FunnelRequest) -> dict:
         return self.call_tool(AGENT_TOOL[(self.name, "funnel")],
