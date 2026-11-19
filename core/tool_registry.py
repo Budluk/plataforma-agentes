@@ -82,7 +82,7 @@ REGISTRY: dict[str, ToolSpec] = {
     "suggest_price": ToolSpec(agent="sales_agent", agent_method="price", action="price"),
     "break_even": ToolSpec(agent="sales_agent", agent_method="break_even",
                            action="break_even"),
-    "analyze_funnel": ToolSpec(agent="sales_agent", agent_method="funnel"),
+    "analyze_funnel": ToolSpec(agent="funnel_agent", agent_method="funnel"),
     "fetch_page": ToolSpec(agent="research_agent", agent_method="fetch"),
     "analyze_code": ToolSpec(agent="dev_agent", agent_method="analyze"),
     "save_code_file": ToolSpec(agent="dev_agent", agent_method="save"),

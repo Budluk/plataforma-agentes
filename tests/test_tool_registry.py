@@ -101,7 +101,7 @@ def test_agent_factories_take_their_names_from_the_registry(tmp_path):
     assert set(build_music_tools()) == {
         AGENT_TOOL[("music_agent", action)]
         for action in ("identify_chord", "transpose", "tab")}
-    assert set(build_funnel_tools()) == {AGENT_TOOL[("sales_agent", "funnel")]}
+    assert set(build_funnel_tools()) == {AGENT_TOOL[("funnel_agent", "funnel")]}
     assert set(build_research_tools(object())) == {AGENT_TOOL[("research_agent", "fetch")]}
     assert set(build_dev_tools({}, set(), tmp_path)) == {
         AGENT_TOOL[("dev_agent", role)] for role in ("analyze", "save")}
