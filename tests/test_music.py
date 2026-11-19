@@ -44,6 +44,36 @@ def test_tab_open_strings_and_unplayable():
         theory.to_guitar_tab([20])
 
 
+def test_tab_is_a_chord_with_one_note_per_string():
+    tab = theory.to_guitar_tab([60, 64, 67])
+    assert [item["note"] for item in tab] == ["C4", "E4", "G4"]
+    strings = [item["string"] for item in tab]
+    assert len(set(strings)) == 3
+    assert all(1 <= item["string"] <= 6 for item in tab)
+    assert all(0 <= item["fret"] <= theory.MAX_FRET for item in tab)
+    # Voicing compacto de C4 E4 G4 nas cordas 3, 2 e 1.
+    assert [(item["string"], item["fret"]) for item in tab] == [(3, 5), (2, 5), (1, 3)]
+
+
+def test_tab_keeps_order_and_handles_open_strings_and_sevenths():
+    assert [(i["string"], i["fret"]) for i in theory.to_guitar_tab([40, 45, 50])] == [
+        (6, 0), (5, 0), (4, 0)]
+    seventh = theory.to_guitar_tab([60, 64, 67, 71])
+    assert [i["note"] for i in seventh] == ["C4", "E4", "G4", "B4"]
+    assert len({i["string"] for i in seventh}) == 4
+
+
+def test_tab_accepts_duplicate_pitches_on_distinct_strings():
+    tab = theory.to_guitar_tab([64, 64])
+    assert [i["note"] for i in tab] == ["E4", "E4"]
+    assert len({i["string"] for i in tab}) == 2
+
+
+def test_tab_rejects_more_notes_than_strings():
+    with pytest.raises(ValueError, match="excede as 6 cordas"):
+        theory.to_guitar_tab(list(range(40, 40 + theory.MAX_CHORD_NOTES + 1)))
+
+
 # --- contratos ---
 @pytest.mark.parametrize("kw", [
     dict(action="tab", notes=[200]), dict(action="tab", notes=[]),
@@ -82,6 +112,13 @@ def test_pipeline_rejects_unplayable_with_reason(env):
     res = pipe(env, j("tab", [20])).run("x")
     assert not res.ok and res.reasons
     assert any(e["event"] == "rejection" for e in env.events())
+
+
+def test_pipeline_rejects_chord_with_too_many_notes(env):
+    notes = list(range(40, 40 + theory.MAX_CHORD_NOTES + 1))
+    res = pipe(env, j("tab", notes)).run("x")
+    assert not res.ok and res.reasons
+    assert any("cordas" in reason for reason in res.reasons)
 
 
 def test_pipeline_rejects_transpose_overflow(env):

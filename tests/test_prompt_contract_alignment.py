@@ -7,6 +7,7 @@ from agents.dev.static_check import MAX_CHARS as STATIC_MAX_CHARS
 from agents.dev.static_check import MAX_LINES as STATIC_MAX_LINES
 from agents.music.contracts import (MAX_MIDI_NOTES, MAX_SEMITONES, MIN_SEMITONES,
                                     MusicRequest)
+from agents.music.theory import MAX_CHORD_NOTES
 from agents.research.contracts import MAX_KEY_POINTS, MAX_SUMMARY_CHARS, ResearchSummary
 from agents.sales.contracts import MAX_TARGET_MARGIN_PCT, SalesRequest
 from pipelines.dev_pipeline import build_system
@@ -62,3 +63,8 @@ def test_music_prompt_states_note_and_semitone_limits():
         MusicRequest(**base, semitones=MAX_SEMITONES + 1)
     with pytest.raises(ValidationError):
         MusicRequest(action="tab", notes=[60] * (MAX_MIDI_NOTES + 1))
+
+
+def test_music_prompt_states_the_chord_semantics():
+    assert "cada nota em uma corda distinta" in MUSIC_SYSTEM
+    assert f"no máximo {MAX_CHORD_NOTES} notas" in MUSIC_SYSTEM

@@ -3,6 +3,7 @@ from __future__ import annotations
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 TUNING_LOW_TO_HIGH = [40, 45, 50, 55, 59, 64]  # E2 A2 D3 G3 B3 E4
 MAX_FRET = 22
+MAX_CHORD_NOTES = len(TUNING_LOW_TO_HIGH)  # uma nota por corda
 TEMPLATES = {
     "maj": {0, 4, 7}, "min": {0, 3, 7}, "dim": {0, 3, 6}, "aug": {0, 4, 8},
     "7": {0, 4, 7, 10}, "maj7": {0, 4, 7, 11}, "min7": {0, 3, 7, 10},
@@ -40,12 +41,51 @@ def transpose(midi_notes: list[int], semitones: int) -> list[int]:
 
 
 def to_guitar_tab(midi_notes: list[int]) -> list[dict]:
-    tab = []
+    """Posiciona as notas de um acorde em cordas distintas.
+
+    Cada nota recebe uma corda diferente para que o resultado seja tocável
+    simultaneamente. Entre as posições possíveis, escolhe a de menor extensão
+    entre trastes (e, em empate, a de menor soma de trastes), o que evita
+    acordes com esticamentos impossíveis. A ordem das notas de entrada é
+    preservada na saída.
+    """
+    if len(midi_notes) > MAX_CHORD_NOTES:
+        raise ValueError(
+            f"acorde com {len(midi_notes)} notas excede as {MAX_CHORD_NOTES} cordas do violão"
+        )
+
+    options = []
     for n in midi_notes:
-        options = [(n - open_note, idx) for idx, open_note in enumerate(TUNING_LOW_TO_HIGH)
+        choices = [(idx, n - open_note) for idx, open_note in enumerate(TUNING_LOW_TO_HIGH)
                    if 0 <= n - open_note <= MAX_FRET]
-        if not options:
+        if not choices:
             raise ValueError(f"nota {n} fora do alcance do violão")
-        fret, idx = min(options)
-        tab.append({"note": note_name(n), "string": 6 - idx, "fret": fret})
-    return tab
+        options.append(sorted(choices, key=lambda item: (item[1], item[0])))
+
+    best: list[tuple[int, int]] | None = None
+    best_cost: tuple[int, int, tuple[int, ...]] | None = None
+    current: list[tuple[int, int]] = []
+
+    def search(position: int, used: set[int]) -> None:
+        nonlocal best, best_cost
+        if position == len(options):
+            frets = [fret for _, fret in current]
+            cost = (max(frets) - min(frets), sum(frets), tuple(frets))
+            if best_cost is None or cost < best_cost:
+                best_cost, best = cost, list(current)
+            return
+        for idx, fret in options[position]:
+            if idx in used:
+                continue
+            used.add(idx)
+            current.append((idx, fret))
+            search(position + 1, used)
+            current.pop()
+            used.remove(idx)
+
+    search(0, set())
+    if best is None:
+        raise ValueError(f"não foi possível posicionar o acorde em cordas distintas: {midi_notes}")
+
+    return [{"note": note_name(n), "string": 6 - idx, "fret": fret}
+            for n, (idx, fret) in zip(midi_notes, best)]
