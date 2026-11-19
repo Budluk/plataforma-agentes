@@ -18,6 +18,7 @@ import {
   writeGeneratedFiles,
 } from './storage.mjs';
 import { ALLOWED_PACKAGES, buildFileDump, parseGenerationResponse } from './generation-core.mjs';
+import { hashText, logAudit, rejectionFields } from './audit.mjs';
 import { buildValidationInstruction } from './validation-core.mjs';
 import { callChat } from './providers.mjs';
 import { runPreviewValidation } from './preview-validator.mjs';
@@ -70,6 +71,9 @@ REGRAS DO PROJETO:
 - Se a instrução do usuário for uma correção de build, corrija a causa raiz e mantenha o restante funcionando.
 
 Responda apenas JSON.`;
+
+// Identifica a versao do prompt pelo proprio conteudo: qualquer edicao muda o hash.
+export const PROMPT_VERSION = hashText(SYSTEM_PROMPT);
 
 function nowIso() {
   return new Date().toISOString();
@@ -259,16 +263,42 @@ async function requestModel(
     : initialInstruction(project, knowledgeText, instruction);
   messages.push({ role: 'user', content: userContent });
 
+  const promptChars = messages.reduce(
+    (total, message) => total + String(message.content || '').length,
+    0,
+  );
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const attemptStartedAt = Date.now();
     try {
-      return await callChat(messages, {
+      const result = await callChat(messages, {
         timeoutMs: GENERATION_TIMEOUT,
         maxTokens: MAX_TOKENS,
         temperature: 0.35,
       });
+      logAudit('model_response', {
+        projectId: project.id,
+        attempt,
+        promptVersion: PROMPT_VERSION,
+        promptChars,
+        provider: result.provider,
+        model: result.model,
+        responseChars: String(result.text || '').length,
+        responseSha256: hashText(result.text),
+        usage: result.usage || null,
+        durationMs: Date.now() - attemptStartedAt,
+      });
+      return result;
     } catch (error) {
       const transient = error.providerErrors && isTransientProviderError(error);
+      logAudit('model_attempt_error', {
+        projectId: project.id,
+        attempt,
+        transient: Boolean(transient),
+        promptVersion: PROMPT_VERSION,
+        reason: String(error.message || ''),
+        durationMs: Date.now() - attemptStartedAt,
+      });
       if (!transient || attempt === maxAttempts) {
         if (error.providerErrors) throw error;
         throw new Error(`Falha ao consultar o modelo: ${error.message}`);
@@ -289,10 +319,12 @@ function validateResponse(raw, existingPaths) {
 }
 
 function logRejectedResponse(label, result, error) {
+  const fields = rejectionFields(label, result, error, PROMPT_VERSION);
+  logAudit('model_rejected', fields);
+  // Nunca imprimir a resposta bruta: ela pode conter segredos gerados pelo modelo.
   console.warn(
-    `[generator] ${label}: ${error.message} | provider=${result.provider} model=${result.model} chars=${String(
-      result.text || '',
-    ).length}\n${truncate(result.text, 1600)}`,
+    `[generator] ${fields.label}: ${fields.reason} | provider=${fields.provider} ` +
+      `model=${fields.model} chars=${fields.chars} sha256=${fields.sha256}`,
   );
 }
 
@@ -645,6 +677,9 @@ async function runGeneration(id, options = {}) {
   const isFix = Boolean(options.fix);
   const isValidationFix = Boolean(options.validationFix);
   const isFresh = Boolean(options.fresh);
+  const jobKind = isFresh ? 'fresh' : isValidationFix ? 'validation_fix' : isFix ? 'fix' : 'chat';
+  const jobStartedAt = Date.now();
+  logAudit('job_start', { projectId: id, kind: jobKind, promptVersion: PROMPT_VERSION });
   try {
     updateProject(id, {
       status: 'generating',
@@ -766,9 +801,27 @@ async function runGeneration(id, options = {}) {
       content: `${summary}\n\nBuild concluído com sucesso.`,
     });
     updateProject(id, { stage: '' });
+    logAudit('job_finish', {
+      projectId: id,
+      kind: jobKind,
+      status: 'ok',
+      promptVersion: PROMPT_VERSION,
+      provider: generation.provider,
+      model: generation.model,
+      fileCount: parsed.files.length,
+      durationMs: Date.now() - jobStartedAt,
+    });
   } catch (error) {
     if (!getProject(id)) return;
     const message = error.message || 'Erro inesperado durante a geração.';
+    logAudit('job_finish', {
+      projectId: id,
+      kind: jobKind,
+      status: 'error',
+      promptVersion: PROMPT_VERSION,
+      reason: message,
+      durationMs: Date.now() - jobStartedAt,
+    });
     console.error(`[generator] projeto ${id}:`, message);
     updateProject(id, {
       status: 'error',
