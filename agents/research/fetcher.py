@@ -1,57 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urljoin
-import httpcore
 import httpx
-from agents.research.urlgate import check_url, resolve_public_host
+from agents.research.urlgate import check_url
+from core.pinned_http import PinnedBackend, PinnedTransport, resolve_public_host  # noqa: F401
 
 
 class FetchError(Exception):
     pass
-
-
-class PinnedBackend(httpcore.SyncBackend):
-    """Conecta somente aos IPs já resolvidos e validados para o host da URL."""
-
-    def __init__(self, resolver=resolve_public_host):
-        self._resolver = resolver
-
-    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
-        addresses = self._resolver(host)
-        errors = []
-        for address in addresses:
-            try:
-                return super().connect_tcp(
-                    address, port, timeout=timeout,
-                    local_address=local_address, socket_options=socket_options,
-                )
-            except (httpcore.ConnectError, httpcore.ConnectTimeout, OSError) as exc:
-                errors.append(exc)
-        raise httpcore.ConnectError(f"falha ao conectar em {host} nos endereços validados") from None
-
-
-class PinnedTransport(httpx.HTTPTransport):
-    """HTTPTransport com DNS pinning, sem proxy e sem reutilizar conexões."""
-
-    def __init__(self, *, resolver=resolve_public_host, verify=True, cert=None,
-                 http1=True, http2=False, limits=None, retries=0,
-                 uds=None, local_address=None, socket_options=None):
-        limits = limits or httpx.Limits(max_keepalive_connections=0)
-        super().__init__(
-            verify=verify, cert=cert, trust_env=False, http1=http1, http2=http2,
-            limits=limits, retries=retries, uds=uds, local_address=local_address,
-            socket_options=socket_options,
-        )
-        self._pool.close()  # pool criado pelo pai sem pinning; nunca foi usado
-        self._pool = httpcore.ConnectionPool(
-            ssl_context=httpx.create_ssl_context(verify=verify, cert=cert, trust_env=False),
-            max_connections=limits.max_connections,
-            max_keepalive_connections=limits.max_keepalive_connections,
-            keepalive_expiry=limits.keepalive_expiry,
-            http1=http1, http2=http2, retries=retries, uds=uds,
-            local_address=local_address, socket_options=socket_options,
-            network_backend=PinnedBackend(resolver),
-        )
 
 
 @dataclass
