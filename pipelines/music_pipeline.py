@@ -9,13 +9,16 @@ from agents.music.agent import MusicAgent
 from agents.music.contracts import (MAX_MIDI_NOTES, MAX_SEMITONES, MIN_SEMITONES,
                                     MusicRequest)
 from agents.music.gate import check_request
+from agents.music.theory import MAX_CHORD_NOTES
 from agents.music.tools import build_music_tools
 from core.llm_client import LLMError
 
 SYSTEM = ("Converta o pedido em JSON, SOMENTE o objeto, sem texto extra, com as chaves: "
           "action (identify_chord, transpose ou tab), notes (lista de números MIDI inteiros, "
           f"C4 = 60, no máximo {MAX_MIDI_NOTES} notas) e semitones "
-          f"(inteiro de {MIN_SEMITONES} a {MAX_SEMITONES}, apenas em transpose).")
+          f"(inteiro de {MIN_SEMITONES} a {MAX_SEMITONES}, apenas em transpose). "
+          f"Na action tab as notas formam um acorde: cada nota em uma corda distinta, "
+          f"no máximo {MAX_CHORD_NOTES} notas.")
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
 
