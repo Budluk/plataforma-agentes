@@ -1,7 +1,7 @@
 import httpx
 import pytest
 from core import llm_client
-from core.llm_client import HttpLLMClient, LLMError
+from core.llm_client import DEFAULT_MAX_TOKENS, HttpLLMClient, LLMError
 
 ENV = {"GROQ_API_KEY": "k", "GROQ_MODEL": "m"}
 
@@ -67,11 +67,64 @@ def test_malformed_payload_is_llm_error(monkeypatch):
         client().complete("s", "u")
 
 
-def test_request_leaves_room_for_reasoning_tokens(monkeypatch):
+def test_request_uses_the_default_limit(monkeypatch):
     seen = {}
     monkeypatch.setattr(llm_client.httpx, "post", fake_post(reply("OK"), seen=seen))
     client().complete("s", "u")
-    assert seen["json"]["max_tokens"] >= 3000
+    assert seen["json"]["max_tokens"] == DEFAULT_MAX_TOKENS == 3000
+
+
+def test_env_overrides_the_default_limit(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(llm_client.httpx, "post", fake_post(reply("OK"), seen=seen))
+    HttpLLMClient("groq", env={**ENV, "LLM_MAX_TOKENS": "1500"}, sleep=lambda _: None).complete("s", "u")
+    assert seen["json"]["max_tokens"] == 1500
+
+
+def test_constructor_argument_wins_over_env(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(llm_client.httpx, "post", fake_post(reply("OK"), seen=seen))
+    HttpLLMClient("groq", env={**ENV, "LLM_MAX_TOKENS": "1500"}, max_tokens=2000,
+                  sleep=lambda _: None).complete("s", "u")
+    assert seen["json"]["max_tokens"] == 2000
+
+
+def test_per_call_override_does_not_change_the_client_default(monkeypatch):
+    seen = []
+
+    def capture(url, **kw):
+        seen.append(kw)
+        return httpx.Response(200, json=reply("OK"))
+
+    monkeypatch.setattr(llm_client.httpx, "post", capture)
+    c = client()
+    assert c.complete("s", "u", max_tokens=6000) == "OK"
+    assert c.complete("s", "u") == "OK"
+    assert [s["json"]["max_tokens"] for s in seen] == [6000, 3000]
+
+
+@pytest.mark.parametrize("bad", ["abc", "0", "-1", "1.5", True])
+def test_invalid_max_tokens_is_rejected_before_the_request(monkeypatch, bad):
+    post, calls = sequence(httpx.Response(200, json=reply("OK")))
+    monkeypatch.setattr(llm_client.httpx, "post", post)
+    with pytest.raises(LLMError, match="max_tokens|LLM_MAX_TOKENS"):
+        HttpLLMClient("groq", env={**ENV, "LLM_MAX_TOKENS": str(bad)}, sleep=lambda _: None)
+    assert calls == []
+
+
+@pytest.mark.parametrize("bad", [0, -1, 1.5, "abc", True])
+def test_invalid_call_override_is_rejected_before_the_request(monkeypatch, bad):
+    post, calls = sequence(httpx.Response(200, json=reply("OK")))
+    monkeypatch.setattr(llm_client.httpx, "post", post)
+    with pytest.raises(LLMError, match="max_tokens"):
+        client().complete("s", "u", max_tokens=bad)
+    assert calls == []
+
+
+def test_truncated_response_names_the_limit_used(monkeypatch):
+    monkeypatch.setattr(llm_client.httpx, "post", fake_post(reply('{"a": "cort', "length")))
+    with pytest.raises(LLMError, match="max_tokens=3000"):
+        client().complete("s", "u", max_tokens=3000)
 
 
 def test_ignores_proxy_environment(monkeypatch):

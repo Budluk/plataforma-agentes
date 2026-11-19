@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.dev.agent import DevAgent
-from agents.dev.contracts import (MAX_CODE_CHARS, MAX_EXPLANATION_CHARS, MAX_LINES,
-                                  DevProposal, DevRequest)
+from agents.dev.contracts import (DEV_MAX_TOKENS, MAX_CODE_CHARS, MAX_EXPLANATION_CHARS,
+                                  MAX_LINES, DevProposal, DevRequest)
 from agents.dev.gate import check_request
 from agents.dev.tools import build_dev_tools
 from core.llm_client import LLMError
@@ -84,7 +84,8 @@ class DevPipeline:
             return self._reject(ctx, reasons)
         try:
             self.logger.log("llm_request", run_id=ctx.run_id, agent="dev_agent")
-            raw = self.llm.complete(build_system(self.allowed_imports), req.task)
+            raw = self.llm.complete(build_system(self.allowed_imports), req.task,
+                                    max_tokens=DEV_MAX_TOKENS)
             self.logger.log("llm_response", run_id=ctx.run_id, agent="dev_agent", chars=len(raw))
             proposal = parse_proposal(raw)
         except (DevProposalInvalid, LLMError) as exc:

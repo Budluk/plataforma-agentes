@@ -29,7 +29,7 @@ class CaptureLLM:
     def __init__(self, response=OK):
         self.response, self.user = response, None
 
-    def complete(self, system, user):
+    def complete(self, system, user, *, max_tokens=None):
         self.user = user
         return self.response
 

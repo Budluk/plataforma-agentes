@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.dev.agent import DevAgent
-from agents.dev.contracts import DevProposal, DevRequest
+from agents.dev.contracts import DEV_MAX_TOKENS, DevProposal, DevRequest
 from agents.dev.gate import check_request
 from agents.dev.static_check import analyze_source, load_allowed_imports
 from agents.dev.tools import build_dev_tools
@@ -180,6 +180,13 @@ def test_write_rejects_short_task_before_calling_llm(env, tmp_path):
     llm = FakeLLM(prop())
     p = DevPipeline(llm, ALLOWED, tmp_path / "out", env.memory, env.perms, env.logger, env.monitor)
     assert not p.write("curta").ok and llm.calls == 0
+
+
+def test_write_requests_more_tokens_than_the_default(env, tmp_path):
+    llm = FakeLLM(prop())
+    p = DevPipeline(llm, ALLOWED, tmp_path / "out", env.memory, env.perms, env.logger, env.monitor)
+    assert p.write(TASK).ok
+    assert llm.last_max_tokens == DEV_MAX_TOKENS == 6000
 
 
 def test_write_calls_only_analyze_then_save(env, tmp_path):

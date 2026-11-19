@@ -240,6 +240,9 @@ Se isso mudar, essas regras precisam ser criadas e testadas antes.
     .\.venv\Scripts\python.exe -c "import os,httpx; from dotenv import load_dotenv; load_dotenv(); r=httpx.get('https://api.groq.com/openai/v1/models',headers={'Authorization':'Bearer '+os.getenv('GROQ_API_KEY','').strip()},timeout=30); print(r.status_code); [print(m['id']) for m in sorted(r.json().get('data',[]),key=lambda m:m['id'])]"
 
 Em uso: `openai/gpt-oss-20b`. O `llama-3.1-8b-instant` deu 404 nesta conta.
+O limite de tokens por resposta vem de `LLM_MAX_TOKENS` (padrão 3000); a área dev pede 6000
+na própria chamada, para não cortar código de até 250 linhas. Resposta cortada pelo provedor
+(`finish_reason=length`) continua sendo erro explícito — o limite usado aparece na mensagem.
 Dependências: `requirements.txt` (5 diretas, versão exata) e `requirements.lock` (todas, para reproduzir o ambiente).
 Gates de aceitação: `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\verify_gates.ps1`.
 
