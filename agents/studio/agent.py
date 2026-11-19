@@ -1,5 +1,57 @@
+"""StudioAgent com metodos gerados a partir do registro unico.
+
+Os nomes das 17 ferramentas, as assinaturas e a regra de permissao/sequencia
+nao sao repetidos aqui: vem de ``core.tool_registry``. O agente expoe os
+metodos de dominio (``list_apps``, ``import_site``, ...) e cada um resolve a
+ferramenta correspondente atraves de ``STUDIO_AGENT_TOOL``.
+"""
 from __future__ import annotations
+
+import inspect
+
 from agents.base_agent import BaseAgent
+from core.tool_registry import STUDIO_AGENT_TOOL, TOOL_SPECS, ToolSpec
+
+_STUDIO_AGENT_SPECS: dict[str, ToolSpec] = {
+    method: TOOL_SPECS[tool] for method, tool in STUDIO_AGENT_TOOL.items()
+}
+
+
+def _make_agent_method(method: str, spec: ToolSpec):
+    """Cria um metodo publico com a assinatura descrita no registro."""
+    params = [
+        inspect.Parameter(
+            field,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=int if field in spec.integers else str,
+        )
+        for field in spec.required
+    ]
+    params += [
+        inspect.Parameter(
+            field,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            default=None,
+            annotation=str | None,
+        )
+        for field in spec.optional
+    ]
+    signature = inspect.Signature(params, return_annotation=dict)
+
+    def call(self, *args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        return self.call_tool(STUDIO_AGENT_TOOL[method], **bound.arguments)
+
+    call.__name__ = method
+    call.__qualname__ = f"StudioAgent.{method}"
+    call.__signature__ = signature
+    call.__annotations__ = {
+        **{field: int if field in spec.integers else str for field in spec.required},
+        **{field: str | None for field in spec.optional},
+        "return": dict,
+    }
+    call.__doc__ = spec.description
+    return call
 
 
 class StudioAgent(BaseAgent):
@@ -7,54 +59,7 @@ class StudioAgent(BaseAgent):
 
     name = "studio_agent"
 
-    def health(self) -> dict:
-        return self.call_tool("studio_health")
 
-    def list_apps(self) -> dict:
-        return self.call_tool("studio_list_apps")
-
-    def create_app(self, prompt: str) -> dict:
-        return self.call_tool("studio_create_app", prompt=prompt)
-
-    def app_status(self, project_id: str) -> dict:
-        return self.call_tool("studio_app_status", project_id=project_id)
-
-    def validate_app(self, project_id: str) -> dict:
-        return self.call_tool("studio_validate_app", project_id=project_id)
-
-    def send_message(self, project_id: str, content: str) -> dict:
-        return self.call_tool("studio_send_message", project_id=project_id, content=content)
-
-    def fix_app(self, project_id: str) -> dict:
-        return self.call_tool("studio_fix_app", project_id=project_id)
-
-    def fix_validation(self, project_id: str) -> dict:
-        return self.call_tool("studio_fix_validation", project_id=project_id)
-
-    def rebuild_app(self, project_id: str) -> dict:
-        return self.call_tool("studio_rebuild_app", project_id=project_id)
-
-    def retry_app(self, project_id: str) -> dict:
-        return self.call_tool("studio_retry_app", project_id=project_id)
-
-    def list_versions(self, project_id: str) -> dict:
-        return self.call_tool("studio_list_versions", project_id=project_id)
-
-    def restore_version(self, project_id: str, version: int) -> dict:
-        return self.call_tool("studio_restore_version", project_id=project_id, version=version)
-
-    def import_site(self, url: str, prompt: str | None = None) -> dict:
-        return self.call_tool("studio_import_site", url=url, prompt=prompt)
-
-    def import_github(self, url: str) -> dict:
-        return self.call_tool("studio_import_github", url=url)
-
-    def import_app(self, project_id: str) -> dict:
-        return self.call_tool("studio_import_app", project_id=project_id)
-
-    def analyze_inspiration(self, url: str) -> dict:
-        return self.call_tool("studio_analyze_inspiration", url=url)
-
-    def create_inspiration(self, inspiration_token: str, prompt: str | None = None) -> dict:
-        return self.call_tool("studio_create_inspiration",
-                              inspiration_token=inspiration_token, prompt=prompt)
+for _method, _spec in _STUDIO_AGENT_SPECS.items():
+    setattr(StudioAgent, _method, _make_agent_method(_method, _spec))
+del _method, _spec

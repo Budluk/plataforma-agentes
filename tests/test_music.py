@@ -92,6 +92,20 @@ def test_parse_request_rejects_malformed(raw):
         parse_request(raw)
 
 
+# --- gate ---
+def test_gate_enforces_chord_size_for_tab_only():
+    from agents.music.gate import check_request
+
+    six = list(range(40, 40 + theory.MAX_CHORD_NOTES))
+    seven = six + [64]
+    assert check_request(MusicRequest(action="tab", notes=six)) == []
+    reasons = check_request(MusicRequest(action="tab", notes=seven))
+    assert any(f"{theory.MAX_CHORD_NOTES} cordas" in reason for reason in reasons)
+    # O limite de acorde e especifico de tab; transpose/identify nao mudam.
+    assert check_request(MusicRequest(action="identify_chord", notes=seven)) == []
+    assert check_request(MusicRequest(action="transpose", notes=seven)) == []
+
+
 # --- pipeline ---
 def test_pipeline_identify(env):
     res = pipe(env, j("identify_chord", [60, 64, 67])).run("x")
@@ -114,11 +128,14 @@ def test_pipeline_rejects_unplayable_with_reason(env):
     assert any(e["event"] == "rejection" for e in env.events())
 
 
-def test_pipeline_rejects_chord_with_too_many_notes(env):
+def test_pipeline_rejects_chord_with_too_many_notes_before_the_tool(env):
     notes = list(range(40, 40 + theory.MAX_CHORD_NOTES + 1))
     res = pipe(env, j("tab", notes)).run("x")
     assert not res.ok and res.reasons
-    assert any("cordas" in reason for reason in res.reasons)
+    assert any(f"{theory.MAX_CHORD_NOTES} cordas" in reason for reason in res.reasons)
+    # O gate barra antes de qualquer ferramenta: nada de to_guitar_tab na auditoria.
+    tools = {e.get("tool") for e in env.events() if e["event"] == "tool_call_attempt"}
+    assert "to_guitar_tab" not in tools
 
 
 def test_pipeline_rejects_transpose_overflow(env):

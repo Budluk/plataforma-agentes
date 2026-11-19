@@ -6,6 +6,8 @@ sem copias locais e sem divergencia de assinaturas.
 """
 import inspect
 
+from agents.studio.agent import StudioAgent
+from agents.studio.contracts import ACTIONS, IMPORT_KINDS
 from agents.studio.tools import build_studio_tools
 from core.contracts import ToolCall
 from core.permissions import SEED as PERMISSIONS_SEED
@@ -14,7 +16,10 @@ from core.tool_registry import (
     KNOWN_TOOLS as REGISTRY_KNOWN,
     REGISTRY,
     SEED as REGISTRY_SEED,
+    STUDIO_ACTION_TOOL,
+    STUDIO_AGENT_TOOL,
     STUDIO_AGENT_TOOLS,
+    STUDIO_PARAM_ALIASES,
     STUDIO_TOOLS as REGISTRY_STUDIO,
     TOOL_SPECS,
 )
@@ -91,6 +96,44 @@ def test_studio_sets_keep_their_counts_and_meaning():
 
 def test_tool_spec_order_is_preserved_for_the_api_catalog():
     assert list(TOOL_SPECS) == EXPECTED_TOOL_SPEC_ORDER
+
+
+def test_action_map_covers_the_closed_actions_and_import_kinds():
+    expected = ({(action, "") for action in ACTIONS if action != "import"}
+                | {("import", kind) for kind in IMPORT_KINDS})
+    assert set(STUDIO_ACTION_TOOL) == expected
+    assert len(STUDIO_ACTION_TOOL) == 17
+    assert set(STUDIO_ACTION_TOOL.values()) == set(STUDIO_AGENT_TOOLS)
+    for key, name in STUDIO_ACTION_TOOL.items():
+        spec = TOOL_SPECS[name]
+        assert (spec.action, spec.kind) == key
+        assert spec.agent_method
+
+
+def test_agent_method_map_is_bijective_and_complete():
+    assert len(STUDIO_AGENT_TOOL) == 17
+    assert len(set(STUDIO_AGENT_TOOL.values())) == 17
+    assert set(STUDIO_AGENT_TOOL.values()) == set(STUDIO_AGENT_TOOLS)
+    for method, name in STUDIO_AGENT_TOOL.items():
+        assert TOOL_SPECS[name].agent_method == method
+        assert hasattr(StudioAgent, method)
+
+
+def test_studio_agent_signatures_come_from_the_registry():
+    for method, name in STUDIO_AGENT_TOOL.items():
+        spec = TOOL_SPECS[name]
+        params = list(inspect.signature(getattr(StudioAgent, method)).parameters.values())
+        assert [p.name for p in params] == [*spec.required, *spec.optional]
+    assert str(inspect.signature(StudioAgent.send_message)) == (
+        "(project_id: str, content: str) -> dict")
+    assert str(inspect.signature(StudioAgent.import_site)) == (
+        "(url: str, prompt: str | None = None) -> dict")
+
+
+def test_request_field_alias_is_derived_from_the_spec():
+    assert STUDIO_PARAM_ALIASES == {"content": "message"}
+    assert TOOL_SPECS["studio_send_message"].param_aliases == (("content", "message"),)
+    assert "content" in TOOL_SPECS["studio_send_message"].required
 
 
 def test_sequence_requirements_come_from_the_registry():
