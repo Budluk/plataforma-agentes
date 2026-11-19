@@ -645,7 +645,7 @@ const server = http.createServer(async (req, res) => {
         const previousStatus = project.status;
         const previousStage = project.stage || '';
         addMessage(id, { role: 'user', kind: 'chat', content });
-        updateProject(id, { status: 'generating', stage: 'Na fila', error: null });
+        updateProject(id, { status: 'generating', stage: 'Na fila', error: null, errorKind: null });
         if (!requestGeneration(id)) {
           updateProject(id, {
             messages: previousMessages,
@@ -667,7 +667,7 @@ const server = http.createServer(async (req, res) => {
         }
         const previousStatus = project.status;
         const previousStage = project.stage || '';
-        updateProject(id, { status: 'generating', stage: 'Na fila', error: null });
+        updateProject(id, { status: 'generating', stage: 'Na fila', error: null, errorKind: null });
         if (!requestGeneration(id, { fix: true })) {
           updateProject(id, { status: previousStatus, stage: previousStage });
           throw new HttpError(409, 'Já existe uma geração em andamento.');
@@ -696,7 +696,7 @@ const server = http.createServer(async (req, res) => {
         }
         const previousStatus = project.status;
         const previousStage = project.stage || '';
-        updateProject(id, { status: 'generating', stage: 'Na fila', error: null });
+        updateProject(id, { status: 'generating', stage: 'Na fila', error: null, errorKind: null });
         if (!requestGeneration(id, { validationFix: true })) {
           updateProject(id, { status: previousStatus, stage: previousStage });
           throw new HttpError(409, 'Já existe uma geração em andamento.');
@@ -712,11 +712,13 @@ const server = http.createServer(async (req, res) => {
         const previousStatus = project.status;
         const previousStage = project.stage || '';
         const previousError = project.error || '';
+        const previousErrorKind = project.errorKind || null;
         const previousBuildLog = project.buildLog || '';
         updateProject(id, {
           status: 'generating',
           stage: 'Na fila',
           error: null,
+          errorKind: null,
           buildLog: '',
         });
         if (!requestGeneration(id, { fresh: true })) {
@@ -724,6 +726,7 @@ const server = http.createServer(async (req, res) => {
             status: previousStatus,
             stage: previousStage,
             error: previousError,
+            errorKind: previousErrorKind,
             buildLog: previousBuildLog,
           });
           throw new HttpError(409, 'Já existe uma geração em andamento.');
@@ -827,7 +830,7 @@ function recoverInterruptedProjects() {
   for (const project of stale) {
     const message =
       'A geração foi interrompida por um reinício do servidor. Use "Tentar de novo" para recomeçar.';
-    updateProject(project.id, { status: 'error', stage: '', error: message });
+    updateProject(project.id, { status: 'error', stage: '', error: message, errorKind: 'interrupted' });
     addMessage(project.id, { role: 'assistant', kind: 'error', content: message });
   }
   if (stale.length > 0) {
