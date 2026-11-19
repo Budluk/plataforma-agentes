@@ -23,6 +23,7 @@ import {
 } from './storage.mjs';
 import { isNotModified, weakEtag } from './http-cache.mjs';
 import { assertLoopbackHost, assertTrustedHost, parsePublicHost } from './net-safety.mjs';
+import { RateLimiter, guardApiRequest, parseApiToken, parseRateLimit } from './api-guard.mjs';
 import { handleSse, sseEnabled, sseStatus } from './sse.mjs';
 import {
   callChat,
@@ -88,6 +89,24 @@ try {
   console.error(`[server] ${error.message} Valor recebido: ${String(process.env.CLONESTUDIO_PUBLIC_HOST)}.`);
   process.exit(1);
 }
+let API_TOKEN;
+let RATE_LIMITER;
+try {
+  API_TOKEN = parseApiToken(process.env.CLONESTUDIO_API_TOKEN);
+  if (PUBLIC_HOST && !API_TOKEN) {
+    throw new Error('CLONESTUDIO_API_TOKEN é obrigatório quando CLONESTUDIO_PUBLIC_HOST está definido.');
+  }
+  const rateLimitEnabled = Boolean(PUBLIC_HOST) || String(process.env.CLONESTUDIO_RATE_LIMIT_ENABLED || '') === '1';
+  const rateLimit = parseRateLimit(process.env.CLONESTUDIO_RATE_LIMIT_PER_MIN, 120);
+  RATE_LIMITER = rateLimitEnabled ? new RateLimiter(rateLimit) : null;
+} catch (error) {
+  console.error(`[server] ${error.message}`);
+  process.exit(1);
+}
+if (RATE_LIMITER) {
+  const pruneTimer = setInterval(() => RATE_LIMITER.prune(), 5 * 60_000);
+  pruneTimer.unref();
+}
 const PORT = Number(process.env.PORT || 8787);
 const PREVIEW_PORT = Number(process.env.PREVIEW_PORT || 8788);
 
@@ -145,18 +164,19 @@ function previewBaseFor(req) {
   return `http://${hostname}:${PREVIEW_PORT}`;
 }
 
-function sendJson(res, status, data) {
+function sendJson(res, status, data, headers = {}) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
+    ...headers,
   });
   res.end(JSON.stringify(data));
 }
 
-function sendError(res, status, message, extra) {
-  sendJson(res, status, { error: message, ...(extra || {}) });
+function sendError(res, status, message, extra, headers = {}) {
+  sendJson(res, status, { error: message, ...(extra || {}) }, headers);
 }
 
 async function readBody(req, limit = 1_000_000) {
@@ -284,6 +304,13 @@ async function handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const method = req.method || 'GET';
     const pathname = url.pathname;
+
+    if (pathname.startsWith('/api/')) {
+      const denied = guardApiRequest(req, { apiToken: API_TOKEN, limiter: RATE_LIMITER });
+      if (denied) {
+        return sendError(res, denied.status, denied.message, denied.extra, denied.headers);
+      }
+    }
 
     if (pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
       assertTrustedRequest(req);

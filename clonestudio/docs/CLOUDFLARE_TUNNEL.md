@@ -14,8 +14,14 @@ que mantém o [ADR-0001](../../docs/adr/0001-loopback-only.md) em vigor.
   ou de `HOST`. Desde a preparação do item 2, o código aceita também um único
   hostname explícito em `CLONESTUDIO_PUBLIC_HOST`; o valor continua vazio, então
   o comportamento efetivo segue sendo somente loopback.
+- `CLONESTUDIO_API_TOKEN` é opcional no alvo A e obrigatório se
+  `CLONESTUDIO_PUBLIC_HOST` estiver definido. O servidor falha no boot se o host
+  público existir sem token.
+- Com host público, o limite é 120 requisições/minuto por IP (ajustável em
+  `CLONESTUDIO_RATE_LIMIT_PER_MIN`); sem host público, o limite fica desligado
+  a menos que `CLONESTUDIO_RATE_LIMIT_ENABLED=1`.
 - O painel já aceita HTTPS apenas para host permitido em `STUDIO_ALLOWED_HOSTS`;
-  nenhuma alteração de código é necessária nele para esta preparação.
+  falta apenas configurar o envio do token quando o host público existir.
 
 ## O que não fazer
 
@@ -38,7 +44,9 @@ Todos devem estar prontos antes de qualquer comando de túnel:
 - [x] CloneStudio com validação de Host estendida por um host público explícito
       (`CLONESTUDIO_PUBLIC_HOST`): código e testes prontos, bind permanece em
       `127.0.0.1` e o valor continua vazio até existir hostname definitivo.
-- [ ] Autenticação e rate limiting na API do CloneStudio.
+- [x] Autenticação e rate limiting na API do CloneStudio: código pronto, com
+      token Bearer e limite por IP obrigatórios quando houver host público. Falta
+      o painel enviar o token e o valor definitivo do host.
 - [ ] Container/VM e sandbox de rede para o build. O hardening atual da Fase 4
       reduz superfície, mas roda sob o mesmo usuário do servidor.
 - [ ] Novo ADR aprovando a mudança de A para B, com CI verde.
