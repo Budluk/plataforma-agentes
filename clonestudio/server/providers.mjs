@@ -135,8 +135,9 @@ async function requestProvider(provider, messages, options) {
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT);
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
   try {
-    const response = await fetch(url, {
+    const response = await fetchImpl(url, {
       method: 'POST',
       signal: controller.signal,
       headers: {
@@ -261,7 +262,7 @@ export async function callChat(messages, options = {}) {
 
 const modelCache = new Map();
 
-export async function listProviderModels(providerId) {
+export async function listProviderModels(providerId, { fetchImpl = globalThis.fetch } = {}) {
   const provider = getProvider(providerId);
   if (!provider || !validBaseUrl(provider.baseUrl)) {
     throw new Error(`Provedor "${providerId}" não está configurado.`);
@@ -273,7 +274,7 @@ export async function listProviderModels(providerId) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(url, {
+    const response = await fetchImpl(url, {
       headers: provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {},
       signal: controller.signal,
     });
