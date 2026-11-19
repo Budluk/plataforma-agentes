@@ -6,14 +6,15 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.sales.agent import SalesAgent
-from agents.sales.contracts import SalesRequest
+from agents.sales.contracts import MAX_TARGET_MARGIN_PCT, SalesRequest
 from agents.sales.gate import check_request
 from agents.sales.tools import build_sales_tools
 from core.llm_client import LLMError
 
 SYSTEM = ("Converta o pedido em JSON, SOMENTE o objeto, sem texto extra, com as chaves: "
           "action (margin, price ou break_even), product (texto curto), unit_cost (número), "
-          "price (número, em margin e break_even), target_margin_pct (número de 0 a 95, em price), "
+          f"price (número, em margin e break_even), target_margin_pct (número de 0 a menos de "
+          f"{MAX_TARGET_MARGIN_PCT}, em price), "
           "fixed_costs (número, em break_even) e competitor_prices (lista de números, opcional). "
           "Inclua apenas números que estejam no pedido; não invente valores.")
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)

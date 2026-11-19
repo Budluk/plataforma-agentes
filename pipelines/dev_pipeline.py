@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.dev.agent import DevAgent
-from agents.dev.contracts import DevProposal, DevRequest
+from agents.dev.contracts import (MAX_CODE_CHARS, MAX_EXPLANATION_CHARS, MAX_LINES,
+                                  DevProposal, DevRequest)
 from agents.dev.gate import check_request
 from agents.dev.tools import build_dev_tools
 from core.llm_client import LLMError
@@ -21,11 +22,13 @@ class DevProposalInvalid(Exception):
 def build_system(allowed_imports) -> str:
     modules = ", ".join(sorted(allowed_imports)) or "nenhum"
     return ("Você escreve código Python. Responda SOMENTE com um objeto JSON com as chaves: "
-            "filename (apenas letras, números, _ ou -, terminando em .py), code (o código completo) "
-            "e explanation (até 600 caracteres, em português). Regras do código: importe apenas "
+            "filename (apenas letras, números, _ ou -, terminando em .py), "
+            f"code (o código completo, no máximo {MAX_CODE_CHARS} caracteres) "
+            f"e explanation (até {MAX_EXPLANATION_CHARS} caracteres, em português). "
+            "Regras do código: importe apenas "
             f"estes módulos: {modules}; não leia nem escreva arquivos, não use rede, não use eval, "
-            "exec, getattr, open nem atributos com dois sublinhados; no máximo 150 linhas; inclua "
-            "docstrings curtas e type hints. O código NÃO será executado pela plataforma: "
+            f"exec, getattr, open nem atributos com dois sublinhados; no máximo {MAX_LINES} linhas; "
+            "inclua docstrings curtas e type hints. O código NÃO será executado pela plataforma: "
             "uma pessoa vai revisá-lo.")
 
 

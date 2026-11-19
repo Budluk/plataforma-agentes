@@ -6,14 +6,16 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.music.agent import MusicAgent
-from agents.music.contracts import MusicRequest
+from agents.music.contracts import (MAX_MIDI_NOTES, MAX_SEMITONES, MIN_SEMITONES,
+                                    MusicRequest)
 from agents.music.gate import check_request
 from agents.music.tools import build_music_tools
 from core.llm_client import LLMError
 
 SYSTEM = ("Converta o pedido em JSON, SOMENTE o objeto, sem texto extra, com as chaves: "
           "action (identify_chord, transpose ou tab), notes (lista de números MIDI inteiros, "
-          "C4 = 60) e semitones (inteiro, apenas em transpose).")
+          f"C4 = 60, no máximo {MAX_MIDI_NOTES} notas) e semitones "
+          f"(inteiro de {MIN_SEMITONES} a {MAX_SEMITONES}, apenas em transpose).")
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
 
 
