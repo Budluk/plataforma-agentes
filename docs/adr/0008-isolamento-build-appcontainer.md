@@ -1,9 +1,51 @@
 # ADR-0008 — Isolamento real do build com AppContainer + Job Object (alvo B)
 
-- Status: aceito para desenho; implementação depende de gate explícito
+- Status: aceito para desenho; **spike de viabilidade concluído com sucesso** — implementação depende de aprovação em PR separado
 - Data: 2026-11-19
 - Fase do plano: gate B (pré-requisito 4 do [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md))
 - Relação: complementa o [ADR-0002](./0002-build-sandbox-sem-docker.md), que continua valendo como hardening no alvo A
+
+## Resultado do spike (2026-11-19)
+
+Spike executado localmente, sem exposição e sem instalação, para validar a
+viabilidade do desenho. **Viabilidade confirmada.** Um primeiro conjunto de
+tentativas falhou, mas a causa era o próprio helper de P/Invoke, não o Windows:
+
+- ❌ Rotas que **não** funcionam (registradas para evitar repetição):
+  - `SetTokenInformation(TokenAppContainerSid)` e `NtSetInformationToken` →
+    errno 87 / NTSTATUS `0xC0000003` (não é a forma de converter um token normal);
+  - `CreateProcessWithTokenW` com `SECURITY_CAPABILITIES` → errno 87 mesmo com
+    `SeImpersonatePrivilege`;
+  - atributo `0x0002000D` (valor **errado**) em `UpdateProcThreadAttribute` →
+    retorna `True`, mas o `CreateProcessW` falha com errno 6/123.
+- ✅ **Caminho correto, validado neste spike:**
+  1. `CreateAppContainerProfile`/`DeriveAppContainerSidFromAppContainerName` e
+     `DeleteAppContainerProfile` (`userenv.dll`) funcionam sem elevação.
+  2. `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES` é **`0x00020009`** (não
+     `0x0002000D`), com `SECURITY_CAPABILITIES { Sid, Capabilities=null,
+     CapabilityCount=0, Reserved=0 }` e `InitializeProcThreadAttributeList`.
+  3. `STARTUPINFOEX.cb` deve ser `112` (`sizeof(STARTUPINFOEX)`), não `104`.
+  4. `CreateProcessW` com `EXTENDED_STARTUPINFO_PRESENT` (`0x00080000`) e
+     **`lpCurrentDirectory` apontando para o diretório `...\AC` do próprio
+     perfil** inicia `cmd.exe` e `node.exe` dentro do AppContainer
+     (`CREATE_PROCESS=True`, `err=0`, PID e exit code acompanhados).
+- ✅ **Isolamento de filesystem confirmado de fato:** já dentro do AppContainer,
+  o `cmd.exe` recebeu "Acesso negado" ao tentar redirecionar saída para
+  `AppData\Local\Temp\opencode`, e o `node.exe` falhou com `EPERM ... lstat 'C:\'`
+  ao tentar resolver caminhos fora do perfil. Ou seja, o kernel nega acesso a
+  dados do host — não é apenas uma convenção de código.
+- ⚠️ **Não medido de forma confiável:** o pico de RAM do helper/build (máquina
+  com 0,41 GB livres) e o resultado do teste de conectividade TCP. A negação de
+  rede é esperada pelo projeto (AppContainer sem capabilities
+  `internetClient`/`privateNetworkClientServer`), mas **deve ser confirmada na
+  implementação** com um teste `windows-only` assertivo antes de qualquer
+  exposição em B.
+- Limpeza: os diretórios de storage deixados pelos helpers foram removidos do
+  registro HKCU (20 remanescentes após a última rodada). Nenhum perfil spike
+  permanece no sistema.
+
+Nada neste spike alterou runtime, `.env`, bind ou exposição. O alvo A segue
+idêntico.
 
 ## Contexto
 
@@ -63,12 +105,14 @@ Adotar, **somente como desenho para o alvo B**, o isolamento nativo do Windows:
    explícita: `.env`, `DATA_DIR/projects`, perfis de outros usuários e o diretório
    do servidor **não** recebem ACE. Nenhuma credencial do Cloudflare, do
    provedor de IA ou do túnel entra no workspace.
-5. **Fail closed.** Se qualquer etapa falhar — criar/derivar o SID, obter o
-   token com `SetTokenInformation(TokenAppContainerSid)`, aplicar o job OU
-   conceder/remover ACL — o build falha com erro explícito e **nunca** cai para
-   o spawn sem isolamento. Um `CLONESTUDIO_BUILD_ISOLATION=off` só é aceito
-   enquanto o alvo for A; com `CLONESTUDIO_PUBLIC_HOST` definido, qualquer valor
-   diferente de `required` quebra o boot.
+5. **Fail closed.** Se qualquer etapa falhar — criar/derivar o SID, montar
+   `SECURITY_CAPABILITIES` no atributo `0x00020009` do `CreateProcessW`, aplicar
+   o job OU conceder/remover ACL — o build falha com erro explícito e **nunca**
+   cai para o spawn sem isolamento. O spawn usa `CreateProcessW` com
+   `STARTUPINFOEX.cb = sizeof(STARTUPINFOEX)` e `lpCurrentDirectory` no diretório
+   `AC` do perfil (ver "Resultado do spike"). Um `CLONESTUDIO_BUILD_ISOLATION=off`
+   só é aceito enquanto o alvo for A; com `CLONESTUDIO_PUBLIC_HOST` definido,
+   qualquer valor diferente de `required` quebra o boot.
 6. **Helper sem dependência permanente.** A camada de P/Invoke fica em
    `server/build-isolation.mjs` + um helper C# compilado em memória via
    `Add-Type` do PowerShell já presente no Windows, ou, se o custo de memória
@@ -77,9 +121,11 @@ Adotar, **somente como desenho para o alvo B**, o isolamento nativo do Windows:
 
 ## Plano de implementação (PR separado, após aprovação)
 
-1. Spike de viabilidade no Windows 11 Home: criar perfil AppContainer, iniciar
-   `node --version` dentro dele e confirmar que (a) conectividade TCP falha e
-   (b) leitura de `.env` é negada.
+1. ~~Spike de viabilidade no Windows 11 Home: criar perfil AppContainer, iniciar
+   `node` dentro dele e confirmar isolamento de filesystem.~~ Concluído em
+   2026-11-19: spawn de `cmd.exe`/`node.exe` dentro do AppContainer validado e
+   negação de acesso a paths do host observada (ver "Resultado do spike").
+   Pendente no item 5: confirmar a negação de TCP com teste assertivo.
 2. Medir pico de RAM do helper e do build; se necessário, reduzir
    `CLONESTUDIO_BUILD_HEAP_MB` de 512 para 256 no alvo B e documentar o impacto.
 3. Implementar `build-isolation.mjs`, integrar `runCommand` e o workspace
