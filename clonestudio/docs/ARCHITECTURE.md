@@ -202,6 +202,7 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 | Método | Rota | Função |
 | --- | --- | --- |
 | GET | `/api/health` | status, provedores e jobs |
+| GET | `/api/events` | SSE opt-in: avisos `scope`/`id`/`revision`, sem prompt nem resposta |
 | GET | `/api/config` | configuração pública (sem chaves) |
 | GET | `/api/projects` | lista resumida |
 | POST | `/api/projects` | cria e inicia geração |
@@ -230,7 +231,7 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 
 ## Limites e evolução
 
-Para produção, os próximos passos são: autenticação, rate limiting, fila persistente (Redis), workers isolados por container, SSE em vez de polling, sandbox de rede para o build e auditoria de prompts. O MVP roda apenas em `127.0.0.1`.
+Para produção, os próximos passos são: autenticação, rate limiting (apenas se o alvo deixar de ser loopback), workers isolados por container e sandbox de rede para o build. Já estão implementados: auditoria com redação, fila durável em `DATA_DIR/jobs.json`, hardening do child do Vite e SSE opt-in (`CLONESTUDIO_SSE_ENABLED=1`) com fallback para polling. O alvo atual continua sendo `127.0.0.1`; o build roda no mesmo usuário do servidor e **não** é isolamento de segurança real.
 
 A validação é controlada por `PREVIEW_VALIDATION`, `PREVIEW_VALIDATION_TIMEOUT_MS`, `PREVIEW_VALIDATION_HOST` e `PREVIEW_BROWSER_CHANNEL`. Com `PREVIEW_VALIDATION=off`, o build continua funcionando e o relatório registra `disabled`.
 

@@ -43,6 +43,8 @@ export const state = {
   tabsPollTimer: null,
   tabsPollDelay: 4000,
   projectPollFailures: 0,
+  sseConnected: false,
+  sseAttempted: false,
   routeError: '',
   workspaceSaveTimer: null,
   toastTimer: null,

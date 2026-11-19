@@ -1,5 +1,6 @@
 import { applyWorkspaceState, forgetOpenProject, parseRoute, persistOpenProjects, pruneOpenProjects, rememberOpenProject, saveWorkspaceStateFor, state, stopTimers, syncProjectSummary } from './runtime.js';
 import { api } from './network.js';
+import { connectSse } from './sse.js';
 import { showToast } from './feedback.js';
 import { render, renderFatal } from './renderer.js';
 import { ensureSelectedFile } from './workspace/render.js';
@@ -22,6 +23,7 @@ export async function init() {
     state.providers = providersData.providers || [];
     state.loading = false;
     await routeChanged(true);
+    connectSse();
   } catch (error) {
     renderFatal(error);
   }
