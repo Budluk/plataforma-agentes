@@ -2,29 +2,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import closing
 
-SEED = [
-    ("analyst", "get_market_data"),
-    ("analyst", "write_research_note"),
-    ("risk_manager", "read_portfolio"),
-    ("pipeline", "emit_alert"), ("music_agent", "identify_chord"), ("music_agent", "transpose_notes"), ("music_agent", "to_guitar_tab"), ("sales_agent", "compute_margin"), ("sales_agent", "suggest_price"), ("sales_agent", "break_even"), ("sales_agent", "analyze_funnel"), ("research_agent", "fetch_page"), ("dev_agent", "analyze_code"), ("dev_agent", "save_code_file"),
-    ("studio_agent", "studio_health"),
-    ("studio_agent", "studio_list_apps"),
-    ("studio_agent", "studio_create_app"),
-    ("studio_agent", "studio_app_status"),
-    ("studio_agent", "studio_validate_app"),
-    ("studio_agent", "studio_send_message"),
-    ("studio_agent", "studio_fix_app"),
-    ("studio_agent", "studio_fix_validation"),
-    ("studio_agent", "studio_rebuild_app"),
-    ("studio_agent", "studio_retry_app"),
-    ("studio_agent", "studio_import_site"),
-    ("studio_agent", "studio_import_github"),
-    ("studio_agent", "studio_import_app"),
-    ("studio_agent", "studio_list_versions"),
-    ("studio_agent", "studio_restore_version"),
-    ("studio_agent", "studio_analyze_inspiration"),
-    ("studio_agent", "studio_create_inspiration"),
-]
+from core.tool_registry import SEED  # noqa: F401
 
 
 class Permissions:

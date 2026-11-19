@@ -1,0 +1,199 @@
+"""Registro unico de ferramentas da plataforma.
+
+Este modulo e a fonte unica de verdade para os nomes de ferramentas e seus
+metadados. As estruturas usadas pelo monitor, pelas permissoes, pela API HTTP
+e pela fabrica de ferramentas do studio sao todas derivadas de ``REGISTRY``:
+
+* ``KNOWN_TOOLS``     -> todas as ferramentas conhecidas (cabeça registry);
+* ``STUDIO_TOOLS``    -> ferramentas que exigem a sonda de saude antes delas;
+* ``SEED``            -> pares (agente, ferramenta) aplicados no banco;
+* ``TOOL_SPECS``      -> contrato publico da API HTTP/CLI da area studio;
+* ``build_studio_tools`` -> callables Python entregues ao StudioAgent.
+
+Somente stdlib: nenhum import de ``core.*``, ``agents.*``, ``pipelines.*`` ou
+``scripts.*``. Assim o grafo de imports permanece acrilico e o registro pode
+ser usado por qualquer camada.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """Descreve uma ferramenta e todos os metadados que dela derivam.
+
+    Os cinco primeiros campos preservam a ordem posicional original usada por
+    ``scripts/studio_api.RUN_SPEC``. Os demais descrevem o dono da ferramenta,
+    a regra de sequencia e o metodo do cliente chamado pela fabrica.
+    """
+
+    method: str = ""
+    description: str = ""
+    required: tuple[str, ...] = ()
+    optional: tuple[str, ...] = ()
+    integers: tuple[str, ...] = ()
+    agent: str = ""
+    group: str = ""
+    requires: tuple[str, ...] = ()
+    client_method: str = ""
+
+    def schema(self, name: str) -> dict:
+        """Contrato exposto por ``GET /tools`` e ``GET /tools/<nome>``."""
+        return {
+            "name": name,
+            "description": self.description,
+            "required": list(self.required),
+            "optional": list(self.optional),
+            "integers": list(self.integers),
+        }
+
+
+REGISTRY: dict[str, ToolSpec] = {
+    # --- areas nao studio -------------------------------------------------
+    "get_market_data": ToolSpec(agent="analyst"),
+    "read_portfolio": ToolSpec(agent="risk_manager"),
+    "write_research_note": ToolSpec(agent="analyst"),
+    "emit_alert": ToolSpec(agent="pipeline", requires=("read_portfolio",)),
+    "identify_chord": ToolSpec(agent="music_agent"),
+    "transpose_notes": ToolSpec(agent="music_agent"),
+    "to_guitar_tab": ToolSpec(agent="music_agent"),
+    "compute_margin": ToolSpec(agent="sales_agent"),
+    "suggest_price": ToolSpec(agent="sales_agent"),
+    "break_even": ToolSpec(agent="sales_agent"),
+    "analyze_funnel": ToolSpec(agent="sales_agent"),
+    "fetch_page": ToolSpec(agent="research_agent"),
+    "analyze_code": ToolSpec(agent="dev_agent"),
+    "save_code_file": ToolSpec(agent="dev_agent"),
+    # --- area studio ------------------------------------------------------
+    # studio_health nao exige a si mesma: e a sonda que habilita as outras 16.
+    "studio_health": ToolSpec(
+        method="health",
+        description="Confirma que o CloneStudio local está saudável.",
+        agent="studio_agent", group="studio", client_method="health",
+    ),
+    "studio_list_apps": ToolSpec(
+        method="list_apps",
+        description="Lista os apps do CloneStudio (até 20, sem código).",
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="list_apps",
+    ),
+    "studio_create_app": ToolSpec(
+        method="create",
+        description="Cria um app React a partir de uma descrição.",
+        required=("prompt",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="create",
+    ),
+    "studio_app_status": ToolSpec(
+        method="status",
+        description="Mostra o estado de um app, sem código nem logs.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="status",
+    ),
+    "studio_validate_app": ToolSpec(
+        method="validate",
+        description="Valida o preview de um app e devolve só as contagens.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="validate",
+    ),
+    "studio_send_message": ToolSpec(
+        method="message",
+        description="Envia uma alteração por chat para um app.",
+        required=("project_id", "content"),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="send_message",
+    ),
+    "studio_fix_app": ToolSpec(
+        method="fix",
+        description="Pede uma correção de build para um app.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="fix",
+    ),
+    "studio_fix_validation": ToolSpec(
+        method="fix_validation",
+        description="Corrige problemas encontrados na validação do preview.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="fix_validation",
+    ),
+    "studio_rebuild_app": ToolSpec(
+        method="rebuild",
+        description="Recompila um app existente.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="rebuild",
+    ),
+    "studio_retry_app": ToolSpec(
+        method="retry",
+        description="Tenta gerar de novo um app que falhou.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="retry",
+    ),
+    "studio_list_versions": ToolSpec(
+        method="versions",
+        description="Lista o histórico de versões de um app.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="versions",
+    ),
+    "studio_restore_version": ToolSpec(
+        method="restore",
+        description="Restaura uma versão do histórico e recompila.",
+        required=("project_id", "version"),
+        integers=("version",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="restore",
+    ),
+    "studio_import_site": ToolSpec(
+        method="import_site",
+        description="Importa um site público como app.",
+        required=("url",), optional=("prompt",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="import_site",
+    ),
+    "studio_import_github": ToolSpec(
+        method="import_github",
+        description="Importa um repositório público do github.com.",
+        required=("url",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="import_github",
+    ),
+    "studio_import_app": ToolSpec(
+        method="import_app",
+        description="Cria um app a partir de outro app existente.",
+        required=("project_id",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="import_app",
+    ),
+    "studio_analyze_inspiration": ToolSpec(
+        method="inspiration",
+        description="Analisa um canal/perfil público de rede social.",
+        required=("url",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="analyze_inspiration",
+    ),
+    "studio_create_inspiration": ToolSpec(
+        method="create_inspiration",
+        description="Cria um app original a partir de uma análise.",
+        required=("inspiration_token",), optional=("prompt",),
+        agent="studio_agent", group="studio", requires=("studio_health",),
+        client_method="create_inspiration",
+    ),
+}
+
+KNOWN_TOOLS = frozenset(REGISTRY)
+STUDIO_TOOLS = frozenset(
+    name for name, spec in REGISTRY.items() if "studio_health" in spec.requires
+)
+STUDIO_AGENT_TOOLS = frozenset(
+    name for name, spec in REGISTRY.items() if spec.agent == "studio_agent"
+)
+SEED = [(spec.agent, name) for name, spec in REGISTRY.items()]
+TOOL_SPECS: dict[str, ToolSpec] = {
+    name: spec for name, spec in REGISTRY.items() if spec.method
+}
