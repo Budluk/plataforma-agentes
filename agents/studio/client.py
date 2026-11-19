@@ -1,4 +1,5 @@
 from __future__ import annotations
+import ipaddress
 import json
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -30,6 +31,20 @@ def _host_for_url(host: str) -> str:
     return f"[{host}]" if ":" in host else host
 
 
+_LOOPBACK_NAMES = frozenset({"localhost", "localhost.localdomain"})
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Aceita só loopback, mesmo que a lista de hosts tenha sido editada."""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host in _LOOPBACK_NAMES
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_loopback
+
+
 def parse_base_url(raw: str, allowed_hosts) -> str:
     """Aceita apenas http://loopback[:porta], sem caminho, query ou credenciais."""
     try:
@@ -48,6 +63,8 @@ def parse_base_url(raw: str, allowed_hosts) -> str:
     host = (parts.hostname or "").lower()
     if not host:
         raise StudioError("STUDIO_BASE_URL sem host")
+    if not _is_loopback_host(host):
+        raise StudioError("STUDIO_BASE_URL precisa apontar para loopback")
     if host not in allowed_hosts:
         raise StudioError(f"host {host!r} não está em config/studio_hosts.txt")
     suffix = f":{port}" if port is not None else ""

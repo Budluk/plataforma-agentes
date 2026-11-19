@@ -9,6 +9,7 @@ from agents.finance.tools import build_tools
 from core.contracts import AlertEvent
 from core.llm_client import LLMError
 from core.market import age_seconds, check_entry_vs_market, check_quote
+from core.memory import safe_record_run
 
 
 class PipelineAgent(BaseAgent):
@@ -29,8 +30,12 @@ class FinancePipeline:
 
     def _reject(self, ctx: RunContext, asset: str, reasons: list[str]) -> PipelineResult:
         self.logger.log("rejection", run_id=ctx.run_id, asset=asset, reasons=reasons)  # INV-7
-        self.memory.record_run("pipeline", asset, "rejected", "; ".join(reasons))
-        return PipelineResult(approved=False, reasons=reasons)
+        warning = safe_record_run(self.memory, self.logger, "pipeline", asset, "rejected",
+                                  "; ".join(reasons), run_id=ctx.run_id)
+        out = list(reasons)
+        if warning:
+            out.append(warning)
+        return PipelineResult(approved=False, reasons=out)
 
     def run(self, asset: str, portfolio: dict) -> PipelineResult:
         ctx = RunContext(run_id=uuid.uuid4().hex[:8])
@@ -63,5 +68,7 @@ class FinancePipeline:
             emitter.call_tool("emit_alert", alert=alert.model_dump())
         except (ValueError, ProposalInvalid, ToolBlocked, LLMError) as exc:
             return self._reject(ctx, asset, [f"{type(exc).__name__}: {exc}"])
-        self.memory.record_run("pipeline", asset, "alert_emitted", alert.message)
-        return PipelineResult(approved=True, alert=alert)
+        warning = safe_record_run(self.memory, self.logger, "pipeline", asset,
+                                  "alert_emitted", alert.message, run_id=ctx.run_id)
+        return PipelineResult(approved=True, alert=alert,
+                              reasons=[warning] if warning else [])
