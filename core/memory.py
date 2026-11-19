@@ -29,10 +29,10 @@ def safe_record_run(memory, logger, agent: str, asset: str | None, status: str,
         if run_id:
             fields["run_id"] = run_id
         if detail:
-            fields["detail"] = detail[:200]
-        message = " ".join(str(exc).split())[:200]
-        if message:
-            fields["exception"] = message
+            fields["detail_chars"] = len(detail)
+        module = type(exc).__module__
+        if module:
+            fields["exception_module"] = module
         if logger is not None:
             try:
                 logger.log("audit_degraded", **fields)

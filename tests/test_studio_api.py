@@ -483,6 +483,9 @@ def test_unexpected_pipeline_error_is_500_and_logged(tmp_path):
     events = read_events(tmp_path / "api.jsonl")
     assert events[-1]["event"] == "api_error"
     assert events[-1]["error"] == "RuntimeError"
+    assert "detail" not in events[-1]
+    raw = (tmp_path / "api.jsonl").read_text(encoding="utf-8")
+    assert "falha inesperada" not in raw
 
 
 def test_unexpected_error_on_run_is_500(tmp_path):

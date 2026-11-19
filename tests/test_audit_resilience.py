@@ -29,13 +29,20 @@ def _studio_pipeline(env, memory=None):
 
 
 def test_safe_record_run_degrades_without_raising(env):
+    sentinel = "DETALHE_RESERVADO_NAO_GRAVAR"
     warning = safe_record_run(BrokenMemory(env.db), env.logger, "x", None, "ok",
-                              "abc", run_id="r1")
+                              sentinel, run_id="r1")
     assert warning and warning.startswith(AUDIT_WARNING)
     event = next(e for e in env.events() if e["event"] == "audit_degraded")
     assert event["run_id"] == "r1"
     assert event["agent"] == "x"
     assert event["error"] == "OperationalError"
+    assert event["detail_chars"] == len(sentinel)
+    assert "detail" not in event
+    assert "exception" not in event
+    raw = env.log_path.read_text(encoding="utf-8")
+    assert sentinel not in raw
+    assert "database is locked" not in raw
 
 
 def test_studio_success_survives_audit_failure(env):

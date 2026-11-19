@@ -90,7 +90,8 @@ def _internal_error(logger, exc: BaseException) -> ApiResponse:
     """Erro não previsto: registra no JSONL e responde 500 sem vazar detalhe interno."""
     if logger is not None:
         try:
-            logger.log("api_error", error=type(exc).__name__, detail=str(exc)[:300])
+            logger.log("api_error", error=type(exc).__name__,
+                       error_module=type(exc).__module__)
         except Exception:
             pass  # o log nunca pode impedir a resposta
     return _error(500, f"erro interno ({type(exc).__name__})")

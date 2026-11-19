@@ -1,6 +1,6 @@
 # ADR-0008 — Isolamento real do build com AppContainer + Job Object (alvo B)
 
-- Status: **implementado e validado localmente**; integração depende de PR separado. Nenhuma exposição autorizada.
+- Status: **implementado, integrado no `main` via PR #44 (commit `d1f090a`) e validado localmente**. Nenhuma exposição autorizada.
 - Data: 2026-11-19
 - Fase do plano: gate B (pré-requisito 4 do [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md))
 - Relação: complementa o [ADR-0002](./0002-build-sandbox-sem-docker.md), que continua valendo como hardening no alvo A
@@ -163,7 +163,7 @@ Adotar, **somente como desenho para o alvo B**, o isolamento nativo do Windows:
    de que o build não herda rede.~~ Concluído em `CLOUDFLARE_TUNNEL.md`.
 5. **Pendente:** somente com tudo verde e novo ADR aprovando a mudança de alvo,
    ligar o isolamento no ambiente do túnel. O alvo A continua com o comportamento
-   atual e com as mesmas 806 verificações Python e suites Node/browser.
+   atual e com as mesmas verificações Python e suites Node/browser descritas no README.
 
 ## Consequências
 

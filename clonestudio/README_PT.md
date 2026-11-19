@@ -152,7 +152,7 @@ Imports inválidos, `src/main.tsx`, caminhos fora de `src/` e pacotes desconheci
 - O preview roda em outra porta/origem e em iframe com `sandbox`.
 - Não há endpoint para executar comandos arbitrários enviados pelo cliente.
 - Código gerado é tratado como não confiável: validação de imports e CSP restritiva no preview.
-- Para expor na internet, adicione autenticação, rate limit, TLS, fila de jobs e sandbox de containers. O MVP é local.
+- Autenticação Bearer (`CLONESTUDIO_API_TOKEN`) e rate limiting por IP já existem em `server/api-guard.mjs`, mas só são exigidos quando o token está configurado (alvo A, loopback). Para exposição são obrigatórios TLS, hostname interno, `CLONESTUDIO_BUILD_ISOLATION=required` e os gates do [ADR-0007](../docs/adr/0007-preparacao-alvo-b-cloudflare-tunnel.md); fila durável e auditoria já estão presentes.
 
 ## Integrações
 
@@ -168,9 +168,9 @@ npm.cmd run check
 npm.cmd run test:browser
 ```
 
-A suíte padrão tem 103 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, cache HTTP, cache de `src/`, persistência agrupada e histórico de versões (snapshot, deduplicação, limite e restauração).
+A suíte padrão tem 192 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, cache HTTP, cache de `src/`, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável, auth/rate limit e isolamento de build.
 
-O `npm.cmd run test:browser` é separado porque abre o Edge headless. Ele sobe um servidor com `DATA_DIR` temporário e portas livres, cria dois projetos descartáveis e verifica 15 comportamentos de abas, janelas e persistência, sem tocar nos seus projetos nem depender de rede externa.
+O `npm.cmd run test:browser` é separado porque abre o Edge headless. Ele sobe um servidor com `DATA_DIR` temporário e portas livres, cria dois projetos descartáveis e verifica 19 comportamentos de abas, janelas, persistência, acessibilidade e SSE, sem tocar nos seus projetos nem depender de rede externa.
 
 ## Configuração de provedores
 
@@ -197,7 +197,7 @@ A integração só consulta a rede quando detecta Recharts, Framer Motion, Lucid
 - Builds podem demorar em máquinas com OneDrive/antivírus ativos, porque `node_modules` é compartilhado por junction.
 - A validação adiciona cerca de 20 a 40 segundos ao build e depende de Edge/Chrome instalados. Sem navegador, o status fica `unavailable` e o app continua utilizável.
 - O modelo pode esquecer imports ou usar props de animação em tags erradas; o prompt e o validador reduzem, mas não eliminam isso. Use “Corrigir build” ou peça ajustes no chat.
-- Sem autenticação/multiusuário e sem fila persistente. Reiniciar o servidor cancela jobs em andamento (os projetos e arquivos permanecem).
+- Sem multiusuário. A fila é persistente em `DATA_DIR/jobs.json` e retoma jobs `queued` no boot; os que estavam `running` quando o processo morreu viram `cancelled` (projetos e arquivos permanecem). A autenticação Bearer e o rate limit existem, mas só são exigidos quando `CLONESTUDIO_API_TOKEN` está configurado.
 - O Context7 público tem limites de uso e pode ficar indisponível. A geração degrada sem bloquear, mas o selo de conhecimento pode não aparecer.
 - A importação de GitHub/.zip aceita apenas projetos Vite/React com `src/App.tsx` (ou `App.tsx` na raiz). Next.js, Vue e arquivos `.less/.scss` não são convertidos. Dependências fora de React, lucide-react, framer-motion, recharts e clsx não são instaladas automaticamente. A análise antes de criar já avisa sobre esses bloqueios e mostra todas as funções detectadas, sem criar o projeto.
 - **Páginas atrás de login:** o importador lê apenas a versão pública. Se a URL redirecionar para uma tela de entrada, essa é a referência capturada e o conteúdo interno não é acessado. Telas de login clonadas são demonstrações: aceitam qualquer credencial, não autenticam na conta real e exibem um aviso de demonstração.

@@ -2,6 +2,8 @@
 
 Este diretório registra as decisões tomadas no **plano de produção** do CloneStudio (alvo A — exposição apenas loopback). Cada ADR é curto, aceito e imutável: mudanças futuras devem gerar um novo ADR que referencie o anterior.
 
+As contagens de testes citadas no corpo dos ADRs são registros históricos da data de cada decisão; os números atuais estão na seção "Produção" do README do repositório.
+
 | ADR | Título | Fase | Decisão em uma linha |
 | --- | --- | --- | --- |
 | [0001](./0001-loopback-only.md) | Manter exposição apenas loopback (alvo A) | 0 | Sem auth/rate limiting enquanto o alvo for `127.0.0.1` |
