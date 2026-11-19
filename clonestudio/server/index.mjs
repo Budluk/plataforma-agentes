@@ -2,7 +2,10 @@ import './env.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { ROOT } from './env.mjs';
+import { logAudit } from './audit.mjs';
+import { runWithRequest } from './request-context.mjs';
 import {
   addMessage,
   createProject,
@@ -257,7 +260,31 @@ function projectOrThrow(id) {
   return project;
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  res.setHeader('x-request-id', requestId);
+  let pathname = '';
+  try {
+    pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+  } catch {
+    pathname = String(req.url || '').split('?')[0];
+  }
+  if (pathname.startsWith('/api/')) {
+    res.on('finish', () => {
+      logAudit('api_request', {
+        requestId,
+        method: req.method || 'GET',
+        path: pathname,
+        status: res.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
+    });
+  }
+  return runWithRequest({ requestId }, () => handleRequest(req, res));
+});
+
+async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const method = req.method || 'GET';
@@ -834,12 +861,14 @@ const server = http.createServer(async (req, res) => {
     return sendError(res, 404, 'Rota não encontrada.');
   } catch (error) {
     if (error instanceof HttpError) {
+      logAudit('api_error', { status: error.status, reason: error.message });
       return sendError(res, error.status, error.message, error.extra);
     }
+    logAudit('api_error', { status: 500, reason: error.message || 'Erro interno.' });
     console.error('[server]', error);
     return sendError(res, 500, error.message || 'Erro interno do servidor.');
   }
-});
+}
 
 let previewServer = null;
 
@@ -854,6 +883,7 @@ function recoverInterruptedProjects() {
     addMessage(project.id, { role: 'assistant', kind: 'error', content: message });
   }
   if (stale.length > 0) {
+    logAudit('recovery', { kind: 'projects', count: stale.length, ids: stale.map((p) => p.id) });
     console.log(`[server] ${stale.length} projeto(s) interrompido(s) marcados como erro.`);
   }
   const staleValidations = listProjects().filter(
