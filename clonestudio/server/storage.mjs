@@ -92,6 +92,33 @@ async function writeSnapshot(snapshot) {
   }
 }
 
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/**
+ * Renomeia com novas tentativas curtas: OneDrive e antivírus no Windows podem
+ * segurar a pasta recém-criada por alguns instantes (EPERM/EBUSY/EACCES).
+ */
+export async function renameWithRetry(
+  from,
+  to,
+  { attempts = 6, baseDelayMs = 120, rename = fs.promises.rename } = {},
+) {
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!RENAME_RETRY_CODES.has(error.code)) throw error;
+      if (baseDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 function persistNow() {
   if (persistTimer) {
     clearTimeout(persistTimer);
@@ -443,13 +470,13 @@ export async function restoreVersion(id, value) {
 
     let movedPrevious = false;
     if (fs.existsSync(target)) {
-      await fs.promises.rename(target, previous);
+      await renameWithRetry(target, previous);
       movedPrevious = true;
     }
     try {
-      await fs.promises.rename(staging, target);
+      await renameWithRetry(staging, target);
     } catch (error) {
-      if (movedPrevious) await fs.promises.rename(previous, target).catch(() => {});
+      if (movedPrevious) await renameWithRetry(previous, target).catch(() => {});
       throw error;
     }
     if (movedPrevious) {
@@ -562,13 +589,13 @@ export async function writeGeneratedFiles(id, files) {
     const previous = path.join(dir, `.src-old-${process.pid}-${Date.now()}`);
     let movedPrevious = false;
     if (fs.existsSync(src)) {
-      await fs.promises.rename(src, previous);
+      await renameWithRetry(src, previous);
       movedPrevious = true;
     }
     try {
-      await fs.promises.rename(staging, src);
+      await renameWithRetry(staging, src);
     } catch (error) {
-      if (movedPrevious) await fs.promises.rename(previous, src).catch(() => {});
+      if (movedPrevious) await renameWithRetry(previous, src).catch(() => {});
       throw error;
     }
     if (movedPrevious) {
