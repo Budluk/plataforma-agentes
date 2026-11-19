@@ -2,6 +2,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
+from core.memory import safe_record_run
+
 
 @dataclass
 class CentralResult:
@@ -21,7 +23,10 @@ class CentralPipeline:
                         dispatched=result.dispatched, ok=result.ok)
         if not result.ok:
             self.logger.log("rejection", run_id=run_id, agent="central", reasons=result.reasons)
-        self.memory.record_run("central", None, status, result.area)
+        warning = safe_record_run(self.memory, self.logger, "central", None, status,
+                                  result.area, run_id=run_id)
+        if warning:
+            result.reasons.append(warning)
         return result
 
     def handle(self, text: str) -> CentralResult:

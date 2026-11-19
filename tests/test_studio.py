@@ -71,6 +71,16 @@ def test_parse_base_url_rejects_everything_else(url):
         parse_base_url(url, HOSTS)
 
 
+@pytest.mark.parametrize("url,host", [
+    ("http://example.com:8787", "example.com"),
+    ("http://192.168.1.10:8787", "192.168.1.10"),
+    ("http://127.1:8787", "127.1"),
+])
+def test_parse_base_url_requires_loopback_even_when_allowed(url, host):
+    with pytest.raises(StudioError, match="loopback"):
+        parse_base_url(url, frozenset({host}))
+
+
 def test_hosts_file_fails_closed_and_ignores_comments(tmp_path):
     assert load_studio_hosts(tmp_path / "nao_existe.txt") == frozenset()
     path = tmp_path / "hosts.txt"

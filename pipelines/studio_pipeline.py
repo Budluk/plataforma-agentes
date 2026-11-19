@@ -10,6 +10,7 @@ from agents.studio.client import StudioError
 from agents.studio.contracts import StudioRequest
 from agents.studio.gate import check_request, is_social_host
 from agents.studio.tools import build_studio_tools
+from core.memory import safe_record_run
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
 _LIST = re.compile(r"^\s*(listar|lista|list|meus apps|meus aplicativos)\b", re.IGNORECASE)
@@ -73,15 +74,20 @@ class StudioPipeline:
 
     def _reject(self, ctx: RunContext, reasons: list[str]) -> StudioResult:
         self.logger.log("rejection", run_id=ctx.run_id, agent="studio_agent", reasons=reasons)
-        self.memory.record_run("studio_agent", None, "rejected", "; ".join(reasons)[:500])
-        return StudioResult(ok=False, reasons=reasons)
+        warning = safe_record_run(self.memory, self.logger, "studio_agent", None, "rejected",
+                                  "; ".join(reasons)[:500], run_id=ctx.run_id)
+        out = list(reasons)
+        if warning:
+            out.append(warning)
+        return StudioResult(ok=False, reasons=out)
 
     def _ok(self, ctx: RunContext, data: dict) -> StudioResult:
         self.logger.log("studio_result", run_id=ctx.run_id, agent="studio_agent", ok=True)
         detail = str(data.get("id") or data.get("count") or data.get("status")
                      or data.get("platform") or "")[:500]
-        self.memory.record_run("studio_agent", None, "ok", detail)
-        return StudioResult(ok=True, data=data)
+        warning = safe_record_run(self.memory, self.logger, "studio_agent", None, "ok",
+                                  detail, run_id=ctx.run_id)
+        return StudioResult(ok=True, data=data, reasons=[warning] if warning else [])
 
     def _agent(self, ctx: RunContext) -> StudioAgent:
         return StudioAgent(tools=build_studio_tools(self.client), monitor=self.monitor,

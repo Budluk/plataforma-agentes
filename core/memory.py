@@ -9,6 +9,38 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+AUDIT_WARNING = "aviso: auditoria indisponível"
+
+
+def safe_record_run(memory, logger, agent: str, asset: str | None, status: str,
+                    detail: str = "", *, run_id: str | None = None) -> str | None:
+    """Registra a execução sem transformar falha de auditoria em falha da ação.
+
+    A ação já aconteceu quando este helper é chamado. Uma falha no SQLite (ou em
+    qualquer outro backend de auditoria) deve virar aviso no resultado e evento
+    no JSONL — nunca uma exceção que sugira ao chamador repetir a ação.
+    """
+    try:
+        memory.record_run(agent, asset, status, detail)
+        return None
+    except Exception as exc:
+        warning = f"{AUDIT_WARNING} ({type(exc).__name__})"
+        fields = {"agent": agent, "status": status, "error": type(exc).__name__}
+        if run_id:
+            fields["run_id"] = run_id
+        if detail:
+            fields["detail"] = detail[:200]
+        message = " ".join(str(exc).split())[:200]
+        if message:
+            fields["exception"] = message
+        if logger is not None:
+            try:
+                logger.log("audit_degraded", **fields)
+            except Exception:
+                pass  # o log de auditoria da falha também nunca derruba a resposta
+        return warning
+
+
 class Memory:
     def __init__(self, db_path):
         self.db_path = str(db_path)
