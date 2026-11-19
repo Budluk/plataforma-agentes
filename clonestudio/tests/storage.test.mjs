@@ -200,4 +200,53 @@ test('versões respeitam o limite e preservam o alvo da restauração', async ()
   );
 });
 
+test('renameWithRetry repete bloqueios transitórios e desiste em erro definitivo', async () => {
+  const transient = new Error('pasta em uso');
+  transient.code = 'EPERM';
+  const calls = [];
+  let failures = 2;
+  await storage.renameWithRetry('de', 'para', {
+    baseDelayMs: 0,
+    rename: async (from, to) => {
+      calls.push(`${from}->${to}`);
+      if (failures > 0) {
+        failures -= 1;
+        throw transient;
+      }
+    },
+  });
+  assert.equal(calls.length, 3, 'deve tentar de novo até liberar');
+
+  const denied = new Error('sem permissão');
+  denied.code = 'EACCES';
+  let attempts = 0;
+  await assert.rejects(
+    storage.renameWithRetry('a', 'b', {
+      attempts: 4,
+      baseDelayMs: 0,
+      rename: async () => {
+        attempts += 1;
+        throw denied;
+      },
+    }),
+    /sem permissão/,
+  );
+  assert.equal(attempts, 4);
+
+  const missing = new Error('origem sumiu');
+  missing.code = 'ENOENT';
+  let fatalAttempts = 0;
+  await assert.rejects(
+    storage.renameWithRetry('x', 'y', {
+      baseDelayMs: 0,
+      rename: async () => {
+        fatalAttempts += 1;
+        throw missing;
+      },
+    }),
+    /origem sumiu/,
+  );
+  assert.equal(fatalAttempts, 1, 'ENOENT não deve ser repetido');
+});
+
 
