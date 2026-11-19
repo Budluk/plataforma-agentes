@@ -9,6 +9,7 @@ Este diretório registra as decisões tomadas no **plano de produção** do Clon
 | [0003](./0003-fila-duravel-sem-redis.md) | Fila durável sem Redis | 3 | Jobs em `<DATA_DIR>/jobs.json`, sem processo extra |
 | [0004](./0004-auditoria-sem-corpo.md) | Auditoria com redação e sem corpo | 1 | JSONL com `request_id`, sem prompt nem resposta bruta |
 | [0005](./0005-sse-opt-in.md) | SSE opt-in com fallback para polling | 5 | Desligado por padrão; stream leva só `scope`/`id`/`revision` |
+| [0006](./0006-centralia-branch-substituida.md) | Branch `centralia/lote-1-acoes` substituída pelo painel CentralIA | — | Branch preservada como histórico; painel é a implementação ativa |
 
 ## Estado do plano
 
