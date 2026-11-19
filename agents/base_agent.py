@@ -56,6 +56,17 @@ class BaseAgent:
         if fn is None:
             self._block(tool, "registry", "ferramenta não implementada")
         self.ctx.history.append(tool)
-        result = fn(**params)
+        try:
+            result = fn(**params)
+        except Exception as exc:
+            # O erro da ferramenta é o erro original: falha ao auditá-lo não pode
+            # substituí-lo nem impedir o rethrow para a camada superior.
+            try:
+                self.logger.log("tool_error", run_id=self.ctx.run_id, agent=self.name,
+                                tool=tool, error_type=type(exc).__name__,
+                                error=" ".join(str(exc).split())[:300])
+            except Exception:
+                pass
+            raise
         self.logger.log("tool_ok", run_id=self.ctx.run_id, agent=self.name, tool=tool)
         return result

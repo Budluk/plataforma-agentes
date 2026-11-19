@@ -38,6 +38,42 @@ def test_execution_tool_vetoed_and_logged(env):
     assert any(e["event"] == "tool_blocked" and e["reason"] for e in env.events())
 
 
+def test_call_tool_logs_tool_error_and_reraises(env):
+    def boom(asset):
+        raise RuntimeError("falha na ferramenta")
+
+    a = Analyst(tools={"get_market_data": boom}, monitor=env.monitor,
+                permissions=env.perms, logger=env.logger,
+                ctx=RunContext(run_id="t"), llm=FakeLLM(OK))
+    with pytest.raises(RuntimeError, match="falha na ferramenta"):
+        a.call_tool("get_market_data", asset="PETR4")
+
+    events = env.events()
+    names = [e["event"] for e in events]
+    assert names.index("tool_call_attempt") < names.index("tool_error")
+    assert "tool_ok" not in names
+    err = next(e for e in events if e["event"] == "tool_error")
+    assert err["tool"] == "get_market_data"
+    assert err["error_type"] == "RuntimeError"
+    assert "falha na ferramenta" in err["error"]
+
+
+def test_tool_error_log_failure_does_not_mask_original(env):
+    class FailsOnlyOnError:
+        def log(self, event, **fields):
+            if event == "tool_error":
+                raise OSError("log indisponível")
+
+    def boom(asset):
+        raise RuntimeError("erro original")
+
+    a = Analyst(tools={"get_market_data": boom}, monitor=env.monitor,
+                permissions=env.perms, logger=FailsOnlyOnError(),
+                ctx=RunContext(run_id="t"), llm=FakeLLM(OK))
+    with pytest.raises(RuntimeError, match="erro original"):
+        a.call_tool("get_market_data", asset="PETR4")
+
+
 def test_call_tool_cannot_be_overridden():
     with pytest.raises(TypeError):
         class Evil(BaseAgent):
