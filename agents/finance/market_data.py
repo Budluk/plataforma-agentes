@@ -8,6 +8,7 @@ from agents.finance.market_parsers import MarketDataError, parse_binance, parse_
 from agents.research.urlgate import load_allowed_domains as load_market_hosts  # noqa: F401
 from core.contracts import ALLOWED_ASSETS
 from core.market import Quote, check_quote
+from core.pinned_http import PinnedTransport
 
 # URLs fixas: nenhum texto do usuário ou do LLM entra na URL.
 ROUTES = {
@@ -26,12 +27,13 @@ PARSERS = {
 
 
 class HttpMarketData:
-    """Somente leitura: só GET, só https, só hosts da lista, sem redirecionamento, resposta limitada."""
+    """Somente leitura: só GET, só https, hosts da lista, IPs fixados, sem redirect e resposta limitada."""
 
     def __init__(self, allowed_hosts, *, transport=None, timeout: float = 10.0, max_bytes: int = 200_000,
                  clock=None, user_agent: str | None = None):
         self.allowed_hosts = allowed_hosts
-        self.transport, self.timeout, self.max_bytes = transport, timeout, max_bytes
+        self.transport = transport if transport is not None else PinnedTransport()
+        self.timeout, self.max_bytes = timeout, max_bytes
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.user_agent = user_agent or "plataforma-agentes/0.1 (dados de mercado somente leitura)"
 

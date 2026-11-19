@@ -6,8 +6,10 @@ from pydantic import ValidationError
 from agents.base_agent import RunContext, ToolBlocked
 from agents.research.agent import ResearchAgent, build_research_tools
 from agents.research.contracts import ResearchRequest, ResearchSummary
-from agents.research.fetcher import FakeFetcher, FetchError, HttpFetcher, PinnedBackend, PinnedTransport
+from agents.research.fetcher import FakeFetcher, FetchError, HttpFetcher
 from agents.research import urlgate
+from core import pinned_http
+from core.pinned_http import PinnedBackend, PinnedTransport
 from agents.research.sanitize import clean_text, find_injection, html_to_text
 from agents.research.urlgate import check_url, load_allowed_domains
 from core.llm_client import FakeLLM
@@ -64,7 +66,7 @@ def test_load_allowed_domains(tmp_path):
 
 def test_resolve_public_host_fixes_the_public_address(monkeypatch):
     monkeypatch.setattr(
-        urlgate.socket, "getaddrinfo",
+        pinned_http.socket, "getaddrinfo",
         lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 0))],
     )
     assert urlgate.resolve_public_host("example.com") == ("93.184.216.34",)
@@ -73,7 +75,7 @@ def test_resolve_public_host_fixes_the_public_address(monkeypatch):
 @pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.5", "::1", "::ffff:192.168.1.2"])
 def test_resolve_public_host_rejects_private_addresses(monkeypatch, address):
     monkeypatch.setattr(
-        urlgate.socket, "getaddrinfo",
+        pinned_http.socket, "getaddrinfo",
         lambda *a, **k: [(2, 1, 6, "", (address, 0))],
     )
     with pytest.raises(ValueError, match="privado"):
@@ -99,11 +101,16 @@ def test_pinned_backend_fails_closed_without_validated_addresses():
         backend.connect_tcp("example.com", 443)
 
 
-def test_pinned_transport_uses_the_pinned_backend_without_keepalive():
-    transport = PinnedTransport()
+def test_pinned_transport_exposes_the_injected_resolver_and_pool():
+    def resolver(host):
+        return ("93.184.216.34",)
+
+    transport = PinnedTransport(resolver=resolver)
     try:
-        assert isinstance(transport._pool._network_backend, PinnedBackend)
-        assert transport._pool._max_keepalive_connections == 0
+        assert transport.resolver is resolver
+        assert transport.backend.resolver is resolver
+        assert isinstance(transport.pool, httpcore.ConnectionPool)
+        assert transport.limits.max_keepalive_connections == 0
     finally:
         transport.close()
 
