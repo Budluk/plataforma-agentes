@@ -24,6 +24,7 @@ import {
 import { isNotModified, weakEtag } from './http-cache.mjs';
 import { assertLoopbackHost, assertTrustedHost, parsePublicHost } from './net-safety.mjs';
 import { RateLimiter, guardApiRequest, parseApiToken, parseRateLimit } from './api-guard.mjs';
+import { assertBuildIsolationBoot } from './build-isolation.mjs';
 import { handleSse, sseEnabled, sseStatus } from './sse.mjs';
 import {
   callChat,
@@ -99,6 +100,13 @@ try {
   const rateLimitEnabled = Boolean(PUBLIC_HOST) || String(process.env.CLONESTUDIO_RATE_LIMIT_ENABLED || '') === '1';
   const rateLimit = parseRateLimit(process.env.CLONESTUDIO_RATE_LIMIT_PER_MIN, 120);
   RATE_LIMITER = rateLimitEnabled ? new RateLimiter(rateLimit) : null;
+} catch (error) {
+  console.error(`[server] ${error.message}`);
+  process.exit(1);
+}
+let BUILD_ISOLATION;
+try {
+  BUILD_ISOLATION = assertBuildIsolationBoot(PUBLIC_HOST);
 } catch (error) {
   console.error(`[server] ${error.message}`);
   process.exit(1);
@@ -957,6 +965,7 @@ async function main() {
     console.log(
       `  Provedor: ${providers.length ? providers.map((provider) => provider.label).join(' → ') : 'nenhum configurado'}`,
     );
+    console.log(`  Isolamento do build: ${BUILD_ISOLATION}`);
     console.log('');
     if (providers.length === 0) {
       console.warn('[providers] Configure FREELLMAPI_BASE_URL e FREELLMAPI_API_KEY no .env.');
