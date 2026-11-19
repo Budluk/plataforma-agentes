@@ -50,15 +50,15 @@ Todos devem estar prontos antes de qualquer comando de túnel:
       token Bearer e limite por IP obrigatórios quando houver host público. O
       painel já envia o token via Cloud Secret `STUDIO_API_TOKEN`; falta o valor
       definitivo do host.
-- [ ] Isolamento real do build e sandbox de rede. O hardening atual da Fase 4
-      reduz superfície, mas roda sob o mesmo usuário do servidor. Desenho no
+- [x] Isolamento real do build e sandbox de rede. Implementado conforme o
       [ADR-0008](../../docs/adr/0008-isolamento-build-appcontainer.md):
-      AppContainer + Job Object (sem VM/container neste Windows Home), com
-      `CLONESTUDIO_BUILD_ISOLATION=required` obrigatório no alvo B. Spike de
-      2026-11-19: viabilidade confirmada — `cmd.exe`/`node.exe` iniciados dentro
-      do AppContainer e acesso a paths do host negado pelo kernel. Falta
-      implementar, medir RAM e confirmar a negação de TCP; exposição em B segue
-      bloqueada até lá.
+      AppContainer sem capabilities + Job Object, workspace efêmero e cache de
+      `node_modules` somente leitura. `CLONESTUDIO_BUILD_ISOLATION=required` é
+      obrigatório no boot quando houver `CLONESTUDIO_PUBLIC_HOST`. Testes
+      `windows-only` confirmam `NET_DENIED=EACCES`, negação de leitura a arquivo
+      fora do workspace e cópia apenas do `dist` de volta. Build real do Vite
+      com cache quente: ~7 s, pico de ~219 MB. Exposição em B segue bloqueada
+      até o ADR de mudança de alvo.
 - [ ] Novo ADR aprovando a mudança de A para B, com CI verde.
 
 ## Plano quando os pré-requisitos existirem
@@ -67,7 +67,10 @@ Todos devem estar prontos antes de qualquer comando de túnel:
    `http://127.0.0.1:8787`. O bind do CloneStudio permanece loopback.
 2. Aplicar a política de Access/WARP e confirmar que o hostname só responde para
    o operador dentro da rede interna.
-3. Definir `CLONESTUDIO_PUBLIC_HOST=<host>` no `.env` do CloneStudio e validar
+3. Definir no `.env` do CloneStudio: `CLONESTUDIO_PUBLIC_HOST=<host>`,
+   `CLONESTUDIO_API_TOKEN=<valor do Cloud Secret>` e
+   `CLONESTUDIO_BUILD_ISOLATION=required`. O boot falha se faltar token ou se o
+   isolamento não estiver `required`. Validar
    que `assertTrustedRequest` aceita apenas esse host, além do loopback.
 4. No painel, informar em Configurações:
    - `STUDIO_BASE_URL=https://<host>`;

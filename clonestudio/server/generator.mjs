@@ -19,6 +19,7 @@ import {
 } from './storage.mjs';
 import { ALLOWED_PACKAGES, buildFileDump, parseGenerationResponse } from './generation-core.mjs';
 import { assertSafeBuildConfig, buildChildEnv } from './build-sandbox.mjs';
+import { isBuildIsolationRequired, runIsolatedBuild } from './build-isolation.mjs';
 import { hashText, logAudit, rejectionFields } from './audit.mjs';
 import { enqueue, isJobActive, queueStats, recover as recoverJobsFromStore } from './job-queue.mjs';
 import { buildValidationInstruction } from './validation-core.mjs';
@@ -583,10 +584,30 @@ async function doBuild(id, { afterBuild } = {}) {
   activeBuilds += 1;
   let result;
   try {
-    result = await runCommand(process.execPath, [viteBin, 'build', '--logLevel', 'warn'], {
-      cwd: dir,
-      timeout: BUILD_TIMEOUT,
-    });
+    if (isBuildIsolationRequired()) {
+      result = await runIsolatedBuild({
+        projectDir: dir,
+        templateDir: TEMPLATE_DIR,
+        outputDir: distDir(id),
+        command: process.execPath,
+        args: [
+          '--preserve-symlinks-main',
+          '--preserve-symlinks',
+          viteBin,
+          'build',
+          '--logLevel',
+          'warn',
+        ],
+        env: buildChildEnv({ maxOldSpaceMb: BUILD_HEAP_MB }),
+        timeoutMs: BUILD_TIMEOUT,
+        memoryMb: Math.max(768, BUILD_HEAP_MB * 3),
+      });
+    } else {
+      result = await runCommand(process.execPath, [viteBin, 'build', '--logLevel', 'warn'], {
+        cwd: dir,
+        timeout: BUILD_TIMEOUT,
+      });
+    }
   } finally {
     activeBuilds -= 1;
   }

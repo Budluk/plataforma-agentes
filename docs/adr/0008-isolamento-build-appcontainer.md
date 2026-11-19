@@ -1,9 +1,40 @@
 # ADR-0008 — Isolamento real do build com AppContainer + Job Object (alvo B)
 
-- Status: aceito para desenho; **spike de viabilidade concluído com sucesso** — implementação depende de aprovação em PR separado
+- Status: **implementado e validado localmente**; integração depende de PR separado. Nenhuma exposição autorizada.
 - Data: 2026-11-19
 - Fase do plano: gate B (pré-requisito 4 do [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md))
 - Relação: complementa o [ADR-0002](./0002-build-sandbox-sem-docker.md), que continua valendo como hardening no alvo A
+
+## Resultado da implementação (2026-11-19)
+
+O desenho do spike foi implementado em `clonestudio/server/build-isolation.mjs`
+e `clonestudio/scripts/windows/build-isolation.ps1`. Validações executadas:
+
+- Teste `windows-only` (`tests/build-isolation.windows.test.mjs`) confirmou:
+  - `NET_DENIED=EACCES` em `net.connect(80, '1.1.1.1')` dentro do AppContainer —
+    **negação de TCP confirmada por teste assertivo**;
+  - leitura de arquivo fora do workspace negada (`FS_DENIED=EACCES`);
+  - nenhum arquivo gravado no projeto de origem; apenas `dist/index.html` foi
+    copiado de volta para o diretório de saída.
+- Build real do Vite em AppContainer, com `DATA_DIR` fora da aplicação e projeto
+  temporário: `code=0`, `dist/index.html` produzido, **pico de 219 MB** e ~7,3 s
+  com cache quente de `node_modules` (46 s na primeira execução, quando o cache
+  é criado). Limite do Job Object: 1536 MB derivados de
+  `CLONESTUDIO_BUILD_HEAP_MB=512` × 3, 8 processos ativos, `KILL_ON_JOB_CLOSE`.
+- O cache de `node_modules` fica em `%TEMP%\clonestudio-build\cache-<hash>` e é
+  reutilizado entre builds. O workspace de cada build é efêmero; `.vite-temp`
+  é um diretório real e gravável dentro dele, enquanto os pacotes são lidos por
+  junctions com ACL `RX` no cache.
+- O ambiente do helper é sanitizado com `buildChildEnv`; variáveis básicas do
+  Windows (`ComSpec`, `PATHEXT`, `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`,
+  `LOCALAPPDATA`, `SystemDrive`, `NUMBER_OF_PROCESSORS`) são acrescentadas apenas
+  para o PowerShell conseguir executar nativos. Nenhuma chave de provedor ou
+  token do túnel entra no helper ou no build.
+- O alvo A continua com `CLONESTUDIO_BUILD_ISOLATION=off` e o mesmo spawn de
+  sempre; `CLONESTUDIO_PUBLIC_HOST` sem `required` quebra o boot.
+
+Nada nesta etapa alterou `.env`, bind, túnel ou exposição. O alvo A segue
+idêntico.
 
 ## Resultado do spike (2026-11-19)
 
@@ -119,37 +150,35 @@ Adotar, **somente como desenho para o alvo B**, o isolamento nativo do Windows:
    do `powershell.exe` se mostrar proibitivo, via binding nativo leve avaliado
    em spike. Nenhum serviço, daemon, container ou modelo local é instalado.
 
-## Plano de implementação (PR separado, após aprovação)
+## Plano de implementação
 
 1. ~~Spike de viabilidade no Windows 11 Home: criar perfil AppContainer, iniciar
    `node` dentro dele e confirmar isolamento de filesystem.~~ Concluído em
-   2026-11-19: spawn de `cmd.exe`/`node.exe` dentro do AppContainer validado e
-   negação de acesso a paths do host observada (ver "Resultado do spike").
-   Pendente no item 5: confirmar a negação de TCP com teste assertivo.
-2. Medir pico de RAM do helper e do build; se necessário, reduzir
-   `CLONESTUDIO_BUILD_HEAP_MB` de 512 para 256 no alvo B e documentar o impacto.
-3. Implementar `build-isolation.mjs`, integrar `runCommand` e o workspace
-   efêmero em `generator.mjs`, com testes unitários das decisões puras (parse de
-   limites, montagem de ACL, fail closed) e um teste de integração marcado
-   `windows-only`, ignorado em CI Linux.
-4. Adicionar ao runbook o campo `CLONESTUDIO_BUILD_ISOLATION=required` e a
-   verificação de que o build não herda rede.
-5. Somente com tudo verde e novo ADR aprovando a mudança de alvo, ligar o
-   isolamento no ambiente do túnel. O alvo A continua com o comportamento atual
-   e com as mesmas 806 verificações Python e suites Node/browser.
+   2026-11-19 (ver "Resultado do spike").
+2. ~~Medir pico de RAM do helper e do build.~~ Concluído: 219 MB no build real
+   com cache quente; não foi necessário reduzir `CLONESTUDIO_BUILD_HEAP_MB`.
+3. ~~Implementar `build-isolation.mjs`, integrar `doBuild` e o workspace efêmero
+   em `generator.mjs`, com testes unitários e teste `windows-only`.~~ Concluído.
+4. ~~Adicionar ao runbook `CLONESTUDIO_BUILD_ISOLATION=required` e a verificação
+   de que o build não herda rede.~~ Concluído em `CLOUDFLARE_TUNNEL.md`.
+5. **Pendente:** somente com tudo verde e novo ADR aprovando a mudança de alvo,
+   ligar o isolamento no ambiente do túnel. O alvo A continua com o comportamento
+   atual e com as mesmas 806 verificações Python e suites Node/browser.
 
 ## Consequências
 
 - Nenhuma superfície de rede nova, nenhum daemon e nenhuma dependência
-  instalada nesta etapa: o ADR é desenho, não código.
+  instalada nesta etapa. O código usa apenas PowerShell/.NET já presentes no
+  Windows; o helper é transitório e roda somente durante o build.
 - O alvo A permanece idêntico: `HOST=127.0.0.1`, `PREVIEW_PUBLIC_URL=` vazio e
   build com o mesmo usuário do servidor, conforme ADR-0002.
 - O alvo B passa a ter um limite imposto pelo kernel (AppContainer + Job Object)
   em vez de convenções de código, fechando o pré-requisito 4 do ADR-0007.
-- Custo: complexidade de P/Invoke e um helper transitório por build. Em máquina
-  com 0,41 GB livres, o pico exato precisa ser medido no spike antes de prometer
-  que o build cabe; se não couber, a decisão de exposição em B precisa ser
-  reavaliada (mais RAM ou outro host) em novo ADR.
+- Custo: complexidade de P/Invoke e um helper transitório por build. O pico
+  medido foi 219 MB com cache quente; o primeiro build (criação do cache) levou
+  ~46 s e pode precisar de `BUILD_TIMEOUT_MS` maior em host mais lento. Se a
+  folga de RAM mudar, a decisão de exposição em B deve ser reavaliada em novo
+  ADR.
 - AppContainer **não é VM**: kernel é compartilhado. Para a ameaça de código
   gerado executando acidentalmente no build, é uma barreira real; para um
   atacante com exploit de kernel do Windows, não é. Isso deve ficar explícito no
