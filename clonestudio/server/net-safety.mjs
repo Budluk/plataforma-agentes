@@ -87,6 +87,63 @@ export function assertLoopbackHost(value) {
   return host;
 }
 
+/**
+ * Host publico explicito autorizado a fazer mutacoes via tunel (alvo B).
+ * Vazio mantem o comportamento atual: somente loopback. Nunca aceita IP ou
+ * loopback, para nao transformar essa liberacao em exposição irrestrita.
+ */
+export function parsePublicHost(raw) {
+  const host = String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '');
+  if (!host) return '';
+  if (isLoopbackHost(host)) {
+    throw new Error('CLONESTUDIO_PUBLIC_HOST nao pode ser loopback.');
+  }
+  if (net.isIPv4(host) || net.isIPv6(host)) {
+    throw new Error('CLONESTUDIO_PUBLIC_HOST deve ser um hostname, nao um IP.');
+  }
+  const labels = host.split('.');
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(host) || labels.some((label) => label.startsWith('-') || label.endsWith('-'))) {
+    throw new Error('CLONESTUDIO_PUBLIC_HOST invalido.');
+  }
+  return host;
+}
+
+/**
+ * Valida Host/Origin de mutacoes. Lanca Error com mensagem especifica; o
+ * chamador converte em status HTTP. `publicHost` so e aceito quando definido.
+ */
+export function assertTrustedHost(hostHeader, originHeader, { bindHost = '127.0.0.1', publicHost = '' } = {}) {
+  const rawHost = String(hostHeader ?? '');
+  let hostname = '';
+  try {
+    hostname = new URL(`http://${rawHost}`).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  } catch {
+    hostname = '';
+  }
+  if (!hostname) throw new Error('Cabeçalho Host ausente.');
+  const bind = String(bindHost ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  const allowed =
+    ['127.0.0.1', 'localhost', '::1'].includes(hostname) || hostname === bind || (Boolean(publicHost) && hostname === publicHost);
+  if (!allowed) throw new Error('Host não permitido.');
+  const origin = String(originHeader ?? '').trim();
+  if (origin) {
+    let originHost = '';
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      throw new Error('Origem inválida.');
+    }
+    if (originHost !== rawHost) throw new Error('Origem não permitida.');
+  }
+}
+
 function isBlockedHostname(value) {
   const host = String(value || '').trim().toLowerCase().replace(/\.+$/, '');
   return (

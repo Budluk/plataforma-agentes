@@ -22,7 +22,7 @@ import {
   updateProject,
 } from './storage.mjs';
 import { isNotModified, weakEtag } from './http-cache.mjs';
-import { assertLoopbackHost } from './net-safety.mjs';
+import { assertLoopbackHost, assertTrustedHost, parsePublicHost } from './net-safety.mjs';
 import { handleSse, sseEnabled, sseStatus } from './sse.mjs';
 import {
   callChat,
@@ -79,6 +79,13 @@ try {
   HOST = assertLoopbackHost(process.env.HOST || '127.0.0.1');
 } catch (error) {
   console.error(`[server] ${error.message} Valor recebido: ${String(process.env.HOST)}.`);
+  process.exit(1);
+}
+let PUBLIC_HOST;
+try {
+  PUBLIC_HOST = parsePublicHost(process.env.CLONESTUDIO_PUBLIC_HOST);
+} catch (error) {
+  console.error(`[server] ${error.message} Valor recebido: ${String(process.env.CLONESTUDIO_PUBLIC_HOST)}.`);
   process.exit(1);
 }
 const PORT = Number(process.env.PORT || 8787);
@@ -174,30 +181,15 @@ async function readBody(req, limit = 1_000_000) {
 /**
  * O painel é local, mas ainda pode receber requisições de outra origem via
  * navegador (CSRF) ou com Host forjado (DNS rebinding). Bloqueia mutações que
- * não vierem do próprio painel.
+ * não vierem do próprio painel. Um host publico só é aceito quando configurado
+ * explicitamente em CLONESTUDIO_PUBLIC_HOST (alvo B); o bind segue em loopback.
  */
 function assertTrustedRequest(req) {
-  const hostHeader = String(req.headers.host || '');
-  let hostname = '';
   try {
-    hostname = new URL(`http://${hostHeader}`).hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  } catch {
-    hostname = '';
-  }
-  if (!hostname) throw new HttpError(400, 'Cabeçalho Host ausente.');
-  const loopback = ['127.0.0.1', 'localhost', '::1', '[::1]'];
-  if (HOST !== '0.0.0.0' && HOST !== '::' && !loopback.includes(hostname) && hostname !== HOST) {
-    throw new HttpError(403, 'Host não permitido.');
-  }
-  const origin = String(req.headers.origin || '').trim();
-  if (origin) {
-    let originHost = '';
-    try {
-      originHost = new URL(origin).host;
-    } catch {
-      throw new HttpError(403, 'Origem inválida.');
-    }
-    if (originHost !== hostHeader) throw new HttpError(403, 'Origem não permitida.');
+    assertTrustedHost(req.headers.host, req.headers.origin, { bindHost: HOST, publicHost: PUBLIC_HOST });
+  } catch (error) {
+    const status = /ausente/i.test(error.message) ? 400 : 403;
+    throw new HttpError(status, error.message);
   }
 }
 

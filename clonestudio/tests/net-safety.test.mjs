@@ -6,10 +6,12 @@ import {
   assertLoopbackHost,
   assertPublicHttpUrl,
   assertPublicHttpUrlResolved,
+  assertTrustedHost,
   followSafeRedirects,
   isLoopbackHost,
   isPrivateAddress,
   isPrivateIpv4,
+  parsePublicHost,
   pinnedLookup,
   readLimited,
   requestPinned,
@@ -127,6 +129,39 @@ test('assertLoopbackHost normaliza e rejeita HOST não-loopback', () => {
   for (const host of ['0.0.0.0', '::', '192.168.0.10', undefined]) {
     assert.throws(() => assertLoopbackHost(host), /loopback/i, String(host));
   }
+});
+
+test('parsePublicHost aceita um único hostname e rejeita IP, loopback e valor vazio', () => {
+  assert.equal(parsePublicHost(''), '');
+  assert.equal(parsePublicHost(undefined), '');
+  assert.equal(parsePublicHost('  Studio.Interna.Example.COM.  '), 'studio.interna.example.com');
+  for (const host of ['127.0.0.1', 'localhost', '::1', '192.168.1.10', '93.184.216.34', '-ruim.example.com', 'ruim-.example.com', 'com espaço']) {
+    assert.throws(() => parsePublicHost(host), /PUBLIC_HOST|loopback|hostname|invalido|IP/i, String(host));
+  }
+});
+
+test('assertTrustedHost mantém loopback por padrão e libera só o host configurado', () => {
+  assert.doesNotThrow(() => assertTrustedHost('127.0.0.1:8787', 'http://127.0.0.1:8787'));
+  assert.doesNotThrow(() => assertTrustedHost('[::1]:8787', undefined, { bindHost: '::1' }));
+  assert.throws(() => assertTrustedHost('studio.interna.example.com:8787'), /Host não permitido/);
+  assert.doesNotThrow(() =>
+    assertTrustedHost('studio.interna.example.com:8787', 'https://studio.interna.example.com:8787', {
+      publicHost: 'studio.interna.example.com',
+    }),
+  );
+  assert.throws(
+    () => assertTrustedHost('outro.interna.example.com:8787', undefined, { publicHost: 'studio.interna.example.com' }),
+    /Host não permitido/,
+  );
+  assert.throws(() => assertTrustedHost('', undefined), /Host ausente/);
+  assert.throws(
+    () => assertTrustedHost('studio.interna.example.com:8787', 'http://outro.example.com', { publicHost: 'studio.interna.example.com' }),
+    /Origem não permitida/,
+  );
+  assert.throws(
+    () => assertTrustedHost('studio.interna.example.com:8787', 'origem-invalida', { publicHost: 'studio.interna.example.com' }),
+    /Origem inválida/,
+  );
 });
 
 test('assertPublicHttpUrl aceita IP público e rejeita esquemas/hosts internos', () => {
