@@ -63,7 +63,7 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 | Música | pronta (simbólica, MIDI) | Acorde, transposição, tablatura de violão | Sem áudio (Basic Pitch, Demucs, librosa exigem torch/tf) |
 | Vendas | pronta | Margem, preço-alvo, ponto de equilíbrio | Não transaciona |
 | Funil low ticket | pronto | ROAS, CPA, lucro real, taxas por etapa, recomendação | Não mexe em campanha nem em verba; recomenda e você executa |
-| Studio (CloneStudio) | pronta (serviço local) | Cria, importa, itera por chat, corrige, recompila e valida apps React via CloneStudio | Não executa o código gerado; build fica no processo Node isolado |
+| Studio (CloneStudio) | pronta (serviço local) | Cria, importa, itera por chat, corrige, recompila e valida apps React via CloneStudio | Não executa o código gerado; build em child Node com env limpo (não é isolamento real) |
 
 Ferramentas vetadas por nome (nunca existem): execution_order, place_order, checkout, purchase,
 payment, charge_card, launch_campaign, set_budget, send_whatsapp, publish_page.
@@ -206,13 +206,36 @@ A API é uma porta de entrada para outros agentes/processos locais; o agente cen
 usando a biblioteca Python diretamente, e o `studio_cli.py` continua sendo o caminho mais curto
 para testar sem LLM.
 
-Limites: o build e o preview acontecem no processo Node, no workspace dele (`clonestudio/data/`).
-A plataforma não executa o código gerado, não instala pacotes npm e não aceita URL como descrição.
-O CloneStudio precisa de Node 22 e de um provedor OpenAI-compatible (FreeLLMAPI por padrão).
+Limites: o build roda em um child Node com ambiente sanitizado e o preview em servidor separado, no
+workspace do CloneStudio (`clonestudio/data/`). A plataforma não executa o código gerado; o build
+roda `npm install --ignore-scripts` no child, com guard contra config alterada — isso **não é
+isolamento de segurança real** (o child usa o mesmo usuário do servidor). A plataforma não aceita
+URL como descrição. O CloneStudio precisa de Node 22 e de um provedor OpenAI-compatible (FreeLLMAPI
+por padrão).
 A análise de inspiração lê só HTML público e falha fechada: YouTube expõe inscritos, título,
 descrição e palavras-chave; TikTok costuma exigir login; Instagram e Facebook bloqueiam leitura
 anônima com frequência. Alcance real, impressões e demografia não são públicos e nunca são
 inventados.
+
+## Produção (alvo A — loopback)
+
+O plano de produção foi concluído com exposição **apenas em loopback**. As decisões
+estão em [`docs/adr/`](docs/adr/README.md):
+
+| Item | Onde | Efeito |
+|---|---|---|
+| Auditoria | `clonestudio/server/audit.mjs` | JSONL em `<DATA_DIR>/audit.jsonl`, com `request_id` e redação; nunca grava corpo, prompt ou resposta bruta |
+| Fila durável | `clonestudio/server/job-queue.mjs` | Jobs em `<DATA_DIR>/jobs.json`, estados `queued|running|succeeded|failed|cancelled`, retomada no boot e concorrência 2 |
+| Sandbox de build | `clonestudio/server/build-sandbox.mjs` | Env do child sanitizado, `npm install --ignore-scripts`, guard de config e CSP do preview sem `unsafe-eval` por padrão |
+| SSE opt-in | `clonestudio/server/sse.mjs` | `GET /api/events` desligado por padrão (`CLONESTUDIO_SSE_ENABLED=1`); só avisa `scope`/`id`/`revision`, com fallback para polling |
+
+Autenticação e rate limiting **não** foram implementados: são condicionais a uma mudança dos alvos
+B/C (rede interna/pública). O hardening do build **não é isolamento de segurança real** — o child
+roda com o mesmo usuário do servidor; exposição pública exigiria container/VM e revisão dos ADRs.
+O `HOST` continua restrito a loopback no boot, e nenhum modelo local foi adicionado (FreeLLMAPI remoto).
+
+Validação final em `main`: `pytest -q` (785), `check_env.py`, `pip check`, `npm run check`,
+`npm test` (176) e `npm run test:browser` (19).
 
 ## Regras do hard gate (Economia)
 
