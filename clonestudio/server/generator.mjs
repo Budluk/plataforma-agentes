@@ -19,12 +19,12 @@ import {
 } from './storage.mjs';
 import { ALLOWED_PACKAGES, buildFileDump, parseGenerationResponse } from './generation-core.mjs';
 import { hashText, logAudit, rejectionFields } from './audit.mjs';
+import { enqueue, isJobActive, queueStats, recover as recoverJobsFromStore } from './job-queue.mjs';
 import { buildValidationInstruction } from './validation-core.mjs';
 import { callChat } from './providers.mjs';
 import { runPreviewValidation } from './preview-validator.mjs';
 import { collectKnowledge, knowledgeForProject } from './context7.mjs';
 
-const jobs = new Map();
 let buildChain = Promise.resolve();
 let templateInstall = null;
 let activeBuilds = 0;
@@ -840,71 +840,83 @@ async function runGeneration(id, options = {}) {
   }
 }
 
-function startJob(id, options, runner) {
-  if (jobs.has(id)) return false;
-  const promise = Promise.resolve()
-    .then(() => new Promise((resolve) => setImmediate(resolve)))
-    .then(() => runner(id, options))
-    .catch((error) => {
-      console.error(`[generator] job ${id}:`, error);
-    })
-    .finally(() => jobs.delete(id));
-  jobs.set(id, promise);
-  return true;
-}
-
 export function requestGeneration(id, options = {}) {
-  return startJob(id, options, runGeneration);
+  return enqueue({ id, kind: 'generation', options, runner: runGeneration });
 }
 
 export function isGenerating(id) {
-  return jobs.has(id);
+  return isJobActive(id);
+}
+
+async function runRebuild(id) {
+  try {
+    await buildProject(id, {
+      afterBuild: () =>
+        snapshotVersion(id, { label: 'Recompilação', kind: 'rebuild' }).catch((error) => {
+          console.warn(`[versions] projeto ${id}: ${error.message}`);
+        }),
+    });
+    addMessage(id, {
+      role: 'assistant',
+      kind: 'info',
+      content: 'Build recompilado com sucesso.',
+    });
+    updateProject(id, { stage: '' });
+  } catch (error) {
+    if (!getProject(id)) return;
+    updateProject(id, {
+      status: 'error',
+      stage: '',
+      error: truncate(error.message, 5000),
+      errorKind: 'build',
+      buildLog: truncate(error.message, 16000),
+    });
+    addMessage(id, {
+      role: 'assistant',
+      kind: 'error',
+      content: `O build falhou: ${truncate(error.message, 2500)}`,
+    });
+  }
 }
 
 export function requestRebuild(id) {
-  if (jobs.has(id)) return false;
+  if (!enqueue({ id, kind: 'rebuild', options: {}, runner: runRebuild })) return false;
   // Marca o estado antes de devolver a resposta: o painel já começa a
   // acompanhar o build em vez de continuar exibindo o preview antigo.
   updateProject(id, { status: 'building', stage: 'Recompilando', error: null, errorKind: null });
-  const promise = Promise.resolve()
-    .then(() => new Promise((resolve) => setImmediate(resolve)))
-    .then(async () => {
-      try {
-        await buildProject(id, {
-          afterBuild: () =>
-            snapshotVersion(id, { label: 'Recompilação', kind: 'rebuild' }).catch((error) => {
-              console.warn(`[versions] projeto ${id}: ${error.message}`);
-            }),
-        });
-        addMessage(id, {
-          role: 'assistant',
-          kind: 'info',
-          content: 'Build recompilado com sucesso.',
-        });
-        updateProject(id, { stage: '' });
-      } catch (error) {
-        if (!getProject(id)) return;
-        updateProject(id, {
-          status: 'error',
-          stage: '',
-          error: truncate(error.message, 5000),
-          errorKind: 'build',
-          buildLog: truncate(error.message, 16000),
-        });
-        addMessage(id, {
-          role: 'assistant',
-          kind: 'error',
-          content: `O build falhou: ${truncate(error.message, 2500)}`,
-        });
-      }
-    })
-    .finally(() => jobs.delete(id));
-  jobs.set(id, promise);
   return true;
 }
 
+async function runRestore(id, options = {}) {
+  const version = options.version;
+  try {
+    const meta = await restoreVersion(id, version);
+    await buildProject(id);
+    addMessage(id, {
+      role: 'assistant',
+      kind: 'info',
+      content: `Versão ${meta.version} restaurada e build concluído com sucesso.`,
+    });
+    updateProject(id, { stage: '' });
+  } catch (error) {
+    if (!getProject(id)) return;
+    updateProject(id, {
+      status: 'error',
+      stage: '',
+      error: truncate(error.message, 5000),
+      errorKind: 'build',
+      buildLog: truncate(error.message, 16000),
+    });
+    addMessage(id, {
+      role: 'assistant',
+      kind: 'error',
+      content: `Não foi possível restaurar a versão ${version}: ${truncate(error.message, 2500)}`,
+    });
+  }
+}
+
 export function requestRestore(id, version) {
-  if (jobs.has(id)) return false;
+  if (!enqueue({ id, kind: 'restore', options: { version }, runner: runRestore })) return false;
   // O status muda antes da resposta para o painel acompanhar o build da versão
   // restaurada em vez de mostrar o preview antigo.
   updateProject(id, {
@@ -913,41 +925,27 @@ export function requestRestore(id, version) {
     error: null,
     errorKind: null,
   });
-  const promise = Promise.resolve()
-    .then(() => new Promise((resolve) => setImmediate(resolve)))
-    .then(async () => {
-      try {
-        const meta = await restoreVersion(id, version);
-        await buildProject(id);
-        addMessage(id, {
-          role: 'assistant',
-          kind: 'info',
-          content: `Versão ${meta.version} restaurada e build concluído com sucesso.`,
-        });
-        updateProject(id, { stage: '' });
-      } catch (error) {
-        if (!getProject(id)) return;
-        updateProject(id, {
-          status: 'error',
-          stage: '',
-          error: truncate(error.message, 5000),
-          errorKind: 'build',
-          buildLog: truncate(error.message, 16000),
-        });
-        addMessage(id, {
-          role: 'assistant',
-          kind: 'error',
-          content: `Não foi possível restaurar a versão ${version}: ${truncate(error.message, 2500)}`,
-        });
-      }
-    })
-    .finally(() => jobs.delete(id));
-  jobs.set(id, promise);
   return true;
 }
 
+/** Retoma a fila persistida no boot; os runners sao os mesmos das rotas. */
+export function recoverJobs() {
+  return recoverJobsFromStore({
+    generation: runGeneration,
+    rebuild: runRebuild,
+    restore: runRestore,
+  });
+}
+
 export function generatorStats() {
-  return { activeJobs: jobs.size, activeBuilds };
+  const queue = queueStats();
+  return {
+    activeJobs: queue.activeJobs,
+    activeBuilds,
+    queued: queue.queued,
+    runningJobs: queue.running,
+    concurrency: queue.concurrency,
+  };
 }
 
 export function templateMain() {

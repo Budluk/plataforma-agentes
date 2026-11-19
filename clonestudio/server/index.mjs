@@ -32,6 +32,7 @@ import {
 import {
   generatorStats,
   isGenerating,
+  recoverJobs,
   requestGeneration,
   requestRebuild,
   requestRestore,
@@ -872,9 +873,12 @@ async function handleRequest(req, res) {
 
 let previewServer = null;
 
-function recoverInterruptedProjects() {
-  const stale = listProjects().filter((project) =>
-    ['generating', 'building'].includes(project.status),
+function recoverInterruptedProjects({ skipIds = [] } = {}) {
+  // Projetos com job `queued` retomado pela fila nao devem ser marcados como
+  // interrompidos: o runner vai conclui-los normalmente neste boot.
+  const stale = listProjects().filter(
+    (project) =>
+      ['generating', 'building'].includes(project.status) && !skipIds.includes(project.id),
   );
   for (const project of stale) {
     const message =
@@ -902,7 +906,8 @@ function recoverInterruptedProjects() {
 }
 
 async function main() {
-  recoverInterruptedProjects();
+  const { resumedIds } = recoverJobs();
+  recoverInterruptedProjects({ skipIds: resumedIds });
   try {
     previewServer = await startPreviewServer({ host: HOST, port: PREVIEW_PORT });
   } catch (error) {
