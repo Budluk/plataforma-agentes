@@ -2,12 +2,15 @@ from __future__ import annotations
 import re
 from agents.sales.contracts import SalesRequest
 
-SAFE_TEXT = re.compile(r"^[\w\s\-./]+$")
+# Nome de produto: palavras separadas por um unico espaco. ``\s`` aceitava
+# quebras de linha e tabs, e ``$`` aceitava uma quebra final; ``fullmatch``
+# mantem o campo em uma unica linha, sem bordas ou espacos repetidos.
+SAFE_TEXT = re.compile(r"[\w\-./]+(?: [\w\-./]+)*")
 
 
 def check_request(req: SalesRequest) -> list[str]:
     reasons: list[str] = []
-    if not SAFE_TEXT.match(req.product):
+    if not SAFE_TEXT.fullmatch(req.product):
         reasons.append("nome do produto contém caracteres não permitidos")
     if req.action == "margin":
         if req.price is None:
