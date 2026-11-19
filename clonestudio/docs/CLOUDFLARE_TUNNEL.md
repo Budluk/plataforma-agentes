@@ -10,9 +10,10 @@ que mantém o [ADR-0001](../../docs/adr/0001-loopback-only.md) em vigor.
 - `cloudflared` não está instalado; `ngrok` não está instalado.
 - `clonestudio/.env`: `HOST=127.0.0.1`, `PREVIEW_PUBLIC_URL=` vazio.
 - O servidor escuta apenas em loopback (`server/index.mjs:79`).
-- `assertTrustedRequest` (`server/index.mjs:189`) recusa mutações `/api/` com
-  `Host` diferente de loopback ou de `HOST`. Um túnel hoje faria o `health` passar,
-  mas os POSTs falhariam com 403.
+- `assertTrustedRequest` recusa mutações `/api/` com `Host` diferente de loopback
+  ou de `HOST`. Desde a preparação do item 2, o código aceita também um único
+  hostname explícito em `CLONESTUDIO_PUBLIC_HOST`; o valor continua vazio, então
+  o comportamento efetivo segue sendo somente loopback.
 - O painel já aceita HTTPS apenas para host permitido em `STUDIO_ALLOWED_HOSTS`;
   nenhuma alteração de código é necessária nele para esta preparação.
 
@@ -34,9 +35,9 @@ Todos devem estar prontos antes de qualquer comando de túnel:
 - [ ] Cloudflare Access com política restrita ao operador, mais WARP ou rota
       privada equivalente. O endpoint não pode ser alcançável por qualquer
       pessoa na internet.
-- [ ] CloneStudio com validação de Host estendida por um host público explícito
-      (por exemplo `CLONESTUDIO_PUBLIC_HOST`), com bind ainda em `127.0.0.1` e
-      testes de Host/CSRF/DNS rebinding atualizados.
+- [x] CloneStudio com validação de Host estendida por um host público explícito
+      (`CLONESTUDIO_PUBLIC_HOST`): código e testes prontos, bind permanece em
+      `127.0.0.1` e o valor continua vazio até existir hostname definitivo.
 - [ ] Autenticação e rate limiting na API do CloneStudio.
 - [ ] Container/VM e sandbox de rede para o build. O hardening atual da Fase 4
       reduz superfície, mas roda sob o mesmo usuário do servidor.
