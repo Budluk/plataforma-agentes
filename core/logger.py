@@ -4,6 +4,7 @@ import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 SENSITIVE = ("key", "token", "secret", "password", "authorization")
 SECRET_PATTERNS = (
@@ -32,6 +33,25 @@ def _redact(value):
     if isinstance(value, str):
         return _scrub(value)
     return value
+
+
+_SIZED = (str, bytes, bytearray, list, tuple, dict, set, frozenset)
+
+
+def param_metadata(params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Metadados estruturais de uma chamada, sem nenhum valor de parâmetro.
+
+    A auditoria precisa correlacionar chamadas e medir tamanhos, mas não pode
+    reconstruir prompt, mensagem ou URL (ADR-0004). Nomes, tipos e tamanhos
+    bastam. Cada parâmetro vira um item de lista em vez de uma entrada de dict:
+    assim um nome como ``inspiration_token`` não é confundido com uma chave
+    sensível pela redação do ``JsonlLogger``.
+    """
+    return [
+        {"name": str(name), "type": type(params[name]).__name__,
+         "size": len(params[name]) if isinstance(params[name], _SIZED) else None}
+        for name in sorted(params, key=str)
+    ]
 
 
 class JsonlLogger:

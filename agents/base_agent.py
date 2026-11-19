@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, final
 from pydantic import ValidationError
 from core.contracts import ToolCall
-from core.logger import JsonlLogger
+from core.logger import JsonlLogger, param_metadata
 from core.permissions import Permissions
 from core.tool_monitor import ToolMonitor
 
@@ -40,9 +40,10 @@ class BaseAgent:
 
     @final
     def call_tool(self, tool: str, **params):
-        # INV-6: loga antes de qualquer verificação ou execução
+        # INV-6: loga antes de qualquer verificação ou execução, sem valores (ADR-0004)
         self.logger.log("tool_call_attempt", run_id=self.ctx.run_id, agent=self.name,
-                        tool=tool, params=params)
+                        tool=tool, param_count=len(params),
+                        params_meta=param_metadata(params))
         try:
             call = ToolCall(agent=self.name, tool=tool, params=params)
         except ValidationError:

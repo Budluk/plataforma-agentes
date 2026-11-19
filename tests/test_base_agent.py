@@ -23,6 +23,28 @@ def test_call_tool_ok_and_logged_in_order(env):
     assert events.index("tool_call_attempt") < events.index("tool_ok")
 
 
+def test_tool_call_audit_never_records_parameter_values(env):
+    sentinel = "PROMPT_RESERVADO_NAO_GRAVAR_7f3a9c21"
+
+    def echo(asset):
+        return {"asset": asset}
+
+    a = Analyst(tools={"get_market_data": echo}, monitor=env.monitor,
+                permissions=env.perms, logger=env.logger,
+                ctx=RunContext(run_id="t"), llm=FakeLLM(OK))
+    assert a.call_tool("get_market_data", asset=sentinel)["asset"] == sentinel
+
+    raw = env.log_path.read_text(encoding="utf-8")
+    assert sentinel not in raw
+
+    event = next(e for e in env.events() if e["event"] == "tool_call_attempt")
+    assert "params" not in event
+    assert event["param_count"] == 1
+    assert event["params_meta"] == [
+        {"name": "asset", "type": "str", "size": len(sentinel)}
+    ]
+
+
 def test_permission_denied(env):
     a = make(Analyst, env, llm=FakeLLM(OK))
     with pytest.raises(ToolBlocked) as exc:
