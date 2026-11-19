@@ -5,7 +5,7 @@ from agents.sales.gate import SAFE_TEXT
 
 def check_request(req: FunnelRequest) -> list[str]:
     reasons: list[str] = []
-    if not SAFE_TEXT.match(req.product):
+    if not SAFE_TEXT.fullmatch(req.product):
         reasons.append("nome do produto contém caracteres não permitidos")
     if req.checkouts_started > req.visitors:
         reasons.append("checkouts iniciados maiores que visitantes (dados incoerentes)")
