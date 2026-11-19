@@ -10,6 +10,7 @@ from core.contracts import AlertEvent
 from core.llm_client import LLMError
 from core.market import age_seconds, check_entry_vs_market, check_quote
 from core.memory import safe_record_run
+from core.tool_registry import AGENT_TOOL
 
 
 class PipelineAgent(BaseAgent):
@@ -65,7 +66,7 @@ class FinancePipeline:
                 message=f"{proposal.direction} {proposal.asset}: R/R {risk.reward_risk_ratio:.2f}",
                 data_source=quote.source, data_age_minutes=max(0, int(age_seconds(quote, now) // 60)),
             )
-            emitter.call_tool("emit_alert", alert=alert.model_dump())
+            emitter.call_tool(AGENT_TOOL[(emitter.name, "alert")], alert=alert.model_dump())
         except (ValueError, ProposalInvalid, ToolBlocked, LLMError) as exc:
             return self._reject(ctx, asset, [f"{type(exc).__name__}: {exc}"])
         warning = safe_record_run(self.memory, self.logger, "pipeline", asset,

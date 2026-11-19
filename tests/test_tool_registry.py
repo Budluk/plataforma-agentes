@@ -1,11 +1,17 @@
 """Invariantes do registro unico de ferramentas.
 
-Garante que as cinco estruturas derivadas (monitor, permissoes, API HTTP e
-fabrica do studio) continuam sendo apenas vistas de ``core.tool_registry``,
-sem copias locais e sem divergencia de assinaturas.
+Garante que as estruturas derivadas (monitor, permissoes, API HTTP e fabricas
+de ferramentas) continuam sendo apenas vistas de ``core.tool_registry``, sem
+copias locais e sem divergencia de assinaturas.
 """
 import inspect
 
+from agents.dev.tools import build_dev_tools
+from agents.finance.tools import build_tools as build_finance_tools
+from agents.music.tools import build_music_tools
+from agents.research.agent import build_research_tools
+from agents.sales.funnel_agent import build_funnel_tools
+from agents.sales.tools import build_sales_tools
 from agents.studio.agent import StudioAgent
 from agents.studio.contracts import ACTIONS, IMPORT_KINDS
 from agents.studio.tools import build_studio_tools
@@ -13,6 +19,7 @@ from core.contracts import ToolCall
 from core.permissions import SEED as PERMISSIONS_SEED
 from core.tool_monitor import KNOWN_TOOLS, STUDIO_TOOLS, ToolMonitor
 from core.tool_registry import (
+    AGENT_TOOL,
     KNOWN_TOOLS as REGISTRY_KNOWN,
     REGISTRY,
     SEED as REGISTRY_SEED,
@@ -75,6 +82,33 @@ def test_registry_is_the_only_source_of_tool_names():
     assert {tool for _, tool in REGISTRY_SEED} == set(REGISTRY)
     assert REGISTRY_SEED == [(spec.agent, name) for name, spec in REGISTRY.items()]
     assert len(set(REGISTRY_SEED)) == 31
+
+
+def test_agent_tool_map_covers_all_non_studio_tools():
+    non_studio = {name for name, spec in REGISTRY.items() if not spec.method}
+    assert len(AGENT_TOOL) == 14
+    assert len(set(AGENT_TOOL.values())) == 14
+    assert set(AGENT_TOOL.values()) == non_studio
+    for (agent, role), name in AGENT_TOOL.items():
+        spec = REGISTRY[name]
+        assert (spec.agent, spec.agent_method) == (agent, role)
+        assert spec.action in ("", role)
+
+
+def test_agent_factories_take_their_names_from_the_registry(tmp_path):
+    assert set(build_sales_tools()) == {
+        AGENT_TOOL[("sales_agent", action)] for action in ("margin", "price", "break_even")}
+    assert set(build_music_tools()) == {
+        AGENT_TOOL[("music_agent", action)]
+        for action in ("identify_chord", "transpose", "tab")}
+    assert set(build_funnel_tools()) == {AGENT_TOOL[("sales_agent", "funnel")]}
+    assert set(build_research_tools(object())) == {AGENT_TOOL[("research_agent", "fetch")]}
+    assert set(build_dev_tools({}, set(), tmp_path)) == {
+        AGENT_TOOL[("dev_agent", role)] for role in ("analyze", "save")}
+    assert set(build_finance_tools(None, tmp_path, {})) == {
+        AGENT_TOOL[("analyst", "market_data")], AGENT_TOOL[("analyst", "note")],
+        AGENT_TOOL[("risk_manager", "portfolio")], AGENT_TOOL[("pipeline", "alert")],
+    }
 
 
 def test_derived_collections_are_reexported_without_copies():

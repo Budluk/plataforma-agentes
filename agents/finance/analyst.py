@@ -4,6 +4,7 @@ import re
 from pydantic import ValidationError
 from agents.base_agent import BaseAgent
 from core.contracts import ALLOWED_ASSETS, AnalystProposal
+from core.tool_registry import AGENT_TOOL
 
 SYSTEM = ("Você é um analista de mercado. Responda SOMENTE com um objeto JSON, sem texto extra, "
           "com as chaves: asset, direction (LONG ou SHORT), entry_price, stop_price, "
@@ -43,7 +44,7 @@ class Analyst(BaseAgent):
     def propose(self, asset: str) -> AnalystProposal:
         if asset not in ALLOWED_ASSETS:
             raise ValueError(f"ativo fora da lista permitida: {asset!r}")
-        data = self.call_tool("get_market_data", asset=asset)
+        data = self.call_tool(AGENT_TOOL[(self.name, "market_data")], asset=asset)
         self.logger.log("llm_request", run_id=self.ctx.run_id, agent=self.name, asset=asset)
         raw = self.llm.complete(SYSTEM, f"Ativo: {asset}. Dados de mercado: {json.dumps(data)}")
         self.logger.log("llm_response", run_id=self.ctx.run_id, agent=self.name,
