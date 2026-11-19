@@ -50,8 +50,12 @@ Todos devem estar prontos antes de qualquer comando de túnel:
       token Bearer e limite por IP obrigatórios quando houver host público. O
       painel já envia o token via Cloud Secret `STUDIO_API_TOKEN`; falta o valor
       definitivo do host.
-- [ ] Container/VM e sandbox de rede para o build. O hardening atual da Fase 4
-      reduz superfície, mas roda sob o mesmo usuário do servidor.
+- [ ] Isolamento real do build e sandbox de rede. O hardening atual da Fase 4
+      reduz superfície, mas roda sob o mesmo usuário do servidor. Desenho no
+      [ADR-0008](../../docs/adr/0008-isolamento-build-appcontainer.md):
+      AppContainer + Job Object (sem VM/container neste Windows Home), com
+      `CLONESTUDIO_BUILD_ISOLATION=required` obrigatório no alvo B. Ainda falta
+      spike, implementação e medição de RAM.
 - [ ] Novo ADR aprovando a mudança de A para B, com CI verde.
 
 ## Plano quando os pré-requisitos existirem
