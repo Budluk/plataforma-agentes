@@ -54,8 +54,11 @@ Todos devem estar prontos antes de qualquer comando de túnel:
       reduz superfície, mas roda sob o mesmo usuário do servidor. Desenho no
       [ADR-0008](../../docs/adr/0008-isolamento-build-appcontainer.md):
       AppContainer + Job Object (sem VM/container neste Windows Home), com
-      `CLONESTUDIO_BUILD_ISOLATION=required` obrigatório no alvo B. Ainda falta
-      spike, implementação e medição de RAM.
+      `CLONESTUDIO_BUILD_ISOLATION=required` obrigatório no alvo B. Spike de
+      2026-11-19: viabilidade confirmada — `cmd.exe`/`node.exe` iniciados dentro
+      do AppContainer e acesso a paths do host negado pelo kernel. Falta
+      implementar, medir RAM e confirmar a negação de TCP; exposição em B segue
+      bloqueada até lá.
 - [ ] Novo ADR aprovando a mudança de A para B, com CI verde.
 
 ## Plano quando os pré-requisitos existirem
