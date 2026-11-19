@@ -42,6 +42,7 @@ from core.logger import JsonlLogger
 from core.memory import Memory
 from core.permissions import Permissions
 from core.tool_monitor import ToolMonitor
+from core.tool_registry import TOOL_SPECS, ToolSpec  # noqa: F401
 from pipelines.studio_pipeline import StudioPipeline, StudioResult
 from scripts.init_db import create_all
 
@@ -53,78 +54,8 @@ MIN_TOKEN_CHARS = 16
 SERVICE = "studio-api"
 
 
-@dataclass(frozen=True)
-class ToolSpec:
-    """Mapeia o nome público da ferramenta para o método do pipeline."""
-
-    method: str
-    description: str
-    required: tuple[str, ...] = ()
-    optional: tuple[str, ...] = ()
-    integers: tuple[str, ...] = ()
-
-    def schema(self, name: str) -> dict:
-        return {
-            "name": name,
-            "description": self.description,
-            "required": list(self.required),
-            "optional": list(self.optional),
-            "integers": list(self.integers),
-        }
-
-
-TOOL_SPECS: dict[str, ToolSpec] = {
-    "studio_health": ToolSpec(
-        "health", "Confirma que o CloneStudio local está saudável."),
-    "studio_list_apps": ToolSpec(
-        "list_apps", "Lista os apps do CloneStudio (até 20, sem código)."),
-    "studio_create_app": ToolSpec(
-        "create", "Cria um app React a partir de uma descrição.",
-        required=("prompt",)),
-    "studio_app_status": ToolSpec(
-        "status", "Mostra o estado de um app, sem código nem logs.",
-        required=("project_id",)),
-    "studio_validate_app": ToolSpec(
-        "validate", "Valida o preview de um app e devolve só as contagens.",
-        required=("project_id",)),
-    "studio_send_message": ToolSpec(
-        "message", "Envia uma alteração por chat para um app.",
-        required=("project_id", "content")),
-    "studio_fix_app": ToolSpec(
-        "fix", "Pede uma correção de build para um app.",
-        required=("project_id",)),
-    "studio_fix_validation": ToolSpec(
-        "fix_validation", "Corrige problemas encontrados na validação do preview.",
-        required=("project_id",)),
-    "studio_rebuild_app": ToolSpec(
-        "rebuild", "Recompila um app existente.",
-        required=("project_id",)),
-    "studio_retry_app": ToolSpec(
-        "retry", "Tenta gerar de novo um app que falhou.",
-        required=("project_id",)),
-    "studio_list_versions": ToolSpec(
-        "versions", "Lista o histórico de versões de um app.",
-        required=("project_id",)),
-    "studio_restore_version": ToolSpec(
-        "restore", "Restaura uma versão do histórico e recompila.",
-        required=("project_id", "version"), integers=("version",)),
-    "studio_import_site": ToolSpec(
-        "import_site", "Importa um site público como app.",
-        required=("url",), optional=("prompt",)),
-    "studio_import_github": ToolSpec(
-        "import_github", "Importa um repositório público do github.com.",
-        required=("url",)),
-    "studio_import_app": ToolSpec(
-        "import_app", "Cria um app a partir de outro app existente.",
-        required=("project_id",)),
-    "studio_analyze_inspiration": ToolSpec(
-        "inspiration", "Analisa um canal/perfil público de rede social.",
-        required=("url",)),
-    "studio_create_inspiration": ToolSpec(
-        "create_inspiration", "Cria um app original a partir de uma análise.",
-        required=("inspiration_token",), optional=("prompt",)),
-}
-
+# TOOL_SPECS e ToolSpec vem do registro unico em core.tool_registry.
+# RUN_SPEC nao e uma ferramenta monitorada: e apenas a rota /run da API.
 RUN_SPEC = ToolSpec("run", "Texto livre interpretado pela área studio.",
                     required=("text",))
 

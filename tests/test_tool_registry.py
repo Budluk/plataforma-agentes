@@ -1,0 +1,179 @@
+"""Invariantes do registro unico de ferramentas.
+
+Garante que as cinco estruturas derivadas (monitor, permissoes, API HTTP e
+fabrica do studio) continuam sendo apenas vistas de ``core.tool_registry``,
+sem copias locais e sem divergencia de assinaturas.
+"""
+import inspect
+
+from agents.studio.tools import build_studio_tools
+from core.contracts import ToolCall
+from core.permissions import SEED as PERMISSIONS_SEED
+from core.tool_monitor import KNOWN_TOOLS, STUDIO_TOOLS, ToolMonitor
+from core.tool_registry import (
+    KNOWN_TOOLS as REGISTRY_KNOWN,
+    REGISTRY,
+    SEED as REGISTRY_SEED,
+    STUDIO_AGENT_TOOLS,
+    STUDIO_TOOLS as REGISTRY_STUDIO,
+    TOOL_SPECS,
+)
+from scripts.studio_api import TOOL_SPECS as API_TOOL_SPECS
+
+
+class RecordingClient:
+    """Registra metodo e argumentos sem fazer rede."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, name):
+        def record(*args):
+            self.calls.append((name, args))
+            return {"ok": True}
+        return record
+
+
+EXPECTED_SIGNATURES = {
+    "studio_health": "() -> dict",
+    "studio_list_apps": "() -> dict",
+    "studio_create_app": "(prompt: str) -> dict",
+    "studio_app_status": "(project_id: str) -> dict",
+    "studio_validate_app": "(project_id: str) -> dict",
+    "studio_send_message": "(project_id: str, content: str) -> dict",
+    "studio_fix_app": "(project_id: str) -> dict",
+    "studio_fix_validation": "(project_id: str) -> dict",
+    "studio_rebuild_app": "(project_id: str) -> dict",
+    "studio_retry_app": "(project_id: str) -> dict",
+    "studio_list_versions": "(project_id: str) -> dict",
+    "studio_restore_version": "(project_id: str, version: int) -> dict",
+    "studio_import_site": "(url: str, prompt: str | None = None) -> dict",
+    "studio_import_github": "(url: str) -> dict",
+    "studio_import_app": "(project_id: str) -> dict",
+    "studio_analyze_inspiration": "(url: str) -> dict",
+    "studio_create_inspiration": "(inspiration_token: str, prompt: str | None = None) -> dict",
+}
+
+EXPECTED_TOOL_SPEC_ORDER = [
+    "studio_health", "studio_list_apps", "studio_create_app", "studio_app_status",
+    "studio_validate_app", "studio_send_message", "studio_fix_app",
+    "studio_fix_validation", "studio_rebuild_app", "studio_retry_app",
+    "studio_list_versions", "studio_restore_version", "studio_import_site",
+    "studio_import_github", "studio_import_app", "studio_analyze_inspiration",
+    "studio_create_inspiration",
+]
+
+
+def test_registry_is_the_only_source_of_tool_names():
+    assert len(REGISTRY) == 31
+    assert KNOWN_TOOLS == frozenset(REGISTRY)
+    assert {tool for _, tool in REGISTRY_SEED} == set(REGISTRY)
+    assert REGISTRY_SEED == [(spec.agent, name) for name, spec in REGISTRY.items()]
+    assert len(set(REGISTRY_SEED)) == 31
+
+
+def test_derived_collections_are_reexported_without_copies():
+    assert KNOWN_TOOLS is REGISTRY_KNOWN
+    assert STUDIO_TOOLS is REGISTRY_STUDIO
+    assert PERMISSIONS_SEED is REGISTRY_SEED
+    assert API_TOOL_SPECS is TOOL_SPECS
+
+
+def test_studio_sets_keep_their_counts_and_meaning():
+    assert len(STUDIO_TOOLS) == 16
+    assert "studio_health" not in STUDIO_TOOLS
+    assert len(STUDIO_AGENT_TOOLS) == 17
+    assert STUDIO_AGENT_TOOLS == STUDIO_TOOLS | {"studio_health"}
+    assert STUDIO_AGENT_TOOLS == set(TOOL_SPECS)
+    assert set(TOOL_SPECS) == set(EXPECTED_SIGNATURES)
+    assert len(TOOL_SPECS) == 17
+
+
+def test_tool_spec_order_is_preserved_for_the_api_catalog():
+    assert list(TOOL_SPECS) == EXPECTED_TOOL_SPEC_ORDER
+
+
+def test_sequence_requirements_come_from_the_registry():
+    assert REGISTRY["emit_alert"].requires == ("read_portfolio",)
+    assert REGISTRY["studio_health"].requires == ()
+    for name in STUDIO_TOOLS:
+        assert REGISTRY[name].requires == ("studio_health",)
+    for name, spec in REGISTRY.items():
+        for needed in spec.requires:
+            assert needed in REGISTRY, f"{name} exige ferramenta desconhecida {needed}"
+
+
+def test_monitor_applies_registry_requirements():
+    monitor = ToolMonitor()
+    health = ToolCall(agent="studio_agent", tool="studio_health")
+    assert monitor.check(health, []).allowed
+
+    list_apps = ToolCall(agent="studio_agent", tool="studio_list_apps")
+    blocked = monitor.check(list_apps, [])
+    assert not blocked.allowed
+    assert blocked.reason == "studio_list_apps exige studio_health antes na mesma execução"
+    assert monitor.check(list_apps, ["studio_health"]).allowed
+
+    alert = ToolCall(agent="pipeline", tool="emit_alert")
+    blocked = monitor.check(alert, [])
+    assert not blocked.allowed
+    assert blocked.reason == "emit_alert exige read_portfolio antes na mesma execução"
+    assert monitor.check(alert, ["read_portfolio"]).allowed
+
+
+def test_generated_studio_tools_keep_the_original_signatures():
+    tools = build_studio_tools(RecordingClient())
+    assert list(tools) == EXPECTED_TOOL_SPEC_ORDER
+    for name, expected in EXPECTED_SIGNATURES.items():
+        call = tools[name]
+        assert call.__name__ == name
+        assert str(inspect.signature(call)) == expected
+        assert inspect.signature(call).return_annotation is dict
+
+
+def test_generated_studio_tools_dispatch_to_the_recorded_client_method():
+    client = RecordingClient()
+    tools = build_studio_tools(client)
+    params = {
+        "studio_create_app": {"prompt": "uma loja"},
+        "studio_send_message": {"project_id": "p1", "content": "mude o azul"},
+        "studio_restore_version": {"project_id": "p1", "version": 3},
+        "studio_import_site": {"url": "https://example.com", "prompt": "copy"},
+        "studio_create_inspiration": {"inspiration_token": "tok", "prompt": "ideia"},
+    }
+    for name, arguments in params.items():
+        assert tools[name](**arguments) == {"ok": True}
+    assert client.calls == [
+        ("create", ("uma loja",)),
+        ("send_message", ("p1", "mude o azul")),
+        ("restore", ("p1", 3)),
+        ("import_site", ("https://example.com", "copy")),
+        ("create_inspiration", ("tok", "ideia")),
+    ]
+
+
+def test_optional_parameters_remain_optional():
+    client = RecordingClient()
+    tools = build_studio_tools(client)
+    tools["studio_import_site"]("https://example.com")
+    tools["studio_create_inspiration"]("tok")
+    assert client.calls == [
+        ("import_site", ("https://example.com", None)),
+        ("create_inspiration", ("tok", None)),
+    ]
+
+
+def test_generated_studio_tools_reject_wrong_parameters():
+    tools = build_studio_tools(RecordingClient())
+    # Como as closures originais, a fabrica valida nomes e obrigatoriedade;
+    # tipos sao responsabilidade da API HTTP (_check_params), nao do callable.
+    for name, arguments in (
+        ("studio_create_app", {}),
+        ("studio_create_app", {"prompt": "ok", "extra": 1}),
+        ("studio_restore_version", {"project_id": "p1"}),
+    ):
+        try:
+            tools[name](**arguments)
+        except TypeError:
+            continue
+        raise AssertionError(f"{name} aceitou parametros invalidos: {arguments}")

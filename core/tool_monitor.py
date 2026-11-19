@@ -4,9 +4,8 @@ import unicodedata
 from urllib.parse import unquote
 from core.contracts import MonitorVerdict, ToolCall
 from core.hard_gate import ExecutionToolForbidden, assert_no_execution_tool
+from core.tool_registry import KNOWN_TOOLS, REGISTRY, STUDIO_TOOLS  # noqa: F401
 
-KNOWN_TOOLS = frozenset({"get_market_data", "read_portfolio", "write_research_note", "emit_alert", "identify_chord", "transpose_notes", "to_guitar_tab", "compute_margin", "suggest_price", "break_even", "analyze_funnel", "fetch_page", "analyze_code", "save_code_file", "studio_health", "studio_list_apps", "studio_create_app", "studio_app_status", "studio_validate_app", "studio_send_message", "studio_fix_app", "studio_fix_validation", "studio_rebuild_app", "studio_retry_app", "studio_import_site", "studio_import_github", "studio_import_app", "studio_list_versions", "studio_restore_version", "studio_analyze_inspiration", "studio_create_inspiration"})
-STUDIO_TOOLS = frozenset({"studio_list_apps", "studio_create_app", "studio_app_status", "studio_validate_app", "studio_send_message", "studio_fix_app", "studio_fix_validation", "studio_rebuild_app", "studio_retry_app", "studio_import_site", "studio_import_github", "studio_import_app", "studio_list_versions", "studio_restore_version", "studio_analyze_inspiration", "studio_create_inspiration"})
 # Só campos que podem virar caminho de arquivo recebem validação de conteúdo.
 # Texto livre (prompt, nota, mensagem) vai para LLM/arquivo de dados, nunca para shell.
 PATH_KEYS = frozenset({"filename", "filepath", "path", "dir", "directory"})
@@ -75,10 +74,11 @@ class ToolMonitor:
         return _scan(call.params)
 
     def _sequence(self, call: ToolCall, history: list[str]) -> str | None:
-        if call.tool == "emit_alert" and "read_portfolio" not in history:
-            return "emit_alert exige read_portfolio antes na mesma execução"
-        if call.tool in STUDIO_TOOLS and "studio_health" not in history:
-            return f"{call.tool} exige studio_health antes na mesma execução"
+        spec = REGISTRY.get(call.tool)
+        if spec is not None:
+            for needed in spec.requires:
+                if needed not in history:
+                    return f"{call.tool} exige {needed} antes na mesma execução"
         if history[-2:] == [call.tool, call.tool]:
             return f"loop detectado: {call.tool!r} chamada 3 vezes seguidas"
         return None

@@ -16,17 +16,12 @@ from agents.studio.tools import build_studio_tools
 from core.hard_gate import assert_no_execution_tool
 from core.llm_client import FakeLLM
 from core.tool_monitor import KNOWN_TOOLS, ToolMonitor
+from core.tool_registry import STUDIO_AGENT_TOOLS
 from pipelines.central_wiring import build_central
 from pipelines.studio_pipeline import StudioPipeline, new_context
 
 PROJECT = "123e4567-e89b-42d3-a456-426614174000"
 HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
-STUDIO_TOOLS = {"studio_health", "studio_list_apps", "studio_create_app",
-                "studio_app_status", "studio_validate_app", "studio_send_message",
-                "studio_fix_app", "studio_fix_validation", "studio_rebuild_app",
-                "studio_retry_app", "studio_import_site", "studio_import_github",
-                "studio_import_app", "studio_list_versions", "studio_restore_version",
-                "studio_analyze_inspiration", "studio_create_inspiration"}
 INSPIRATION_TOKEN = "64803b8e-fcca-49ff-bbbd-d2a424c6b4f9"
 YOUTUBE_URL = "https://www.youtube.com/@LofiGirl"
 SOCIAL_URLS = [YOUTUBE_URL, "https://www.tiktok.com/@perfil",
@@ -529,13 +524,13 @@ def test_every_studio_tool_requires_health_in_the_same_run(env, tool, kwargs):
 
 def test_studio_capabilities_are_exclusive(env):
     granted = {tool for tool in KNOWN_TOOLS if env.perms.is_allowed("studio_agent", tool)}
-    assert granted == STUDIO_TOOLS
+    assert granted == STUDIO_AGENT_TOOLS
     for other in ("central", "analyst", "dev_agent", "research_agent", "pipeline"):
-        assert not any(env.perms.is_allowed(other, tool) for tool in STUDIO_TOOLS)
+        assert not any(env.perms.is_allowed(other, tool) for tool in STUDIO_AGENT_TOOLS)
 
 
 def test_studio_tool_names_pass_the_execution_veto():
-    for tool in STUDIO_TOOLS:
+    for tool in STUDIO_AGENT_TOOLS:
         assert_no_execution_tool(tool)
 
 
