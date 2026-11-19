@@ -195,7 +195,7 @@ O status das abas vem do resumo de `/api/projects`. Se uma aba em segundo plano 
 
 O preview é servido por um segundo servidor HTTP em `PREVIEW_PORT` (8788). Ficar em outra porta dá uma origem diferente da do painel, então mesmo com `allow-same-origin` no sandbox o app gerado não consegue ler o DOM, o `localStorage` ou a API do CloneStudio.
 
-CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP locais; o app gerado é tratado como conteúdo não confiável.
+CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP locais, mas **não** permite `unsafe-eval` por padrão (escape hatch: `PREVIEW_ALLOW_UNSAFE_EVAL=1`); inclui `base-uri 'none'`, `object-src 'none'` e `form-action 'none'`. O app gerado é tratado como conteúdo não confiável. O build roda em um child Node com env sanitizado e `npm install --ignore-scripts` ([ADR-0002](../../docs/adr/0002-build-sandbox-sem-docker.md)) — isso reduz a superfície, mas **não** é isolamento de segurança real: o child usa o mesmo usuário do servidor.
 
 ## API
 
@@ -231,7 +231,7 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 
 ## Limites e evolução
 
-Para produção, os próximos passos são: autenticação, rate limiting (apenas se o alvo deixar de ser loopback), workers isolados por container e sandbox de rede para o build. Já estão implementados: auditoria com redação, fila durável em `DATA_DIR/jobs.json`, hardening do child do Vite e SSE opt-in (`CLONESTUDIO_SSE_ENABLED=1`) com fallback para polling. O alvo atual continua sendo `127.0.0.1`; o build roda no mesmo usuário do servidor e **não** é isolamento de segurança real.
+Para produção, os próximos passos são: autenticação, rate limiting (apenas se o alvo deixar de ser loopback), workers isolados por container e sandbox de rede para o build. Já estão implementados: auditoria com redação, fila durável em `DATA_DIR/jobs.json`, hardening do child do Vite e SSE opt-in (`CLONESTUDIO_SSE_ENABLED=1`) com fallback para polling. O alvo atual continua sendo `127.0.0.1`; o build roda no mesmo usuário do servidor e **não** é isolamento de segurança real. As decisões e o estado do plano estão no [índice de ADRs](../../docs/adr/README.md).
 
 A validação é controlada por `PREVIEW_VALIDATION`, `PREVIEW_VALIDATION_TIMEOUT_MS`, `PREVIEW_VALIDATION_HOST` e `PREVIEW_BROWSER_CHANNEL`. Com `PREVIEW_VALIDATION=off`, o build continua funcionando e o relatório registra `disabled`.
 
