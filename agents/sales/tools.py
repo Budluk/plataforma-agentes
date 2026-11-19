@@ -1,5 +1,6 @@
 from __future__ import annotations
 from agents.sales import pricing
+from core.tool_registry import AGENT_TOOL
 
 
 def build_sales_tools() -> dict:
@@ -17,4 +18,5 @@ def build_sales_tools() -> dict:
         units = pricing.break_even_units(fixed_costs, unit_cost, price)
         return {"units": units, "revenue": round(units * price, 2)}
 
-    return {"compute_margin": compute_margin, "suggest_price": suggest_price, "break_even": break_even}
+    return {AGENT_TOOL[("sales_agent", role)]: fn for role, fn in (
+        ("margin", compute_margin), ("price", suggest_price), ("break_even", break_even))}

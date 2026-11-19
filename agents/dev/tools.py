@@ -2,6 +2,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from agents.dev.static_check import analyze_source
+from core.tool_registry import AGENT_TOOL
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_\-]{1,40}\.py$")
 RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
@@ -31,4 +32,5 @@ def build_dev_tools(holder: dict, allowed_imports, out_dir) -> dict:
         target.write_text(HEADER + holder["code"].rstrip("\n") + "\n", encoding="utf-8")
         return {"filename": target.name, "path": str(target), "executed": False}
 
-    return {"analyze_code": analyze_code, "save_code_file": save_code_file}
+    return {AGENT_TOOL[("dev_agent", role)]: fn for role, fn in (
+        ("analyze", analyze_code), ("save", save_code_file))}

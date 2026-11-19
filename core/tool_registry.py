@@ -11,6 +11,7 @@ e pela fabrica de ferramentas do studio sao todas derivadas de ``REGISTRY``:
 * ``STUDIO_ACTION_TOOL`` -> (acao, kind) da StudioRequest -> nome da ferramenta;
 * ``STUDIO_AGENT_TOOL`` -> metodo do StudioAgent -> nome da ferramenta;
 * ``STUDIO_PARAM_ALIASES`` -> campo da ferramenta -> campo da StudioRequest;
+* ``AGENT_TOOL``          -> (agente, papel) -> ferramenta (areas nao studio);
 * ``build_studio_tools`` -> callables Python entregues ao StudioAgent.
 
 Somente stdlib: nenhum import de ``core.*``, ``agents.*``, ``pipelines.*`` ou
@@ -64,20 +65,27 @@ class ToolSpec:
 
 REGISTRY: dict[str, ToolSpec] = {
     # --- areas nao studio -------------------------------------------------
-    "get_market_data": ToolSpec(agent="analyst"),
-    "read_portfolio": ToolSpec(agent="risk_manager"),
-    "write_research_note": ToolSpec(agent="analyst"),
-    "emit_alert": ToolSpec(agent="pipeline", requires=("read_portfolio",)),
-    "identify_chord": ToolSpec(agent="music_agent"),
-    "transpose_notes": ToolSpec(agent="music_agent"),
-    "to_guitar_tab": ToolSpec(agent="music_agent"),
-    "compute_margin": ToolSpec(agent="sales_agent"),
-    "suggest_price": ToolSpec(agent="sales_agent"),
-    "break_even": ToolSpec(agent="sales_agent"),
-    "analyze_funnel": ToolSpec(agent="sales_agent"),
-    "fetch_page": ToolSpec(agent="research_agent"),
-    "analyze_code": ToolSpec(agent="dev_agent"),
-    "save_code_file": ToolSpec(agent="dev_agent"),
+    # ``agent_method`` e o papel semantico usado pelo agente/fabrica; o nome da
+    # ferramenta continua sendo a chave do registro, nunca um literal na camada
+    # que chama ou constroi a ferramenta.
+    "get_market_data": ToolSpec(agent="analyst", agent_method="market_data"),
+    "read_portfolio": ToolSpec(agent="risk_manager", agent_method="portfolio"),
+    "write_research_note": ToolSpec(agent="analyst", agent_method="note"),
+    "emit_alert": ToolSpec(agent="pipeline", requires=("read_portfolio",),
+                           agent_method="alert"),
+    "identify_chord": ToolSpec(agent="music_agent", agent_method="identify_chord",
+                               action="identify_chord"),
+    "transpose_notes": ToolSpec(agent="music_agent", agent_method="transpose",
+                                action="transpose"),
+    "to_guitar_tab": ToolSpec(agent="music_agent", agent_method="tab", action="tab"),
+    "compute_margin": ToolSpec(agent="sales_agent", agent_method="margin", action="margin"),
+    "suggest_price": ToolSpec(agent="sales_agent", agent_method="price", action="price"),
+    "break_even": ToolSpec(agent="sales_agent", agent_method="break_even",
+                           action="break_even"),
+    "analyze_funnel": ToolSpec(agent="sales_agent", agent_method="funnel"),
+    "fetch_page": ToolSpec(agent="research_agent", agent_method="fetch"),
+    "analyze_code": ToolSpec(agent="dev_agent", agent_method="analyze"),
+    "save_code_file": ToolSpec(agent="dev_agent", agent_method="save"),
     # --- area studio ------------------------------------------------------
     # studio_health nao exige a si mesma: e a sonda que habilita as outras 16.
     "studio_health": ToolSpec(
@@ -251,4 +259,13 @@ STUDIO_PARAM_ALIASES: dict[str, str] = {
     param: source
     for spec in REGISTRY.values()
     for param, source in spec.param_aliases
+}
+
+# Areas nao studio: (agente, papel) -> ferramenta. ``agent_method`` e o papel
+# publico (inclui as acoes fechadas de sales/music, que usam o mesmo valor).
+# As 14 ferramentas fora do studio passam a ter seu nome resolvido aqui.
+AGENT_TOOL: dict[tuple[str, str], str] = {
+    (spec.agent, spec.agent_method): name
+    for name, spec in REGISTRY.items()
+    if spec.agent and spec.agent_method and not spec.method
 }

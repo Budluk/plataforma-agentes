@@ -6,6 +6,7 @@ from agents.finance.market_parsers import MarketDataError
 from core.contracts import ALLOWED_ASSETS, AlertEvent
 from core.market import Quote, age_seconds
 from core.memory import Memory
+from core.tool_registry import AGENT_TOOL
 
 MOCK_PRICES = {"PETR4": 38.0, "VALE3": 62.0, "ITUB4": 33.0, "BTCUSDT": 65000.0, "EURUSD": 1.08}
 _NOTE_NAME = re.compile(r"^(?P<asset>[A-Z0-9]+)_(?P<number>[1-9][0-9]{0,8})\.md$")
@@ -71,5 +72,9 @@ def build_tools(memory: Memory, notes_dir, portfolio: dict, market=None, quote_h
         memory.save_alert(event.asset, event.model_dump())
         return event.model_dump()
 
-    return {"get_market_data": get_market_data, "read_portfolio": read_portfolio,
-            "write_research_note": write_research_note, "emit_alert": emit_alert}
+    return {
+        **{AGENT_TOOL[("analyst", role)]: fn for role, fn in (
+            ("market_data", get_market_data), ("note", write_research_note))},
+        AGENT_TOOL[("risk_manager", "portfolio")]: read_portfolio,
+        AGENT_TOOL[("pipeline", "alert")]: emit_alert,
+    }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from agents.music import theory
+from core.tool_registry import AGENT_TOOL
 
 
 def build_music_tools() -> dict:
@@ -13,5 +14,6 @@ def build_music_tools() -> dict:
     def to_guitar_tab(notes: list) -> dict:
         return {"tab": theory.to_guitar_tab(notes)}
 
-    return {"identify_chord": identify_chord, "transpose_notes": transpose_notes,
-            "to_guitar_tab": to_guitar_tab}
+    return {AGENT_TOOL[("music_agent", role)]: fn for role, fn in (
+        ("identify_chord", identify_chord), ("transpose", transpose_notes),
+        ("tab", to_guitar_tab))}

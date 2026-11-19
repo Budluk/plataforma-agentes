@@ -3,13 +3,14 @@ from pydantic import ValidationError
 from agents.base_agent import BaseAgent
 from core.contracts import AnalystProposal, ComputedRisk, PortfolioState, RiskDecision
 from core.hard_gate import compute_risk, evaluate_risk
+from core.tool_registry import AGENT_TOOL
 
 
 class RiskManager(BaseAgent):
     name = "risk_manager"
 
     def assess(self, proposal: AnalystProposal) -> tuple[ComputedRisk, RiskDecision]:
-        raw = self.call_tool("read_portfolio")
+        raw = self.call_tool(AGENT_TOOL[(self.name, "portfolio")])
         invalid = ""
         try:
             portfolio = PortfolioState.model_validate(raw)

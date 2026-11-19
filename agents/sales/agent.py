@@ -1,8 +1,7 @@
 from __future__ import annotations
 from agents.base_agent import BaseAgent
 from agents.sales.contracts import SalesRequest
-
-TOOL_BY_ACTION = {"margin": "compute_margin", "price": "suggest_price", "break_even": "break_even"}
+from core.tool_registry import AGENT_TOOL
 
 
 class SalesAgent(BaseAgent):
@@ -16,4 +15,4 @@ class SalesAgent(BaseAgent):
                       "competitor_prices": list(req.competitor_prices)}
         else:
             params = {"unit_cost": req.unit_cost, "price": req.price, "fixed_costs": req.fixed_costs}
-        return self.call_tool(TOOL_BY_ACTION[req.action], **params)
+        return self.call_tool(AGENT_TOOL[(self.name, req.action)], **params)
