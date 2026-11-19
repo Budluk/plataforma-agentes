@@ -18,6 +18,7 @@ import {
   writeGeneratedFiles,
 } from './storage.mjs';
 import { ALLOWED_PACKAGES, buildFileDump, parseGenerationResponse } from './generation-core.mjs';
+import { assertSafeBuildConfig, buildChildEnv } from './build-sandbox.mjs';
 import { hashText, logAudit, rejectionFields } from './audit.mjs';
 import { enqueue, isJobActive, queueStats, recover as recoverJobsFromStore } from './job-queue.mjs';
 import { buildValidationInstruction } from './validation-core.mjs';
@@ -31,6 +32,7 @@ let activeBuilds = 0;
 
 const GENERATION_TIMEOUT = Number(process.env.AI_GENERATION_TIMEOUT_MS || 300000);
 const BUILD_TIMEOUT = Number(process.env.BUILD_TIMEOUT_MS || 240000);
+const BUILD_HEAP_MB = Math.max(128, Number(process.env.CLONESTUDIO_BUILD_HEAP_MB || 512));
 const MAX_TOKENS = Number(process.env.AI_CODEGEN_MAX_TOKENS || 12000);
 
 export const SYSTEM_PROMPT = `Você é o motor de código do CloneStudio AI, um construtor de apps estilo Lovable.
@@ -393,13 +395,8 @@ function runCommand(command, args, options = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
-      env: {
-        ...process.env,
-        CI: '1',
-        NO_COLOR: '1',
-        FORCE_COLOR: '0',
-        ...(options.env || {}),
-      },
+      // Nenhuma chave de provedor/token chega ao processo que compila o app.
+      env: buildChildEnv({ maxOldSpaceMb: BUILD_HEAP_MB, extra: options.env || {} }),
       windowsHide: true,
       shell: false,
     });
@@ -469,9 +466,9 @@ async function runNpmInstall(packages = []) {
         '/d',
         '/s',
         '/c',
-        `npm.cmd install${packageArgs} --no-audit --no-fund --loglevel=error`,
+        `npm.cmd install${packageArgs} --ignore-scripts --no-audit --no-fund --loglevel=error`,
       ]
-    : ['install', ...packages, '--no-audit', '--no-fund', '--loglevel=error'];
+    : ['install', ...packages, '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error'];
   return runCommand(command, args, { cwd: TEMPLATE_DIR, timeout: 300000 });
 }
 
@@ -578,6 +575,7 @@ async function doBuild(id, { afterBuild } = {}) {
   if (!getProject(id)) throw new Error('Projeto removido durante o build.');
 
   const dir = syncProjectTemplate(id);
+  assertSafeBuildConfig(dir, { templateDir: TEMPLATE_DIR });
   await linkTemplateModules(id);
   const viteBin = path.join(TEMPLATE_DIR, 'node_modules', 'vite', 'bin', 'vite.js');
 
