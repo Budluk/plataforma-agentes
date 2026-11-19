@@ -4,8 +4,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-MAX_CHARS = 8000
-MAX_LINES = 250
+from agents.dev.contracts import MAX_CODE_CHARS, MAX_LINES
+
+MAX_CHARS = MAX_CODE_CHARS
 MAX_FINDINGS = 20
 FORBIDDEN_NAMES = frozenset({
     "eval", "exec", "compile", "__import__", "open", "input", "breakpoint", "globals", "locals",
