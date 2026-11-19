@@ -15,7 +15,7 @@ def base(**kw) -> str:
 
 
 class BoomLLM:
-    def complete(self, system, user):
+    def complete(self, system, user, *, max_tokens=None):
         raise LLMError("HTTP 500")
 
 

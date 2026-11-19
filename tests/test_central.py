@@ -41,7 +41,7 @@ class CaptureLLM:
     def __init__(self, response):
         self.response, self.user = response, None
 
-    def complete(self, system, user):
+    def complete(self, system, user, *, max_tokens=None):
         self.user = user
         return self.response
 
@@ -87,7 +87,7 @@ def test_router_falls_back_to_none_on_bad_output(env, raw):
 
 def test_router_none_when_llm_fails(env):
     class Boom:
-        def complete(self, s, u):
+        def complete(self, s, u, *, max_tokens=None):
             raise LLMError("HTTP 500")
     assert Router(Boom(), env.logger).route("faça algo", "r1").area == "none"
 
