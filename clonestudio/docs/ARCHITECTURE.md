@@ -233,6 +233,8 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 
 Para produção, os próximos passos são: autenticação, rate limiting (apenas se o alvo deixar de ser loopback), workers isolados por container e sandbox de rede para o build. Já estão implementados: auditoria com redação, fila durável em `DATA_DIR/jobs.json`, hardening do child do Vite e SSE opt-in (`CLONESTUDIO_SSE_ENABLED=1`) com fallback para polling. O alvo atual continua sendo `127.0.0.1`; o build roda no mesmo usuário do servidor e **não** é isolamento de segurança real. As decisões e o estado do plano estão no [índice de ADRs](../../docs/adr/README.md).
 
+A preparação para o alvo B está registrada no [ADR-0007](../../docs/adr/0007-preparacao-alvo-b-cloudflare-tunnel.md) e no [runbook do Cloudflare Tunnel](./CLOUDFLARE_TUNNEL.md). Nenhum túnel está instalado ou autorizado para execução; `assertTrustedRequest` ainda rejeita `Host` não-loopback em mutações.
+
 A validação é controlada por `PREVIEW_VALIDATION`, `PREVIEW_VALIDATION_TIMEOUT_MS`, `PREVIEW_VALIDATION_HOST` e `PREVIEW_BROWSER_CHANNEL`. Com `PREVIEW_VALIDATION=off`, o build continua funcionando e o relatório registra `disabled`.
 
 O Context7 é controlado por `CONTEXT7_ENABLED`, `CONTEXT7_BASE_URL`, `CONTEXT7_API_KEY`, `CONTEXT7_TIMEOUT_MS`, `CONTEXT7_MAX_LIBRARIES`, `CONTEXT7_MAX_CHARS` e `CONTEXT7_CACHE_TTL_MS`. Com `CONTEXT7_ENABLED=off`, o gerador não faz chamadas MCP e registra `disabled`.
