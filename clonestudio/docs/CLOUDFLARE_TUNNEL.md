@@ -20,8 +20,10 @@ que mantém o [ADR-0001](../../docs/adr/0001-loopback-only.md) em vigor.
 - Com host público, o limite é 120 requisições/minuto por IP (ajustável em
   `CLONESTUDIO_RATE_LIMIT_PER_MIN`); sem host público, o limite fica desligado
   a menos que `CLONESTUDIO_RATE_LIMIT_ENABLED=1`.
-- O painel já aceita HTTPS apenas para host permitido em `STUDIO_ALLOWED_HOSTS`;
-  falta apenas configurar o envio do token quando o host público existir.
+- O painel aceita HTTPS apenas para host permitido em `STUDIO_ALLOWED_HOSTS` e
+  já envia `Authorization: Bearer <token>` quando `STUDIO_API_TOKEN` está
+  definido como Cloud Secret. O valor fica fora do repositório; sem a variável,
+  o cliente segue sem header de autenticação (comportamento do alvo A).
 
 ## O que não fazer
 
@@ -45,8 +47,9 @@ Todos devem estar prontos antes de qualquer comando de túnel:
       (`CLONESTUDIO_PUBLIC_HOST`): código e testes prontos, bind permanece em
       `127.0.0.1` e o valor continua vazio até existir hostname definitivo.
 - [x] Autenticação e rate limiting na API do CloneStudio: código pronto, com
-      token Bearer e limite por IP obrigatórios quando houver host público. Falta
-      o painel enviar o token e o valor definitivo do host.
+      token Bearer e limite por IP obrigatórios quando houver host público. O
+      painel já envia o token via Cloud Secret `STUDIO_API_TOKEN`; falta o valor
+      definitivo do host.
 - [ ] Container/VM e sandbox de rede para o build. O hardening atual da Fase 4
       reduz superfície, mas roda sob o mesmo usuário do servidor.
 - [ ] Novo ADR aprovando a mudança de A para B, com CI verde.
@@ -62,6 +65,9 @@ Todos devem estar prontos antes de qualquer comando de túnel:
 4. No painel, informar em Configurações:
    - `STUDIO_BASE_URL=https://<host>`;
    - `STUDIO_ALLOWED_HOSTS=<host>` (somente o host definitivo).
+   O token `STUDIO_API_TOKEN` vai em **Cloud Secret** do Lovable, com o mesmo
+   valor de `CLONESTUDIO_API_TOKEN` do `.env` do CloneStudio — nunca em arquivo
+   versionado, nunca em `.env` do painel.
 5. Validar, pelo túnel, `GET /api/health` e uma mutação simples em um projeto de
    teste com `DATA_DIR` temporário. Não usar projetos reais nesse teste.
 6. Registrar o resultado no ADR de mudança de alvo e atualizar
