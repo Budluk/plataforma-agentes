@@ -29,15 +29,22 @@ const MIME = {
   '.mp3': 'audio/mpeg',
 };
 
-const PREVIEW_CSP = [
+// `unsafe-eval` nao e necessario para o build de producao do Vite. Mantido
+// como escape hatch apenas para apps antigos que dependam de `new Function`.
+const PREVIEW_ALLOW_EVAL = process.env.PREVIEW_ALLOW_UNSAFE_EVAL === '1';
+
+export const PREVIEW_CSP = [
   "default-src 'self' data: blob: https: http:",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+  ['script-src', "'self'", "'unsafe-inline'", 'blob:', ...(PREVIEW_ALLOW_EVAL ? ["'unsafe-eval'"] : [])].join(' '),
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https: http:",
   "font-src 'self' data: https:",
   "media-src 'self' data: blob: https: http:",
   "frame-src 'self' https: http: blob:",
   "connect-src 'self' https: http: ws: wss:",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "form-action 'none'",
 ].join('; ');
 
 function previewHandler(req, res) {

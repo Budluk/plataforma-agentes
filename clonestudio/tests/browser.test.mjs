@@ -148,6 +148,7 @@ test('abas, janelas e persistência do workspace', async (t) => {
       HOST: '127.0.0.1',
       PORT: String(port),
       PREVIEW_PORT: String(previewPort),
+      PREVIEW_ALLOW_UNSAFE_EVAL: '0',
       CONTEXT7_ENABLED: 'off',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -171,6 +172,13 @@ test('abas, janelas e persistência do workspace', async (t) => {
 
   await waitForServer(`http://127.0.0.1:${port}/api/health`, 20000, getLogs);
   await waitForServer(`http://127.0.0.1:${previewPort}/preview/${alpha.id}/`, 20000, getLogs);
+
+  const previewCsp =
+    (await fetch(`http://127.0.0.1:${previewPort}/preview/${alpha.id}/`)).headers.get(
+      'content-security-policy',
+    ) || '';
+  assert.ok(!previewCsp.includes("'unsafe-eval'"), 'CSP do preview nao deve permitir eval');
+  assert.match(previewCsp, /base-uri 'none'/);
 
   browser = await chromium.launch({
     executablePath: browserPath,
