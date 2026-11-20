@@ -103,3 +103,39 @@ test('rotacao mantem o limite de backups e o registro mais recente', () => {
     for (const line of content.trim().split('\n')) JSON.parse(line);
   }
 });
+
+test('filterFreshLines preserva linhas sem timestamp identificavel', () => {
+  const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const result = audit.filterFreshLines(
+    ['linha sem json', JSON.stringify({ ts: cutoff, event: 'limite' }), ''].join('\n'),
+    cutoff,
+  );
+  assert.match(result.text, /linha sem json/);
+  assert.match(result.text, /limite/);
+  assert.equal(result.removed, 0);
+});
+
+test('retencao por idade remove registros antigos do arquivo e dos backups', () => {
+  const retentionFile = path.join(dataDir, 'ret.jsonl');
+  const now = Date.now();
+  const oldTs = new Date(now - 40 * 86_400_000).toISOString();
+  const recentTs = new Date(now - 1_000).toISOString();
+  fs.writeFileSync(
+    retentionFile,
+    [
+      JSON.stringify({ ts: oldTs, event: 'antigo' }),
+      JSON.stringify({ ts: recentTs, event: 'recente' }),
+      '',
+    ].join('\n'),
+  );
+  fs.writeFileSync(`${retentionFile}.1`, `${JSON.stringify({ ts: oldTs, event: 'backupAntigo' })}\n`);
+
+  const logger = new audit.JsonlAudit({ filePath: retentionFile, retentionDays: 30, backups: 2 });
+  assert.equal(logger.expire(now), 2);
+
+  const main = fs.readFileSync(retentionFile, 'utf8');
+  assert.match(main, /recente/);
+  assert.ok(!main.includes('antigo'));
+  assert.equal(fs.existsSync(`${retentionFile}.1`), false);
+  for (const line of main.trim().split('\n')) JSON.parse(line);
+});

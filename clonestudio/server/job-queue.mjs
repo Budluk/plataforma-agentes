@@ -12,11 +12,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DATA_DIR, renameWithRetry } from './storage.mjs';
 import { logAudit } from './audit.mjs';
+import { envPositiveInt, queueLockPath, withQueueLock } from './queue-lock.mjs';
 
 export const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
+export const QUEUE_LOCK_DIR = queueLockPath(DATA_DIR);
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 const CONCURRENCY = Math.max(1, Number(process.env.CLONESTUDIO_JOB_CONCURRENCY || 2));
 const MAX_RECORDS = Math.max(10, Number(process.env.CLONESTUDIO_JOB_HISTORY || 100));
+const LOCK_TIMEOUT_MS = envPositiveInt('CLONESTUDIO_JOB_LOCK_TIMEOUT_MS', 2_000);
+const LOCK_STALE_MS = envPositiveInt('CLONESTUDIO_JOB_LOCK_STALE_MS', 60_000);
 
 let records = [];
 let pending = [];
@@ -29,23 +33,48 @@ function isTerminal(state) {
   return TERMINAL.has(state);
 }
 
+function parseRecords(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.jobs)) {
+      // Mantem o estado persistido: `running` precisa ser distinguido de
+      // `queued` na recuperacao para virar `cancelled` apos um restart.
+      return parsed.jobs.filter(
+        (record) => record && typeof record.id === 'string' && typeof record.kind === 'string',
+      );
+    }
+  } catch {
+    // Arquivo ausente ou corrompido: nao inventa registros.
+  }
+  return [];
+}
+
 function load() {
   if (loaded) return;
   loaded = true;
   try {
-    const parsed = JSON.parse(fs.readFileSync(JOBS_FILE, 'utf8'));
-    if (Array.isArray(parsed?.jobs)) {
-      // Mantem o estado persistido: `running` precisa ser distinguido de
-      // `queued` na recuperacao para virar `cancelled` apos um restart.
-      records = parsed.jobs.filter(
-        (record) => record && typeof record.id === 'string' && typeof record.kind === 'string',
-      );
-    }
+    records = parseRecords(fs.readFileSync(JOBS_FILE, 'utf8'));
   } catch (error) {
     if (error.code !== 'ENOENT') {
       console.error(`[jobs] Nao foi possivel ler ${JOBS_FILE}:`, error.message);
     }
   }
+}
+
+/** Uniao deterministica: registros locais e do disco, com updatedAt mais novo vencendo. */
+export function mergeRecords(local = [], disk = []) {
+  const byId = new Map();
+  for (const record of disk) {
+    if (record && typeof record.id === 'string') byId.set(record.id, record);
+  }
+  for (const record of local) {
+    if (!record || typeof record.id !== 'string') continue;
+    const current = byId.get(record.id);
+    if (!current || String(record.updatedAt || '') >= String(current.updatedAt || '')) {
+      byId.set(record.id, record);
+    }
+  }
+  return [...byId.values()];
 }
 
 /** Serializa as gravacoes para que um estado mais recente nunca seja sobrescrito. */
@@ -55,14 +84,31 @@ export function flushJobs() {
 
 function persist() {
   load();
-  const snapshot = JSON.stringify({ version: 1, jobs: records }, null, 2);
   saveChain = saveChain
     .catch(() => {})
     .then(async () => {
-      await fs.promises.mkdir(path.dirname(JOBS_FILE), { recursive: true });
-      const tmp = `${JOBS_FILE}.${process.pid}.tmp`;
-      await fs.promises.writeFile(tmp, snapshot, 'utf8');
-      await renameWithRetry(tmp, JOBS_FILE);
+      await withQueueLock(
+        QUEUE_LOCK_DIR,
+        async () => {
+          const diskRecords = await fs.promises
+            .readFile(JOBS_FILE, 'utf8')
+            .then(parseRecords)
+            .catch((error) => {
+              if (error.code === 'ENOENT') return [];
+              throw error;
+            });
+          // Rele o disco dentro do lock: outro processo pode ter enfileirado
+          // jobs enquanto este processo estava ocupado.
+          records = mergeRecords(records, diskRecords);
+          prune();
+          const snapshot = JSON.stringify({ version: 1, jobs: records }, null, 2);
+          await fs.promises.mkdir(path.dirname(JOBS_FILE), { recursive: true });
+          const tmp = `${JOBS_FILE}.${process.pid}.tmp`;
+          await fs.promises.writeFile(tmp, snapshot, 'utf8');
+          await renameWithRetry(tmp, JOBS_FILE);
+        },
+        { timeoutMs: LOCK_TIMEOUT_MS, staleMs: LOCK_STALE_MS },
+      );
     })
     .catch((error) => {
       console.error('[jobs] Nao foi possivel gravar jobs.json:', error.message);

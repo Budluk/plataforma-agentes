@@ -235,8 +235,9 @@ estão em [`docs/adr/`](docs/adr/README.md):
 
 | Item | Onde | Efeito |
 |---|---|---|
-| Auditoria | `clonestudio/server/audit.mjs` | JSONL em `<DATA_DIR>/audit.jsonl`, com `request_id` e redação; nunca grava corpo, prompt ou resposta bruta |
-| Fila durável | `clonestudio/server/job-queue.mjs` | Jobs em `<DATA_DIR>/jobs.json`, estados `queued|running|succeeded|failed|cancelled`, retomada no boot e concorrência 2 |
+| Auditoria | `clonestudio/server/audit.mjs` | JSONL em `<DATA_DIR>/audit.jsonl`, com `request_id`, redação e retenção por idade (`CLONESTUDIO_AUDIT_RETENTION_DAYS`, padrão 30); nunca grava corpo, prompt ou resposta bruta |
+| Fila durável | `clonestudio/server/job-queue.mjs` | Jobs em `<DATA_DIR>/jobs.json`, estados `queued|running|succeeded|failed|cancelled`, retomada no boot e concorrência 2; gravações protegidas por lock entre processos (`clonestudio/server/queue-lock.mjs`) |
+| Health | `clonestudio/server/index.mjs` | `GET /api/health` expõe profundidade da fila, modo de isolamento do build e estado de auth/rate limit, sem token ou hostname |
 | Sandbox de build | `clonestudio/server/build-sandbox.mjs` | Env do child sanitizado, `npm install --ignore-scripts`, guard de config e CSP do preview sem `unsafe-eval` por padrão |
 | SSE opt-in | `clonestudio/server/sse.mjs` | `GET /api/events` desligado por padrão (`CLONESTUDIO_SSE_ENABLED=1`); só avisa `scope`/`id`/`revision`, com fallback para polling |
 
@@ -248,7 +249,7 @@ alvo A o build segue em child Node com env limpo e **não é isolamento de segur
 continua restrito a loopback no boot, e nenhum modelo local foi adicionado (FreeLLMAPI remoto).
 
 Validação final em `main`: `pytest -q` (807), `check_env.py`, `pip check`, `npm run check`,
-`npm test` (194), `npm run test:browser` (19) e, em `lovable-app/`, `bun run typecheck`,
+`npm test` (201), `npm run test:browser` (19) e, em `lovable-app/`, `bun run typecheck`,
 `bun run test` (97) e `bun run build`. O job `ui` do CI executa essas três checagens; `lint`
 fica de fora por dívida de formatação Prettier pré-existente.
 

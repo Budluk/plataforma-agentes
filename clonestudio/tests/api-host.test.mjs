@@ -23,10 +23,16 @@ function freePort() {
   });
 }
 
-function rawGet(port, hostHeader, pathname = '/api/health') {
+function rawGet(port, hostHeader, pathname = '/api/health', extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { host: '127.0.0.1', port, path: pathname, method: 'GET', headers: { Host: hostHeader } },
+      {
+        host: '127.0.0.1',
+        port,
+        path: pathname,
+        method: 'GET',
+        headers: { Host: hostHeader, ...extraHeaders },
+      },
       (res) => {
         let body = '';
         res.setEncoding('utf8');
@@ -41,12 +47,12 @@ function rawGet(port, hostHeader, pathname = '/api/health') {
   });
 }
 
-async function waitForServer(port, timeoutMs, getLogs) {
+async function waitForServer(port, timeoutMs, getLogs, headers = {}) {
   const deadline = Date.now() + timeoutMs;
   let last = 'sem resposta';
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/health`);
+      const response = await fetch(`http://127.0.0.1:${port}/api/health`, { headers });
       if (response.ok) return;
       last = `HTTP ${response.status}`;
     } catch (error) {
@@ -131,7 +137,15 @@ test('todas as rotas /api/ validam o Host, inclusive GET', async (t) => {
 
   const healthy = await rawGet(port, `127.0.0.1:${port}`);
   assert.equal(healthy.status, 200, getLogs());
-  assert.equal(JSON.parse(healthy.body).ok, true);
+  const health = JSON.parse(healthy.body);
+  assert.equal(health.ok, true);
+  assert.equal(health.buildIsolation, 'off');
+  assert.equal(health.auth.enabled, false);
+  assert.equal(health.auth.rateLimitEnabled, false);
+  assert.equal(health.auth.publicHostConfigured, false);
+  assert.equal(typeof health.queue.queued, 'number');
+  assert.equal(typeof health.queue.running, 'number');
+  assert.equal(typeof health.queue.history, 'number');
 
   const configLoopback = await rawGet(port, `127.0.0.1:${port}`, '/api/config');
   assert.equal(configLoopback.status, 200, getLogs());
@@ -146,4 +160,56 @@ test('todas as rotas /api/ validam o Host, inclusive GET', async (t) => {
   const csp = String(page.headers['content-security-policy'] || '');
   assert.ok(!csp.includes('evil.example.com'), 'CSP não deve refletir Host não confiável');
   assert.match(csp, new RegExp(`frame-src http://127\\.0\\.0\\.1:${previewPort}\\b`));
+});
+
+test('health informa auth e isolamento sem revelar o token', async (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'clonestudio-health-'));
+  const port = await freePort();
+  const previewPort = await freePort();
+  const token = 'health-token-1234567890';
+  const headers = { Authorization: `Bearer ${token}` };
+  const logs = [];
+  const server = spawn(process.execPath, ['server/index.mjs'], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      DATA_DIR: temp,
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      PREVIEW_PORT: String(previewPort),
+      PREVIEW_PUBLIC_URL: '',
+      CLONESTUDIO_PUBLIC_HOST: '',
+      CLONESTUDIO_API_TOKEN: token,
+      CLONESTUDIO_RATE_LIMIT_ENABLED: '1',
+      CLONESTUDIO_RATE_LIMIT_PER_MIN: '20',
+      CLONESTUDIO_SSE_ENABLED: '0',
+      CONTEXT7_ENABLED: 'off',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  server.stdout.on('data', (chunk) => logs.push(chunk.toString()));
+  server.stderr.on('data', (chunk) => logs.push(chunk.toString()));
+  const getLogs = () => logs.join('').trim() || '(sem saída do servidor)';
+
+  t.after(async () => {
+    if (!server.killed) server.kill();
+    await Promise.race([once(server, 'exit'), delay(4000)]).catch(() => {});
+    fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  });
+
+  await waitForServer(port, 20000, getLogs, headers);
+
+  const unauthenticated = await rawGet(port, `127.0.0.1:${port}`);
+  assert.equal(unauthenticated.status, 401, getLogs());
+
+  const authorized = await rawGet(port, `127.0.0.1:${port}`, '/api/health', headers);
+  assert.equal(authorized.status, 200, getLogs());
+  const health = JSON.parse(authorized.body);
+  assert.equal(health.auth.enabled, true);
+  assert.equal(health.auth.rateLimitEnabled, true);
+  assert.equal(health.auth.rateLimitPerMin, 20);
+  assert.equal(health.auth.publicHostConfigured, false);
+  assert.equal(health.buildIsolation, 'off');
+  assert.ok(!authorized.body.includes(token));
 });

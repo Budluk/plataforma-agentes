@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { ROOT } from './env.mjs';
 import { logAudit } from './audit.mjs';
+import { queueStats } from './job-queue.mjs';
 import { runWithRequest } from './request-context.mjs';
 import {
   addMessage,
@@ -116,6 +117,13 @@ if (RATE_LIMITER) {
   const pruneTimer = setInterval(() => RATE_LIMITER.prune(), 5 * 60_000);
   pruneTimer.unref();
 }
+// Health expoe apenas estado booleano: nenhum token ou hostname e devolvido.
+const HEALTH_AUTH = {
+  enabled: Boolean(API_TOKEN),
+  rateLimitEnabled: Boolean(RATE_LIMITER),
+  rateLimitPerMin: RATE_LIMITER ? RATE_LIMITER.limit : null,
+  publicHostConfigured: Boolean(PUBLIC_HOST),
+};
 const PORT = Number(process.env.PORT || 8787);
 const PREVIEW_PORT = Number(process.env.PREVIEW_PORT || 8788);
 
@@ -336,6 +344,9 @@ async function handleRequest(req, res) {
         time: new Date().toISOString(),
         providers: providerOrder().map((provider) => provider.id),
         ...generatorStats(),
+        queue: queueStats(),
+        buildIsolation: BUILD_ISOLATION,
+        auth: HEALTH_AUTH,
         ...sseStatus(),
       });
     }

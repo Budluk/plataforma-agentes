@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { pathToFileURL } from 'node:url';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clonestudio-jobs-'));
@@ -229,4 +230,94 @@ test('recuperacao cancela running e retoma queued em um novo processo', async ()
   assert.equal(byId.r1.error, 'Servidor reiniciado durante a execucao.');
   assert.equal(byId.r2.state, 'succeeded');
   assert.equal(byId.r3.state, 'succeeded');
+});
+
+test('mergeRecords unio registros de outro processo e prioriza updatedAt', () => {
+  const local = [
+    { id: 'a', kind: 'generation', state: 'running', updatedAt: '2026-01-02T00:00:00.000Z' },
+    { id: 'b', kind: 'rebuild', state: 'queued', updatedAt: '2026-01-01T00:00:00.000Z' },
+  ];
+  const disk = [
+    { id: 'a', kind: 'generation', state: 'succeeded', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'c', kind: 'restore', state: 'queued', updatedAt: '2026-01-01T00:00:00.000Z' },
+  ];
+  const merged = queue.mergeRecords(local, disk);
+  assert.deepEqual(
+    merged.map((record) => record.id),
+    ['a', 'c', 'b'],
+  );
+  assert.equal(merged.find((record) => record.id === 'a').state, 'running');
+  assert.deepEqual(queue.mergeRecords([], []), []);
+});
+
+test('lock de fila serializa secoes criticas', async () => {
+  const lock = await import('../server/queue-lock.mjs');
+  const dir = path.join(dataDir, 'lock-test');
+  const events = [];
+  const first = lock.withQueueLock(
+    dir,
+    async () => {
+      events.push('in-1');
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      events.push('out-1');
+    },
+    { timeoutMs: 2_000 },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const second = lock.withQueueLock(
+    dir,
+    async () => {
+      events.push('in-2');
+      events.push('out-2');
+    },
+    { timeoutMs: 2_000 },
+  );
+  await Promise.all([first, second]);
+  assert.deepEqual(events, ['in-1', 'out-1', 'in-2', 'out-2']);
+  assert.equal(fs.existsSync(dir), false);
+});
+
+test('lock abandonado e recuperado apos o prazo de stale', async () => {
+  const lock = await import('../server/queue-lock.mjs');
+  const dir = path.join(dataDir, 'lock-stale');
+  fs.mkdirSync(dir, { recursive: true });
+  const old = new Date(Date.now() - 120_000).toISOString();
+  fs.utimesSync(dir, new Date(old), new Date(old));
+
+  await lock.withQueueLock(dir, async () => {}, { staleMs: 60_000, timeoutMs: 2_000 });
+  assert.equal(fs.existsSync(dir), false);
+});
+
+test('dois processos gravando na mesma fila nao se sobrescrevem', async () => {
+  const moduleUrl = pathToFileURL(path.resolve('server/job-queue.mjs')).href;
+  const childIds = ['child-a', 'child-b'];
+  const children = childIds.map((id) => {
+    const script = `
+      const q = await import(${JSON.stringify(moduleUrl)});
+      q.enqueue({ id: ${JSON.stringify(id)}, kind: 'rebuild', options: {}, runner: async () => {} });
+      await q.flushJobs();
+    `;
+    return spawn(process.execPath, ['--input-type=module', '-e', script], {
+      cwd: process.cwd(),
+      env: { ...process.env, DATA_DIR: dataDir, CLONESTUDIO_AUDIT_PATH: auditFile },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+  });
+  const outputs = await Promise.all(
+    children.map(async (child) => {
+      let output = '';
+      child.stdout.on('data', (chunk) => {
+        output += chunk.toString();
+      });
+      child.stderr.on('data', (chunk) => {
+        output += chunk.toString();
+      });
+      const [code] = await once(child, 'exit');
+      return { code, output };
+    }),
+  );
+  for (const { code, output } of outputs) assert.equal(code, 0, output);
+  const ids = readJobs().jobs.map((job) => job.id);
+  for (const id of childIds) assert.ok(ids.includes(id), `${id} ausente em jobs.json`);
 });

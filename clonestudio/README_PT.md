@@ -100,6 +100,10 @@ CloneStudioAI/
 │   ├── preview-origin.mjs   origem do preview/frame-src validada contra o Host
 │   ├── providers.mjs        roteamento OpenAI-compatible + fallback
 │   ├── generator.mjs        pipeline de geração, validação e build
+│   ├── job-queue.mjs        fila durável e recuperação de jobs
+│   ├── queue-lock.mjs       lock adaptivo de jobs.json entre processos
+│   ├── audit.mjs            JSONL com redação, rotação e retenção por idade
+│   ├── api-guard.mjs        Bearer, rate limit e validação de Host
 │   ├── generation-core.mjs  parser/validador puro e testável
 │   ├── validation-core.mjs  filtros, classificação e instrução de correção
 │   ├── preview-validator.mjs executor Playwright + relatório e screenshot
@@ -118,6 +122,8 @@ CloneStudioAI/
 ├── public/                  UI do CloneStudio (HTML/CSS/JS puro)
 ├── data/
 │   ├── projects.json        metadados dos projetos
+│   ├── jobs.json            estado da fila (protegido por jobs.lock/)
+│   ├── audit.jsonl          auditoria com redação e retenção por idade
 │   └── projects/<id>/       app/ (código, node_modules e dist) e versions/<n>/ (src + meta.json)
 ├── tests/                   testes do parser/validador, cache HTTP, storage, rede e navegador
 └── docs/
@@ -169,7 +175,7 @@ npm.cmd run check
 npm.cmd run test:browser
 ```
 
-A suíte padrão tem 194 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, validação de `Host` em `/api/`, origem do preview, cache HTTP, cache de `src/`, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável, auth/rate limit e isolamento de build.
+A suíte padrão tem 201 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, validação de `Host` em `/api/`, origem do preview, health operacional, retenção de auditoria, cache HTTP, cache de `src/`, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável com lock entre processos, auth/rate limit e isolamento de build.
 
 O `npm.cmd run test:browser` é separado porque abre o Edge headless. Ele sobe um servidor com `DATA_DIR` temporário e portas livres, cria dois projetos descartáveis e verifica 19 comportamentos de abas, janelas, persistência, acessibilidade e SSE, sem tocar nos seus projetos nem depender de rede externa.
 
@@ -198,7 +204,7 @@ A integração só consulta a rede quando detecta Recharts, Framer Motion, Lucid
 - Builds podem demorar em máquinas com OneDrive/antivírus ativos, porque `node_modules` é compartilhado por junction.
 - A validação adiciona cerca de 20 a 40 segundos ao build e depende de Edge/Chrome instalados. Sem navegador, o status fica `unavailable` e o app continua utilizável.
 - O modelo pode esquecer imports ou usar props de animação em tags erradas; o prompt e o validador reduzem, mas não eliminam isso. Use “Corrigir build” ou peça ajustes no chat.
-- Sem multiusuário. A fila é persistente em `DATA_DIR/jobs.json` e retoma jobs `queued` no boot; os que estavam `running` quando o processo morreu viram `cancelled` (projetos e arquivos permanecem). A autenticação Bearer só é exigida quando `CLONESTUDIO_API_TOKEN` está configurado; o rate limit de 120 req/min por IP de socket é ativado por `CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`, independentemente do token.
+- Sem multiusuário. A fila é persistente em `DATA_DIR/jobs.json` e retoma jobs `queued` no boot; os que estavam `running` quando o processo morreu viram `cancelled` (projetos e arquivos permanecem). `DATA_DIR/jobs.lock/` serializa a leitura→fusão→gravação entre processos e descarta locks abandonados após `CLONESTUDIO_JOB_LOCK_STALE_MS` (padrão 60 s); a deduplicação por projeto continua sendo por processo. A auditoria remove registros com mais de `CLONESTUDIO_AUDIT_RETENTION_DAYS` (padrão 30; `0` desliga) do arquivo atual e dos backups, preservando linhas sem timestamp identificável. A autenticação Bearer só é exigida quando `CLONESTUDIO_API_TOKEN` está configurado; o rate limit de 120 req/min por IP de socket é ativado por `CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`, independentemente do token. `GET /api/health` informa `queue`, `buildIsolation` e `auth` (apenas estados, sem token).
 - O Context7 público tem limites de uso e pode ficar indisponível. A geração degrada sem bloquear, mas o selo de conhecimento pode não aparecer.
 - A importação de GitHub/.zip aceita apenas projetos Vite/React com `src/App.tsx` (ou `App.tsx` na raiz). Next.js, Vue e arquivos `.less/.scss` não são convertidos. Dependências fora de React, lucide-react, framer-motion, recharts e clsx não são instaladas automaticamente. A análise antes de criar já avisa sobre esses bloqueios e mostra todas as funções detectadas, sem criar o projeto.
 - **Páginas atrás de login:** o importador lê apenas a versão pública. Se a URL redirecionar para uma tela de entrada, essa é a referência capturada e o conteúdo interno não é acessado. Telas de login clonadas são demonstrações: aceitam qualquer credencial, não autenticam na conta real e exibem um aviso de demonstração.

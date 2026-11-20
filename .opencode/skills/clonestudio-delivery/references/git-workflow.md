@@ -29,7 +29,7 @@ npm test
 npm run test:browser
 ```
 
-Referencia: Node 192 testes, browser 19, Python 807. Numeros diferentes exigem
+Referencia: Node 201 testes, browser 19, Python 807. Numeros diferentes exigem
 explicacao antes de prosseguir.
 
 ## 2. Texto ASCII-only do PR

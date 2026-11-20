@@ -201,7 +201,7 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 
 | Método | Rota | Função |
 | --- | --- | --- |
-| GET | `/api/health` | status, provedores e jobs |
+| GET | `/api/health` | status, provedores, profundidade da fila, isolamento do build e estado de auth/rate limit (sem segredos) |
 | GET | `/api/events` | SSE opt-in: avisos `scope`/`id`/`revision`, sem prompt nem resposta |
 | GET | `/api/config` | configuração pública (sem chaves) |
 | GET | `/api/projects` | lista resumida |
@@ -231,7 +231,7 @@ CSP do preview permite scripts, estilos inline, imagens externas e chamadas HTTP
 
 ## Limites e evolução
 
-Para produção, autenticação Bearer com rate limiting por IP e auditoria com redação já estão implementados em `server/api-guard.mjs` e `server/audit.mjs` (Bearer quando `CLONESTUDIO_API_TOKEN` está configurado; limitador quando há `CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`; auditoria sempre ativa). Também estão prontos: fila durável em `DATA_DIR/jobs.json`, hardening do child do Vite e SSE opt-in (`CLONESTUDIO_SSE_ENABLED=1`) com fallback para polling. O alvo atual continua sendo `127.0.0.1`; nesse alvo o build roda no mesmo usuário do servidor e **não** é isolamento de segurança real. Para o alvo B, o [ADR-0008](../../docs/adr/0008-isolamento-build-appcontainer.md) define AppContainer + Job Object no Windows, exigido por `CLONESTUDIO_BUILD_ISOLATION=required` quando há `CLONESTUDIO_PUBLIC_HOST`. As decisões e o estado do plano estão no [índice de ADRs](../../docs/adr/README.md).
+Para produção, autenticação Bearer com rate limiting por IP e auditoria com redação já estão implementados em `server/api-guard.mjs` e `server/audit.mjs` (Bearer quando `CLONESTUDIO_API_TOKEN` está configurado; limitador quando há `CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`; auditoria sempre ativa). Também estão prontos: fila durável em `DATA_DIR/jobs.json` com lock adaptivo entre processos (`server/queue-lock.mjs`, diretório `jobs.lock/`), auditoria com rotação por tamanho e retenção por idade (`CLONESTUDIO_AUDIT_RETENTION_DAYS`, padrão 30 dias), hardening do child do Vite e SSE opt-in (`CLONESTUDIO_SSE_ENABLED=1`) com fallback para polling. O alvo atual continua sendo `127.0.0.1`; nesse alvo o build roda no mesmo usuário do servidor e **não** é isolamento de segurança real. Para o alvo B, o [ADR-0008](../../docs/adr/0008-isolamento-build-appcontainer.md) define AppContainer + Job Object no Windows, exigido por `CLONESTUDIO_BUILD_ISOLATION=required` quando há `CLONESTUDIO_PUBLIC_HOST`. As decisões e o estado do plano estão no [índice de ADRs](../../docs/adr/README.md).
 
 A preparação para o alvo B está registrada no [ADR-0007](../../docs/adr/0007-preparacao-alvo-b-cloudflare-tunnel.md) e no [runbook do Cloudflare Tunnel](./CLOUDFLARE_TUNNEL.md). Nenhum túnel está instalado ou autorizado para execução. `assertTrustedRequest` aceita, além do loopback, um único hostname definido em `CLONESTUDIO_PUBLIC_HOST`; sem esse valor, qualquer requisição `/api/` com `Host` externo — inclusive GET — continua sendo rejeitada com 403. A origem dos iframes de preview também passa por essa validação (`server/preview-origin.mjs`), para que um `Host` forjado não contamine o `frame-src` do CSP. Quando há host público, `CLONESTUDIO_API_TOKEN` é obrigatório e a API aplica limite por IP (`CLONESTUDIO_RATE_LIMIT_PER_MIN`, padrão 120/min); sem host público, o comportamento atual permanece inalterado.
 
