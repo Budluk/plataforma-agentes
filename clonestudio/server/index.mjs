@@ -23,6 +23,7 @@ import {
 } from './storage.mjs';
 import { isNotModified, weakEtag } from './http-cache.mjs';
 import { assertLoopbackHost, assertTrustedHost, parsePublicHost } from './net-safety.mjs';
+import { previewOriginFor } from './preview-origin.mjs';
 import { RateLimiter, guardApiRequest, parseApiToken, parseRateLimit } from './api-guard.mjs';
 import { assertBuildIsolationBoot } from './build-isolation.mjs';
 import { handleSse, sseEnabled, sseStatus } from './sse.mjs';
@@ -165,11 +166,13 @@ class HttpError extends Error {
 }
 
 function previewBaseFor(req) {
-  const configured = String(process.env.PREVIEW_PUBLIC_URL || '').trim().replace(/\/+$/, '');
-  if (configured) return configured;
-  const rawHost = String(req?.headers?.host || '').split(':')[0] || '127.0.0.1';
-  const hostname = rawHost === '0.0.0.0' || rawHost === '[::1]' ? '127.0.0.1' : rawHost;
-  return `http://${hostname}:${PREVIEW_PORT}`;
+  return previewOriginFor({
+    hostHeader: req?.headers?.host,
+    configured: process.env.PREVIEW_PUBLIC_URL,
+    bindHost: HOST,
+    publicHost: PUBLIC_HOST,
+    previewPort: PREVIEW_PORT,
+  });
 }
 
 function sendJson(res, status, data, headers = {}) {
@@ -208,9 +211,10 @@ async function readBody(req, limit = 1_000_000) {
 
 /**
  * O painel é local, mas ainda pode receber requisições de outra origem via
- * navegador (CSRF) ou com Host forjado (DNS rebinding). Bloqueia mutações que
- * não vierem do próprio painel. Um host publico só é aceito quando configurado
- * explicitamente em CLONESTUDIO_PUBLIC_HOST (alvo B); o bind segue em loopback.
+ * navegador (CSRF) ou com Host forjado (DNS rebinding). Toda requisição /api/,
+ * inclusive GET e OPTIONS, passa por aqui — não apenas mutações. Um host publico
+ * só é aceito quando configurado explicitamente em CLONESTUDIO_PUBLIC_HOST
+ * (alvo B); o bind segue em loopback.
  */
 function assertTrustedRequest(req) {
   try {
@@ -320,7 +324,7 @@ async function handleRequest(req, res) {
       }
     }
 
-    if (pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    if (pathname.startsWith('/api/')) {
       assertTrustedRequest(req);
     }
 

@@ -79,14 +79,16 @@ Todos devem estar prontos antes de qualquer comando de túnel:
    valor de `CLONESTUDIO_API_TOKEN` do `.env` do CloneStudio — nunca em arquivo
    versionado, nunca em `.env` do painel.
 5. Validar, pelo túnel, `GET /api/health` e uma mutação simples em um projeto de
-   teste com `DATA_DIR` temporário. Não usar projetos reais nesse teste.
+   teste com `DATA_DIR` temporário. Não usar projetos reais nesse teste. Com
+   `CLONESTUDIO_API_TOKEN` definido, **toda** rota `/api/` — inclusive `health` —
+   exige o header `Authorization: Bearer <CLONESTUDIO_API_TOKEN>`.
 6. Registrar o resultado no ADR de mudança de alvo e atualizar
    `lovable-app/roadmap.md` (os itens do túnel só podem ser marcados após teste real).
 
 ## Validação planejada
 
 ```powershell
-curl.exe -i https://<host>/api/health
+curl.exe -i https://<host>/api/health -H "Authorization: Bearer <CLONESTUDIO_API_TOKEN>"
 ```
 
 A resposta esperada é JSON com `"ok": true`, `name`, `version` e `providers`.
@@ -99,5 +101,5 @@ registra o evento sem corpo de prompt ou resposta bruta.
 - Remover `CLONESTUDIO_PUBLIC_HOST` do `.env` e reiniciar o servidor.
 - Restaurar `STUDIO_BASE_URL=http://127.0.0.1:8787` no painel e retirar o host
   externo de `STUDIO_ALLOWED_HOSTS`.
-- Confirmar que `GET http://127.0.0.1:8787/api/health` volta a responder e que
-  nenhuma rota pública permanece ativa.
+- Confirmar que `GET http://127.0.0.1:8787/api/health` volta a responder (com o
+  Bearer, se o token continuar definido) e que nenhuma rota pública permanece ativa.
