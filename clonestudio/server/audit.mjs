@@ -125,6 +125,22 @@ export class JsonlAudit {
     this.retentionDays = retentionDays;
     this.lastExpireAt = 0;
     fs.mkdirSync(this.dir, { recursive: true });
+
+    // Expiracao por idade roda em janela propria para nao bloquear log() no request.
+    if (this.retentionDays > 0) {
+      const runExpire = () => {
+        const now = Date.now();
+        this.lastExpireAt = now;
+        try {
+          this.expire(now);
+        } catch (error) {
+          console.error('[audit] Nao foi possivel aplicar retencao por idade:', error.message);
+        }
+      };
+      setImmediate(runExpire);
+      const timer = setInterval(runExpire, EXPIRE_INTERVAL_MS);
+      timer.unref?.();
+    }
   }
 
   /** Remove registros antigos do arquivo atual e dos backups, por timestamp. */
@@ -186,17 +202,6 @@ export class JsonlAudit {
   }
 
   log(event, fields = {}) {
-    const now = Date.now();
-    // A varredura e assincrona do ponto de vista de quem chama, mas custosa em
-    // maquina leve: no maximo uma vez por hora, mais a primeira escrita.
-    if (now - this.lastExpireAt >= EXPIRE_INTERVAL_MS) {
-      this.lastExpireAt = now;
-      try {
-        this.expire(now);
-      } catch (error) {
-        console.error('[audit] Nao foi possivel aplicar retencao por idade:', error.message);
-      }
-    }
     const requestId = currentRequestId();
     const record = {
       ts: new Date().toISOString(),

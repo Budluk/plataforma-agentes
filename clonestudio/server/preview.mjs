@@ -40,6 +40,7 @@ export const PREVIEW_CSP = [
   "img-src 'self' data: blob: https: http:",
   "font-src 'self' data: https:",
   "media-src 'self' data: blob: https: http:",
+  "worker-src 'self' blob: data:",
   "frame-src 'self' https: http: blob:",
   "connect-src 'self' https: http: ws: wss:",
   "base-uri 'none'",
