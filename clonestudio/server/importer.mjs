@@ -16,6 +16,7 @@ import { extractVideosFromHtml } from './video-core.mjs';
 import { analyzeProjectEntries, inspectableEntry } from './project-inspector.mjs';
 import {
   assertPublicHttpUrl,
+  assertPublicHttpUrlResolved,
   readLimited,
   safeFetch,
 } from './net-safety.mjs';
@@ -322,7 +323,7 @@ async function readSiteOnce(url, timeoutMs) {
 }
 
 export async function fetchSiteReference(rawUrl) {
-  const url = assertPublicHttpUrl(rawUrl);
+  const url = await assertPublicHttpUrlResolved(rawUrl);
   const startedAt = Date.now();
   let attempt = await readSiteOnce(url, SITE_TIMEOUT_MS);
 

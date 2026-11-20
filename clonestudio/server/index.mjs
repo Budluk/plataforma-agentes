@@ -920,7 +920,7 @@ async function handleRequest(req, res) {
     }
     logAudit('api_error', { status: 500, reason: error.message || 'Erro interno.' });
     console.error('[server]', error);
-    return sendError(res, 500, error.message || 'Erro interno do servidor.');
+    return sendError(res, 500, 'Erro interno do servidor.');
   }
 }
 

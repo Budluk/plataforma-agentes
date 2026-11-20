@@ -74,10 +74,23 @@ export async function acquireQueueLock(
 }
 
 export async function withQueueLock(dir, fn, options = {}) {
+  const { staleMs = DEFAULT_STALE_MS } = options;
   const release = await acquireQueueLock(dir, options);
+  // Mantem o lock "vivo" durante secoes criticas lentas para que outro
+  // processo nao o trate como abandonado por idade.
+  const heartbeatMs = Math.max(200, Math.floor(staleMs / 3));
+  const heartbeat = setInterval(() => {
+    const stamp = new Date();
+    fs.promises.utimes(dir, stamp, stamp).catch(() => {
+      const ownerFile = path.join(dir, 'owner.json');
+      fs.promises.utimes(ownerFile, stamp, stamp).catch(() => {});
+    });
+  }, heartbeatMs);
+  heartbeat.unref?.();
   try {
     return await fn();
   } finally {
+    clearInterval(heartbeat);
     await release();
   }
 }

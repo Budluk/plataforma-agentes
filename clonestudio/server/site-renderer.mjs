@@ -1,5 +1,5 @@
 import { forceStopBrowser, launchBrowser, loadPlaywright } from './browser.mjs';
-import { safeFetch } from './net-safety.mjs';
+import { resolvePublicHttpUrl, safeFetch } from './net-safety.mjs';
 import {
   cleanVideoTitle,
   extractVideosFromHtml,
@@ -302,9 +302,29 @@ export async function renderSiteReference(rawUrl, options = {}) {
     page.setDefaultTimeout(Math.max(5000, Math.min(20000, deadline - Date.now())));
 
     // Imagens/fontes/mídia não precisam ser baixadas: só queremos as URLs e o layout.
-    await page.route('**/*', (route) => {
-      const type = route.request().resourceType();
-      if (type === 'image' || type === 'font' || type === 'media') return route.abort().catch(() => {});
+    // As demais requisições (inclusive navegação e scripts) só seguem para
+    // destinos públicos resolvidos, reduzindo SSRF/rebinding no navegador.
+    const allowedHosts = new Map();
+    await page.route('**/*', async (route) => {
+      const request = route.request();
+      const type = request.resourceType();
+      if (type === 'image' || type === 'font' || type === 'media') {
+        return route.abort().catch(() => {});
+      }
+      const target = request.url();
+      try {
+        const parsed = new URL(target);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return route.abort().catch(() => {});
+        }
+        const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+        if (!allowedHosts.has(host)) {
+          await resolvePublicHttpUrl(parsed.href);
+          allowedHosts.set(host, true);
+        }
+      } catch {
+        return route.abort().catch(() => {});
+      }
       return route.continue().catch(() => {});
     });
 
