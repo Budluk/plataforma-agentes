@@ -96,7 +96,7 @@ function Studio() {
           ) : (
             <span className="readout text-warning">fora do ar</span>
           )}
-          <Button size="sm" variant="outline" onClick={() => m.mutate({ text: "health" })} disabled={m.isPending}>
+          <Button type="button" size="sm" variant="outline" onClick={() => m.mutate({ text: "health" })} disabled={m.isPending}>
             Testar agora
           </Button>
         </div>
@@ -119,68 +119,84 @@ function Studio() {
             <TabsTrigger value="text">Linguagem natural</TabsTrigger>
           </TabsList>
           <TabsContent value="form">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="studio-action">Ação</Label>
-                <Select value={action} onValueChange={(v) => setAction(v as StudioAction)}>
-                  <SelectTrigger id="studio-action">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACTIONS.map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {LABELS[a]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {FIELDS[action].includes("kind") ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+              }}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor="studio-kind">Tipo de importação</Label>
-                  <Select value={values.kind} onValueChange={(v) => setValues((s) => ({ ...s, kind: v }))}>
-                    <SelectTrigger id="studio-kind">
+                  <Label htmlFor="studio-action">Ação</Label>
+                  <Select value={action} onValueChange={(v) => setAction(v as StudioAction)}>
+                    <SelectTrigger id="studio-action">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="site">site</SelectItem>
-                      <SelectItem value="github">repositório (github.com)</SelectItem>
-                      <SelectItem value="app">app existente</SelectItem>
+                      {ACTIONS.map((a) => (
+                        <SelectItem key={a} value={a}>
+                          {LABELS[a]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-              ) : null}
-              {FIELDS[action].map((f) => (
-                <div key={f} className="space-y-1">
-                  <Label htmlFor={`studio-${f}`}>{PLACEHOLDERS[f].label}</Label>
-                  <Input
-                    id={`studio-${f}`}
-                    value={values[f]}
-                    onChange={(e) => setValues((s) => ({ ...s, [f]: e.target.value }))}
-                    placeholder={PLACEHOLDERS[f].placeholder}
-                    className="readout"
-                  />
-                </div>
-              ))}
-            </div>
-            <Button className="mt-4" variant="signal" onClick={submit} disabled={m.isPending}>
-              {m.isPending ? "Executando…" : "Executar"}
-            </Button>
+                {FIELDS[action].includes("kind") ? (
+                  <div className="space-y-1">
+                    <Label htmlFor="studio-kind">Tipo de importação</Label>
+                    <Select value={values.kind} onValueChange={(v) => setValues((s) => ({ ...s, kind: v }))}>
+                      <SelectTrigger id="studio-kind">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="site">site</SelectItem>
+                        <SelectItem value="github">repositório (github.com)</SelectItem>
+                        <SelectItem value="app">app existente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                {FIELDS[action].map((f) => (
+                  <div key={f} className="space-y-1">
+                    <Label htmlFor={`studio-${f}`}>{PLACEHOLDERS[f].label}</Label>
+                    <Input
+                      id={`studio-${f}`}
+                      value={values[f]}
+                      onChange={(e) => setValues((s) => ({ ...s, [f]: e.target.value }))}
+                      placeholder={PLACEHOLDERS[f].placeholder}
+                      className="readout"
+                    />
+                  </div>
+                ))}
+              </div>
+              <Button type="submit" className="mt-4" variant="signal" disabled={m.isPending}>
+                {m.isPending ? "Executando…" : "Executar"}
+              </Button>
+            </form>
           </TabsContent>
           <TabsContent value="text">
-            <Textarea
-              rows={3}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Ex.: criar um app de agenda de consultas; ou listar; ou analisar https://www.instagram.com/perfil"
-            />
-            <Button className="mt-3" variant="signal" disabled={m.isPending || !text.trim()} onClick={() => m.mutate({ text })}>
-              {m.isPending ? "Executando…" : "Enviar"}
-            </Button>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (text.trim()) m.mutate({ text });
+              }}
+            >
+              <Textarea
+                rows={3}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Ex.: criar um app de agenda de consultas; ou listar; ou analisar https://www.instagram.com/perfil"
+              />
+              <Button type="submit" className="mt-3" variant="signal" disabled={m.isPending || !text.trim()}>
+                {m.isPending ? "Executando…" : "Enviar"}
+              </Button>
+            </form>
           </TabsContent>
         </Tabs>
-        {m.error ? <p className="mt-4 text-sm text-destructive">{(m.error as Error).message}</p> : null}
-        <Outcome result={m.data} />
+        <div aria-live="polite">
+          {m.error ? <p className="mt-4 text-sm text-destructive">{(m.error as Error).message}</p> : null}
+          <Outcome result={m.data} />
+        </div>
       </Panel>
     </>
   );

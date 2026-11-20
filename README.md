@@ -17,8 +17,17 @@ Estado atual: fundação, áreas de análise e a área studio (CloneStudio vendo
 
 ## Provider em uso
 
-Groq (API em nuvem, tier gratuito). Gemini e DeepSeek estão previstos em core/llm_client.py.
-O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequência).
+São dois provedores distintos, um por componente:
+
+- **Plataforma Python / CentralIA:** Groq (API em nuvem, tier gratuito). Gemini e
+  DeepSeek também estão previstos em `core/llm_client.py`. O modelo vem de
+  `GROQ_MODEL` no `.env` (modelos são aposentados com frequência).
+- **CloneStudio (área studio):** provedor OpenAI-compatible, FreeLLMAPI por
+  padrão, configurado em `FREELLMAPI_*` no `.env` de `clonestudio/`. O modelo vem
+  de `FREELLMAPI_MODEL`.
+
+A UI do CentralIA usa somente Groq ou Lovable AI
+(`lovable-app/src/lib/server/llm.server.ts`); FreeLLMAPI não é provedor dessa UI.
 
 ## Estrutura
 
@@ -27,6 +36,7 @@ O nome do modelo vem de GROQ_MODEL no .env (modelos são aposentados com frequê
 - pipelines/: Analista -> Risco -> Gate -> Alerta
 - scripts/: init_db, smoke tests, demo, studio_cli, studio_api
 - clonestudio/: CloneStudio AI inteiro (Node 22, React + Vite), vendorizado e executado como serviço local
+- lovable-app/: painel CentralIA (React/Vite/TanStack Router/Supabase). A cópia versionada aqui é a canônica; o working copy externo com `node_modules` não é fonte de edição
 - config/studio_hosts.txt: hosts de loopback autorizados para a área studio
 - tests/: pytest
 
@@ -230,14 +240,17 @@ estão em [`docs/adr/`](docs/adr/README.md):
 | Sandbox de build | `clonestudio/server/build-sandbox.mjs` | Env do child sanitizado, `npm install --ignore-scripts`, guard de config e CSP do preview sem `unsafe-eval` por padrão |
 | SSE opt-in | `clonestudio/server/sse.mjs` | `GET /api/events` desligado por padrão (`CLONESTUDIO_SSE_ENABLED=1`); só avisa `scope`/`id`/`revision`, com fallback para polling |
 
-Autenticação Bearer e rate limiting por IP já estão implementados em `clonestudio/server/api-guard.mjs`,
-mas ficam inativos sem `CLONESTUDIO_API_TOKEN` (alvo A). No alvo B, `CLONESTUDIO_PUBLIC_HOST` exige
+Autenticação Bearer e rate limiting por IP já estão implementados em `clonestudio/server/api-guard.mjs`.
+No alvo A o token fica vazio e o limitador (120 req/min por IP de socket) só é criado com
+`CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`. No alvo B, `CLONESTUDIO_PUBLIC_HOST` exige
 `CLONESTUDIO_BUILD_ISOLATION=required`, que usa AppContainer + Job Object no Windows (ADR-0008); no
 alvo A o build segue em child Node com env limpo e **não é isolamento de segurança real**. O `HOST`
 continua restrito a loopback no boot, e nenhum modelo local foi adicionado (FreeLLMAPI remoto).
 
 Validação final em `main`: `pytest -q` (807), `check_env.py`, `pip check`, `npm run check`,
-`npm test` (192) e `npm run test:browser` (19).
+`npm test` (194), `npm run test:browser` (19) e, em `lovable-app/`, `bun run typecheck`,
+`bun run test` (97) e `bun run build`. O job `ui` do CI executa essas três checagens; `lint`
+fica de fora por dívida de formatação Prettier pré-existente.
 
 ## Regras do hard gate (Economia)
 

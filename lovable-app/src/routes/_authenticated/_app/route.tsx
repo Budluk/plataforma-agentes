@@ -17,6 +17,7 @@ import {
   Bot,
 } from "lucide-react";
 import { accessQuery, overviewQuery } from "@/lib/queries";
+import { llmProviderLabel } from "@/lib/core/config";
 import { useSignOut } from "@/hooks/use-sign-out";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -90,7 +91,7 @@ function TelemetryStrip() {
         <span className="hidden xl:inline">
           IA{" "}
           <span className="text-primary">
-            {data ? (data.llm.provider === "groq" ? "Groq" : "Lovable") : "—"}
+            {data ? llmProviderLabel(data.llm.provider) : "—"}
           </span>
         </span>
       </div>
@@ -102,6 +103,8 @@ function AppShell() {
   const { data: access } = useQuery(accessQuery);
   const signOut = useSignOut();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  // Rotas filhas (ex.: /agentes/:id) mantêm o item pai destacado na navegação.
+  const isActive = (to: string) => path === to || path.startsWith(`${to}/`);
 
   if (access && !access.isOperator) {
     return (
@@ -141,9 +144,10 @@ function AppShell() {
               <Link
                 key={to}
                 to={to}
+                aria-current={isActive(to) ? "page" : undefined}
                 className={cn(
                   "group flex items-center gap-3 rounded-[3px] px-3 py-2 text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  path === to &&
+                  isActive(to) &&
                     "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_2px_0_0_var(--color-primary)]",
                 )}
               >
@@ -165,9 +169,10 @@ function AppShell() {
               <Link
                 key={to}
                 to={to}
+                aria-current={isActive(to) ? "page" : undefined}
                 className={cn(
                   "readout whitespace-nowrap rounded-[3px] px-2.5 py-1 text-xs text-muted-foreground",
-                  path === to &&
+                  isActive(to) &&
                     "bg-primary/15 text-primary shadow-[inset_0_-2px_0_var(--color-primary)]",
                 )}
               >

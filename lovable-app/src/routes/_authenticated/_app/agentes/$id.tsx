@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useSuspenseQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -33,7 +33,18 @@ function AgentDetail() {
   const { id } = Route.useParams();
   const { data } = useSuspenseQuery(agentSettingsQuery);
   const agent = data.find((a) => a.id === id);
-  if (!agent) return null;
+  if (!agent) {
+    return (
+      <div className="panel bay railed p-6">
+        <p className="text-sm text-muted-foreground">
+          Este agente não está disponível ou foi removido.
+        </p>
+        <Link to="/agentes" className="mt-3 inline-block text-sm text-primary underline">
+          Voltar para Agentes
+        </Link>
+      </div>
+    );
+  }
   return <AgentEditor key={id} agent={agent} />;
 }
 

@@ -65,12 +65,13 @@ tentativas falhou, mas a causa era o próprio helper de P/Invoke, não o Windows
   `AppData\Local\Temp\opencode`, e o `node.exe` falhou com `EPERM ... lstat 'C:\'`
   ao tentar resolver caminhos fora do perfil. Ou seja, o kernel nega acesso a
   dados do host — não é apenas uma convenção de código.
-- ⚠️ **Não medido de forma confiável:** o pico de RAM do helper/build (máquina
-  com 0,41 GB livres) e o resultado do teste de conectividade TCP. A negação de
-  rede é esperada pelo projeto (AppContainer sem capabilities
-  `internetClient`/`privateNetworkClientServer`), mas **deve ser confirmada na
-  implementação** com um teste `windows-only` assertivo antes de qualquer
-  exposição em B.
+- ⚠️ **Não medido de forma confiável no spike:** o pico de RAM do helper/build
+  (máquina com 0,41 GB livres) e o resultado do teste de conectividade TCP. A
+  negação de rede era esperada pelo projeto (AppContainer sem capabilities
+  `internetClient`/`privateNetworkClientServer`), mas ficou como pendência do
+  spike. **Ambas foram fechadas na implementação:** o teste `windows-only`
+  (`tests/build-isolation.windows.test.mjs`) afirma `NET_DENIED=EACCES` e o
+  build real mediu 219 MB de pico — ver "Resultado da implementação".
 - Limpeza: os diretórios de storage deixados pelos helpers foram removidos do
   registro HKCU (20 remanescentes após a última rodada). Nenhum perfil spike
   permanece no sistema.

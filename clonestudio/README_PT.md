@@ -97,6 +97,7 @@ CloneStudioAI/
 │   ├── env.mjs              carregamento do .env
 │   ├── storage.mjs          projetos, arquivos, versões, cache de src/ e persistência
 │   ├── http-cache.mjs       ETag, If-None-Match e cache de assets
+│   ├── preview-origin.mjs   origem do preview/frame-src validada contra o Host
 │   ├── providers.mjs        roteamento OpenAI-compatible + fallback
 │   ├── generator.mjs        pipeline de geração, validação e build
 │   ├── generation-core.mjs  parser/validador puro e testável
@@ -152,7 +153,7 @@ Imports inválidos, `src/main.tsx`, caminhos fora de `src/` e pacotes desconheci
 - O preview roda em outra porta/origem e em iframe com `sandbox`.
 - Não há endpoint para executar comandos arbitrários enviados pelo cliente.
 - Código gerado é tratado como não confiável: validação de imports e CSP restritiva no preview.
-- Autenticação Bearer (`CLONESTUDIO_API_TOKEN`) e rate limiting por IP já existem em `server/api-guard.mjs`, mas só são exigidos quando o token está configurado (alvo A, loopback). Para exposição são obrigatórios TLS, hostname interno, `CLONESTUDIO_BUILD_ISOLATION=required` e os gates do [ADR-0007](../docs/adr/0007-preparacao-alvo-b-cloudflare-tunnel.md); fila durável e auditoria já estão presentes.
+- Autenticação Bearer (`CLONESTUDIO_API_TOKEN`) e rate limiting por IP já existem em `server/api-guard.mjs`. No alvo A o token fica vazio; o limitador (120 req/min por IP de socket) só é ativado com `CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`. Toda rota `/api/`, inclusive GET, valida o `Host`; a origem dos iframes de preview passa pela mesma validação (`server/preview-origin.mjs`). Para exposição são obrigatórios TLS, hostname interno, `CLONESTUDIO_BUILD_ISOLATION=required` e os gates do [ADR-0007](../docs/adr/0007-preparacao-alvo-b-cloudflare-tunnel.md); fila durável e auditoria já estão presentes.
 
 ## Integrações
 
@@ -168,7 +169,7 @@ npm.cmd run check
 npm.cmd run test:browser
 ```
 
-A suíte padrão tem 192 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, cache HTTP, cache de `src/`, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável, auth/rate limit e isolamento de build.
+A suíte padrão tem 194 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, validação de `Host` em `/api/`, origem do preview, cache HTTP, cache de `src/`, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável, auth/rate limit e isolamento de build.
 
 O `npm.cmd run test:browser` é separado porque abre o Edge headless. Ele sobe um servidor com `DATA_DIR` temporário e portas livres, cria dois projetos descartáveis e verifica 19 comportamentos de abas, janelas, persistência, acessibilidade e SSE, sem tocar nos seus projetos nem depender de rede externa.
 
@@ -197,7 +198,7 @@ A integração só consulta a rede quando detecta Recharts, Framer Motion, Lucid
 - Builds podem demorar em máquinas com OneDrive/antivírus ativos, porque `node_modules` é compartilhado por junction.
 - A validação adiciona cerca de 20 a 40 segundos ao build e depende de Edge/Chrome instalados. Sem navegador, o status fica `unavailable` e o app continua utilizável.
 - O modelo pode esquecer imports ou usar props de animação em tags erradas; o prompt e o validador reduzem, mas não eliminam isso. Use “Corrigir build” ou peça ajustes no chat.
-- Sem multiusuário. A fila é persistente em `DATA_DIR/jobs.json` e retoma jobs `queued` no boot; os que estavam `running` quando o processo morreu viram `cancelled` (projetos e arquivos permanecem). A autenticação Bearer e o rate limit existem, mas só são exigidos quando `CLONESTUDIO_API_TOKEN` está configurado.
+- Sem multiusuário. A fila é persistente em `DATA_DIR/jobs.json` e retoma jobs `queued` no boot; os que estavam `running` quando o processo morreu viram `cancelled` (projetos e arquivos permanecem). A autenticação Bearer só é exigida quando `CLONESTUDIO_API_TOKEN` está configurado; o rate limit de 120 req/min por IP de socket é ativado por `CLONESTUDIO_PUBLIC_HOST` ou `CLONESTUDIO_RATE_LIMIT_ENABLED=1`, independentemente do token.
 - O Context7 público tem limites de uso e pode ficar indisponível. A geração degrada sem bloquear, mas o selo de conhecimento pode não aparecer.
 - A importação de GitHub/.zip aceita apenas projetos Vite/React com `src/App.tsx` (ou `App.tsx` na raiz). Next.js, Vue e arquivos `.less/.scss` não são convertidos. Dependências fora de React, lucide-react, framer-motion, recharts e clsx não são instaladas automaticamente. A análise antes de criar já avisa sobre esses bloqueios e mostra todas as funções detectadas, sem criar o projeto.
 - **Páginas atrás de login:** o importador lê apenas a versão pública. Se a URL redirecionar para uma tela de entrada, essa é a referência capturada e o conteúdo interno não é acessado. Telas de login clonadas são demonstrações: aceitam qualquer credencial, não autenticam na conta real e exibem um aviso de demonstração.

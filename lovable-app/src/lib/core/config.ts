@@ -30,3 +30,14 @@ export const AREA_LABELS: Record<Area | "none", string> = {
   studio: "Studio",
   none: "Nenhuma",
 };
+
+// CentralIA LLM (src/lib/server/llm.server.ts). O provedor do CloneStudio é outro serviço.
+export const LLM_PROVIDER_LABELS: Record<string, string> = {
+  groq: "Groq",
+  lovable: "Lovable AI",
+};
+
+export function llmProviderLabel(provider: string | null | undefined): string {
+  if (!provider) return "—";
+  return LLM_PROVIDER_LABELS[provider] ?? provider;
+}

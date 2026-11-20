@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Send } from "lucide-react";
 import { runCentral } from "@/lib/api/agents.functions";
 import { overviewQuery } from "@/lib/queries";
-import { AREA_LABELS } from "@/lib/core/config";
+import { AREA_LABELS, llmProviderLabel } from "@/lib/core/config";
 import {
   fmtTs,
   JsonView,
@@ -107,10 +107,7 @@ function Painel() {
         title="pedido"
         aside={
           <span className="readout text-xs text-muted-foreground">
-            IA:{" "}
-            {data.llm.provider === "groq"
-              ? `Groq · ${data.llm.model}`
-              : `Lovable AI · ${data.llm.model}`}
+            IA: {`${llmProviderLabel(data.llm.provider)} · ${data.llm.model}`}
           </span>
         }
       >
@@ -240,22 +237,33 @@ function Painel() {
         </div>
       </Panel>
       <Panel title="últimas execuções" className="mt-6">
-        <div className="divide-y divide-border">
-          {data.recentRuns.map((r) => (
-            <div
-              key={r.id}
-              className="grid grid-cols-[7rem_8rem_1fr_auto] items-center gap-3 py-2 text-sm"
-            >
-              <span className="readout text-xs text-muted-foreground">{fmtTs(r.ts)}</span>
-              <span className="readout text-xs">
-                {r.agent}
-                {r.asset ? ` · ${r.asset}` : ""}
-              </span>
-              <span className="truncate text-muted-foreground">{r.detail}</span>
-              <StatusBadge status={r.status} />
-            </div>
-          ))}
-        </div>
+        {data.recentRuns.length ? (
+          <div className="divide-y divide-border">
+            {data.recentRuns.map((r) => (
+              <div
+                key={r.id}
+                className="grid grid-cols-2 gap-x-3 gap-y-1 py-2 text-sm sm:grid-cols-[7rem_8rem_1fr_auto] sm:items-center sm:gap-3"
+              >
+                <span className="readout text-xs text-muted-foreground">{fmtTs(r.ts)}</span>
+                <span className="readout text-xs">
+                  {r.agent}
+                  {r.asset ? ` · ${r.asset}` : ""}
+                </span>
+                <span className="col-span-2 truncate text-muted-foreground sm:col-span-1">
+                  {r.detail}
+                </span>
+                <div className="col-span-2 sm:col-span-1">
+                  <StatusBadge status={r.status} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="py-6 text-sm text-muted-foreground">
+            Nenhuma execução registrada ainda. Os resultados aparecem aqui depois do primeiro
+            despacho.
+          </p>
+        )}
       </Panel>
     </>
   );

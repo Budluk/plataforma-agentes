@@ -56,3 +56,22 @@ jobs:
         run: npx playwright-core install --with-deps chromium
       - name: Testes de navegador
         run: npm run test:browser
+
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lovable-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Instalar dependencias
+        run: bun install --frozen-lockfile
+      - name: Checagem de tipos
+        run: bun run typecheck
+      - name: Testes da UI
+        run: bun run test
+      - name: Build da UI
+        run: bun run build
