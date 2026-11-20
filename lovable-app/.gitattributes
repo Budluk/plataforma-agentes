@@ -1,0 +1,3 @@
+# Generated Lovable files: whitespace is owned by the generator, not by us.
+src/integrations/supabase/auth-middleware.ts whitespace=-trailing-space
+src/integrations/supabase/client.ts whitespace=-blank-at-eof

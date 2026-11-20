@@ -1,0 +1,10 @@
+CREATE TABLE public.runtime_settings (id text PRIMARY KEY DEFAULT 'global' CHECK (id = 'global'), studio_base_url text NOT NULL, studio_allowed_hosts text[] NOT NULL, studio_timeout_ms integer NOT NULL DEFAULT 30000 CHECK (studio_timeout_ms BETWEEN 1000 AND 120000), groq_model text NOT NULL DEFAULT 'openai/gpt-oss-20b', llm_max_tokens integer NOT NULL DEFAULT 3000 CHECK (llm_max_tokens BETWEEN 1 AND 16000));
+GRANT SELECT, INSERT, UPDATE ON public.runtime_settings TO authenticated;
+GRANT ALL ON public.runtime_settings TO service_role;
+ALTER TABLE public.runtime_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "operator settings" ON public.runtime_settings FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));
+CREATE TABLE public.agent_settings (agent text PRIMARY KEY, prompt text NOT NULL DEFAULT '', temperature double precision NOT NULL DEFAULT 0 CHECK (temperature BETWEEN 0 AND 2), max_tokens integer NOT NULL DEFAULT 3000 CHECK (max_tokens BETWEEN 1 AND 16000));
+GRANT SELECT, INSERT, UPDATE ON public.agent_settings TO authenticated;
+GRANT ALL ON public.agent_settings TO service_role;
+ALTER TABLE public.agent_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "operator agent settings" ON public.agent_settings FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));

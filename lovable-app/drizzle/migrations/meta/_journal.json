@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1795105585928,
+      "tag": "0000_centralia_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795105708937,
+      "tag": "0001_sync_sequences_after_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795106239191,
+      "tag": "0002_exact_audit_timestamps",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795108718237,
+      "tag": "0003_operator_runtime_configuration",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795109537958,
+      "tag": "0004_approved_site_publications",
+      "breakpoints": true
+    }
+  ]
+}

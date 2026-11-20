@@ -1,0 +1,367 @@
+/*
+ * Tailwind v4 entry: config lives here, with no tailwind.config.js or PostCSS plugin.
+ * Keep every @import in this top block. Web fonts load via <link> in src/routes/__root.tsx.
+ */
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * CentralIA design system — "Slipstream".
+ * A live operations instrument: cold graphite ground, one electric GO signal,
+ * indexed mono readouts, and motion that shows throughput instead of claiming it.
+ * Colour is semantic: lime = automated/running, amber = human needed,
+ * coral = refused, sky = information. All colours are oklch tokens.
+ */
+@theme inline {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: calc(var(--radius) - 1px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-panel: var(--panel);
+  --color-panel-edge: var(--panel-edge);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --shadow-panel: var(--shadow-panel);
+  --shadow-glow: var(--shadow-glow);
+}
+
+:root {
+  --radius: 0.25rem;
+
+  /* Ground */
+  --background: oklch(0.145 0.014 258);
+  --foreground: oklch(0.94 0.01 92);
+  --card: oklch(0.19 0.017 258);
+  --card-foreground: oklch(0.94 0.01 92);
+  --popover: oklch(0.2 0.018 258);
+  --popover-foreground: oklch(0.94 0.01 92);
+
+  /* GO signal — lime is the single committed accent. */
+  --primary: oklch(0.88 0.2 108);
+  --primary-foreground: oklch(0.16 0.035 108);
+
+  --secondary: oklch(0.225 0.018 258);
+  --secondary-foreground: oklch(0.92 0.012 92);
+  --muted: oklch(0.21 0.016 258);
+  --muted-foreground: oklch(0.68 0.022 255);
+  --accent: oklch(0.28 0.035 195);
+  --accent-foreground: oklch(0.93 0.025 195);
+
+  /* Semantic status — each colour does one job. */
+  --destructive: oklch(0.66 0.21 20);
+  --destructive-foreground: oklch(0.985 0.01 30);
+  --success: oklch(0.8 0.16 150);
+  --success-foreground: oklch(0.16 0.04 150);
+  --warning: oklch(0.83 0.16 68);
+  --warning-foreground: oklch(0.18 0.045 68);
+  --info: oklch(0.77 0.12 225);
+
+  /* Instrument bays */
+  --panel: oklch(0.175 0.015 258);
+  --panel-edge: oklch(0.38 0.022 255);
+  --border: oklch(0.295 0.018 258);
+  --input: oklch(0.325 0.02 258);
+  --ring: oklch(0.88 0.2 108);
+
+  --chart-1: oklch(0.88 0.2 108);
+  --chart-2: oklch(0.77 0.12 225);
+  --chart-3: oklch(0.8 0.16 150);
+  --chart-4: oklch(0.83 0.16 68);
+  --chart-5: oklch(0.66 0.21 20);
+
+  --sidebar: oklch(0.12 0.014 258);
+  --sidebar-foreground: oklch(0.88 0.012 92);
+  --sidebar-primary: oklch(0.88 0.2 108);
+  --sidebar-primary-foreground: oklch(0.16 0.035 108);
+  --sidebar-accent: oklch(0.205 0.018 258);
+  --sidebar-accent-foreground: oklch(0.96 0.012 92);
+  --sidebar-border: oklch(0.24 0.016 258);
+  --sidebar-ring: oklch(0.88 0.2 108);
+
+  --shadow-panel: 0 1px 0 0 oklch(1 0 0 / 5%) inset, 0 18px 40px -24px oklch(0 0 0 / 85%);
+  --shadow-glow: 0 0 0 1px oklch(0.88 0.2 108 / 45%), 0 0 28px -8px oklch(0.88 0.2 108 / 60%);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+  ::selection {
+    background: oklch(0.88 0.2 108 / 32%);
+    color: var(--color-foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* ---- Core utilities (names preserved across the app) ------------------ */
+
+@utility console-grid {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 3.5%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 3.5%) 1px, transparent 1px),
+    linear-gradient(oklch(1 0 0 / 2%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 2%) 1px, transparent 1px);
+  background-size:
+    32px 32px,
+    32px 32px,
+    160px 160px,
+    160px 160px;
+}
+
+@utility panel {
+  position: relative;
+  background-image: linear-gradient(155deg, oklch(0.205 0.018 258), oklch(0.165 0.013 258));
+  background-color: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-top-color: var(--color-panel-edge);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+}
+
+@utility readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+}
+
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-muted-foreground);
+}
+
+@utility signal-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  flex: none;
+}
+
+@keyframes pulse-signal {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.78);
+  }
+}
+@utility animate-signal {
+  animation: pulse-signal 1.4s ease-in-out infinite;
+}
+
+/* ---- Signature motifs ------------------------------------------------- */
+
+/* Inset instrument bay with two corner ticks. */
+.bay {
+  position: relative;
+}
+.bay::before,
+.bay::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  opacity: 0.55;
+}
+.bay::before {
+  top: 6px;
+  left: 6px;
+  border-top: 1px solid var(--color-primary);
+  border-left: 1px solid var(--color-primary);
+}
+.bay::after {
+  right: 6px;
+  bottom: 6px;
+  border-right: 1px solid var(--color-primary);
+  border-bottom: 1px solid var(--color-primary);
+}
+
+/* Vertical signal rail on the leading edge of a panel. */
+.railed {
+  box-shadow:
+    var(--shadow-panel),
+    inset 2px 0 0 0 oklch(0.88 0.2 108 / 70%);
+}
+
+/* Animated routing track used by the landing diagram. */
+.route-track {
+  position: relative;
+  height: 2px;
+  flex: 1 1 auto;
+  min-width: 24px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-border) 10%,
+    var(--color-border) 90%,
+    transparent
+  );
+}
+.route-track::after {
+  content: "";
+  position: absolute;
+  inset: -1px 0;
+  background: repeating-linear-gradient(90deg, var(--color-primary) 0 5px, transparent 5px 14px);
+  opacity: 0.4;
+  animation: route-flow 1.1s linear infinite;
+}
+@keyframes route-flow {
+  to {
+    background-position: 28px 0;
+  }
+}
+.route-traveler {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  box-shadow: 0 0 14px 2px oklch(0.88 0.2 108 / 75%);
+  transform: translate(-50%, -50%);
+  animation: route-run 3.4s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+@keyframes route-run {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+/* Slow scan used once on the hero surface. */
+.scan-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.scan-sweep::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  left: -35%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, oklch(0.88 0.2 108 / 7%), transparent);
+  animation: scan-pass 9s ease-in-out infinite;
+}
+@keyframes scan-pass {
+  0%,
+  55% {
+    left: -35%;
+  }
+  100% {
+    left: 105%;
+  }
+}
+
+/* Telemetry strip heartbeat. */
+@keyframes telemetry-beat {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.telemetry-beat {
+  animation: telemetry-beat 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-track::after,
+  .route-traveler,
+  .scan-sweep::after,
+  .telemetry-beat,
+  .animate-signal {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
