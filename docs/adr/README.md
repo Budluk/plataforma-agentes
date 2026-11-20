@@ -14,6 +14,7 @@ As contagens de testes citadas no corpo dos ADRs são registros históricos da d
 | [0006](./0006-centralia-branch-substituida.md) | Branch `centralia/lote-1-acoes` substituída pelo painel CentralIA | — | Branch preservada como histórico; painel é a implementação ativa |
 | [0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md) | Preparação para o alvo B com Cloudflare Tunnel | gate B | Preparação documental; ADR-0001 segue em vigor até exposição ser aprovada |
 | [0008](./0008-isolamento-build-appcontainer.md) | Isolamento real do build com AppContainer + Job Object | gate B | Desenho para o alvo B; sem VM/container no Home, falha fechada |
+| [0009](./0009-mudanca-alvo-b.md) | Minuta: mudança do alvo A para o alvo B | gate A→B | **Minuta, não aprovada** — não autoriza exposição; ADR-0001 segue em vigor |
 
 ## Estado do plano
 
@@ -25,6 +26,7 @@ As contagens de testes citadas no corpo dos ADRs são registros históricos da d
 - **Fase 5** ✅ SSE opt-in com fallback (ADR-0005)
 - **Fase 6** ✅ documentação e validação final
 - **Alvo B** ⏳ preparação documentada em [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md) e desenho de isolamento em [ADR-0008](./0008-isolamento-build-appcontainer.md); exposição depende de gate explícito
+- **Gate A→B** 📝 minuta em [ADR-0009](./0009-mudanca-alvo-b.md) registrada, ainda sem aprovação; nenhum túnel foi criado e nada foi exposto
 
 ## Limites que permanecem
 
