@@ -58,17 +58,27 @@ export function handleSse(req, res) {
     return true;
   }
 
+  // Só contabiliza depois que o stream foi realmente iniciado: se writeHead
+  // falhar, o contador não pode vazar e reduzir o limite de cliente para sempre.
+  try {
+    res.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+      'x-content-type-options': 'nosniff',
+    });
+    res.flushHeaders?.();
+    writeEvent(res, 'hello', { sse: true, revision: currentRevision() });
+  } catch {
+    try {
+      res.end();
+    } catch {}
+    logAudit('sse_rejected', { reason: 'falha ao iniciar stream' });
+    return true;
+  }
   clients += 1;
   accepted += 1;
-  res.writeHead(200, {
-    'content-type': 'text/event-stream; charset=utf-8',
-    'cache-control': 'no-cache, no-transform',
-    connection: 'keep-alive',
-    'x-accel-buffering': 'no',
-    'x-content-type-options': 'nosniff',
-  });
-  res.flushHeaders?.();
-  writeEvent(res, 'hello', { sse: true, revision: currentRevision() });
   logAudit('sse_connected', { clients });
 
   const pending = new Map();

@@ -61,3 +61,15 @@ test('guardApiRequest bloqueia e informa retry-after quando o limite estoura', (
   assert.equal(denied.extra.code, 'rate_limited');
   assert.equal(denied.headers['retry-after'], '1');
 });
+
+test('RateLimiter limita o numero de chaves e abre espaco para novos clientes', () => {
+  const limiter = new RateLimiter(5, 1_000, 3);
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(limiter.check(`ip-${index}`, 0).allowed, true);
+  }
+  assert.equal(limiter.hits.size, 3);
+  assert.equal(limiter.check('ip-novo', 0).allowed, true);
+  assert.equal(limiter.hits.size, 3);
+  assert.equal(limiter.hits.has('ip-0'), false);
+  assert.equal(limiter.hits.has('ip-novo'), true);
+});

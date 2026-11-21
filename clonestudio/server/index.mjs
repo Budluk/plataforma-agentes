@@ -209,11 +209,15 @@ function sendError(res, status, message, extra, headers = {}) {
 }
 
 async function readBody(req, limit = 1_000_000) {
-  let raw = '';
+  const chunks = [];
+  let bytes = 0;
   for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > limit) throw new HttpError(413, 'Corpo da requisição grande demais.');
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > limit) throw new HttpError(413, 'Corpo da requisição grande demais.');
+    chunks.push(buffer);
   }
+  const raw = Buffer.concat(chunks).toString('utf8');
   if (!raw.trim()) return {};
   let parsed;
   try {

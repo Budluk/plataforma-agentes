@@ -104,6 +104,15 @@ test('rotacao mantem o limite de backups e o registro mais recente', () => {
   }
 });
 
+test('rotacao nao sobrescreve um backup existente', () => {
+  const preserveFile = path.join(dataDir, 'rot-preserve.jsonl');
+  fs.writeFileSync(preserveFile, 'x'.repeat(200));
+  fs.writeFileSync(`${preserveFile}.1`, 'backup-precioso');
+  const logger = new audit.JsonlAudit({ filePath: preserveFile, maxBytes: 80, backups: 1 });
+  logger.rotate();
+  assert.equal(fs.readFileSync(`${preserveFile}.1`, 'utf8'), 'backup-precioso');
+});
+
 test('filterFreshLines preserva linhas sem timestamp identificavel', () => {
   const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const result = audit.filterFreshLines(

@@ -10,6 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { ROOT } from './env.mjs';
 import { currentRequestId } from './request-context.mjs';
+import { renameWithRetry } from './storage.mjs';
 
 export const SENSITIVE = [
   'key', 'token', 'secret', 'password', 'authorization', 'cookie', 'credential',
@@ -200,11 +201,10 @@ export class JsonlAudit {
       }
       const tmp = `${file}.${process.pid}.expire.tmp`;
       await fsp.writeFile(tmp, result.text, 'utf8');
+      // rename substitui o destino de forma atomica: nao remover o arquivo antes,
+      // para que linhas gravadas por log() nessa janela nao sejam perdidas.
       try {
-        await fsp.rm(file, { force: true });
-      } catch {}
-      try {
-        await fsp.rename(tmp, file);
+        await renameWithRetry(tmp, file);
       } catch (error) {
         await fsp.rm(tmp, { force: true });
         throw error;
@@ -229,11 +229,11 @@ export class JsonlAudit {
     for (let index = this.backups; index >= 1; index -= 1) {
       const source = index === 1 ? this.path : `${this.path}.${index - 1}`;
       const target = `${this.path}.${index}`;
-      if (!fs.existsSync(source)) continue;
+      if (!fs.existsSync(source) || fs.existsSync(target)) continue;
       try {
         fs.renameSync(source, target);
-      } catch {
-        // OneDrive/antivirus podem travar o rename; a proxima escrita tenta de novo.
+      } catch (error) {
+        console.warn(`[audit] Falha ao rotacionar ${source} -> ${target}: ${error.message}`);
       }
     }
   }

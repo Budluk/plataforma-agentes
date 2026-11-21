@@ -515,6 +515,11 @@ export function unzipEntries(buffer, options = {}) {
     if (entries.length >= maxEntries) {
       throw new Error(`O .zip tem arquivos demais (limite ${maxEntries}).`);
     }
+    // Valida os limites antes de qualquer leitura em localOffset: um valor
+    // corrompido não pode fazer o parser ler fora do buffer.
+    if (!Number.isSafeInteger(localOffset) || localOffset < 0 || localOffset + 30 > buffer.length) {
+      throw new Error(`Arquivo .zip inválido: cabeçalho local de ${name} fora do arquivo.`);
+    }
     if (buffer.readUInt32LE(localOffset) !== 0x04034b50) {
       throw new Error('Arquivo .zip inválido: cabeçalho local corrompido.');
     }

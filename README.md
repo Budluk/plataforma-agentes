@@ -249,7 +249,7 @@ alvo A o build segue em child Node com env limpo e **não é isolamento de segur
 continua restrito a loopback no boot, e nenhum modelo local foi adicionado (FreeLLMAPI remoto).
 
 Validação final em `main`: `pytest -q` (807), `check_env.py`, `pip check`, `npm run check`,
-`npm test` (201), `npm run test:browser` (19) e, em `lovable-app/`, `bun run typecheck`,
+`npm test` (215), `npm run test:browser` (19) e, em `lovable-app/`, `bun run typecheck`,
 `bun run test` (97) e `bun run build`. O job `ui` do CI executa essas três checagens; `lint`
 fica de fora por dívida de formatação Prettier pré-existente.
 

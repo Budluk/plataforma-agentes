@@ -54,13 +54,19 @@ export async function loadPlaywright() {
   return playwrightModule?.chromium ? playwrightModule : null;
 }
 
-export async function launchBrowser(playwright) {
+export async function launchBrowser(playwright, extra = {}) {
   const attempts = [];
+  const extraArgs = Array.isArray(extra.args) ? extra.args.filter((item) => typeof item === 'string') : [];
   for (const candidate of launchCandidates()) {
     const options = {
       headless: true,
       timeout: 15000,
-      args: ['--no-first-run', '--no-default-browser-check', '--disable-dev-shm-usage'],
+      args: [
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-dev-shm-usage',
+        ...extraArgs,
+      ],
     };
     if (candidate.executablePath) options.executablePath = candidate.executablePath;
     if (candidate.channel) options.channel = candidate.channel;

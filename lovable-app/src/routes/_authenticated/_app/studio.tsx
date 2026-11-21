@@ -156,7 +156,8 @@ function Studio() {
                     </Select>
                   </div>
                 ) : null}
-                {FIELDS[action].map((f) => (
+                {/* "kind" já tem seu Select acima; evita id="studio-kind" duplicado. */}
+                {FIELDS[action].filter((f) => f !== "kind").map((f) => (
                   <div key={f} className="space-y-1">
                     <Label htmlFor={`studio-${f}`}>{PLACEHOLDERS[f].label}</Label>
                     <Input

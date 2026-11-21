@@ -1,4 +1,5 @@
 import { providersCatalog } from './provider-catalog.mjs';
+import { isLoopbackHost } from './net-safety.mjs';
 
 const DEFAULT_TIMEOUT = Number(process.env.AI_REQUEST_TIMEOUT_MS || 240000);
 
@@ -13,10 +14,16 @@ function listFromEnv(name) {
     .filter(Boolean);
 }
 
-function validBaseUrl(value) {
+/**
+ * URL base de provedor so e valida quando nao contem credenciais na URL.
+ * HTTP e permitido apenas em loopback: fora dele, o Bearer viajaria em cleartext.
+ */
+export function validBaseUrl(value) {
   try {
     const url = new URL(value);
-    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password;
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false;
+    if (url.protocol === 'http:' && !isLoopbackHost(url.hostname)) return false;
+    return true;
   } catch {
     return false;
   }

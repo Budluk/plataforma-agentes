@@ -37,14 +37,27 @@ function AuthPage() {
   const [sent, setSent] = useState<string | null>(null);
 
   useEffect(() => {
+    // O OAuth volta para /auth sem a query original: o destino pretendido fica
+    // no sessionStorage. Um único efeito e um único destino evitam que dois
+    // redirects compitam e percam o deep link.
+    const stored = sessionStorage.getItem("centralia:after-auth");
+    const destination = safePath(stored ?? redirect);
+    if (stored) sessionStorage.removeItem("centralia:after-auth");
+    let active = true;
+    const go = () => {
+      if (active) navigate({ to: destination, replace: true });
+    };
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: target, replace: true });
+      if (data.session) go();
     });
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session) navigate({ to: target, replace: true });
+      if (event === "SIGNED_IN" && session) go();
     });
-    return () => data.subscription.unsubscribe();
-  }, [navigate, target]);
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, [navigate, redirect]);
 
   async function signIn(e: FormEvent) {
     e.preventDefault();
@@ -98,17 +111,6 @@ function AuthPage() {
     });
     if (result.error) toast.error("Não foi possível entrar agora.");
   }
-
-  useEffect(() => {
-    const stored = sessionStorage.getItem("centralia:after-auth");
-    if (!stored) return;
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        sessionStorage.removeItem("centralia:after-auth");
-        navigate({ to: safePath(stored), replace: true });
-      }
-    });
-  }, [navigate]);
 
   return (
     <div className="console-grid relative flex min-h-screen items-center justify-center px-4 py-12">

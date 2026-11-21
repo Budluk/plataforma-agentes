@@ -8,7 +8,7 @@ web
 
 ## Users
 
-One primary user: the operator/admin of CentralIA, signed in with the first account. They run and monitor agents across six areas, inspect results and audit history, review approvals, adjust runtime settings, and control the kill switch. Secondary audience: signed-out visitors who see the public landing and the published site page.
+One primary user: the operator/admin of CentralIA, signed in with the first account. They run and monitor agents across the operator areas, inspect results and audit history, review approvals, adjust runtime settings, and control the kill switch. Secondary audience: signed-out visitors who see the public landing and the published site page.
 
 ## Product Purpose
 
@@ -16,7 +16,7 @@ CentralIA is a multi-agent web control panel migrated from a Python CLI. It rout
 
 ## Positioning
 
-Six agent areas (economy, music, sales, research, development and the central router) behind one operator console. Contracts and gates are deterministic; the LLM only interprets the request. Irreversible actions wait for a typed SIM, parameters are bound by hash, and the append-only audit is chained. The operator-facing interface must make speed and automation evident without hiding those controls.
+Six agent domains (economy, music, sales, research, development and the central router) plus eight support surfaces (Studio, trends, content, publications, approvals, agents, settings and history) behind one operator console. Contracts and gates are deterministic; the LLM only interprets the request. Irreversible actions wait for a typed SIM, parameters are bound by hash, and the append-only audit is chained. The operator-facing interface must make speed and automation evident without hiding those controls.
 
 ## Operating Context
 

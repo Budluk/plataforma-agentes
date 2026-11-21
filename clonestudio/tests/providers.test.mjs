@@ -75,6 +75,16 @@ test('providerOrder respeita a ordem configurada e ignora desconhecidos', () => 
   }
 });
 
+test('validBaseUrl exige HTTPS fora de loopback e rejeita credenciais na URL', () => {
+  assert.ok(providers.validBaseUrl('http://127.0.0.1:3001/v1'));
+  assert.ok(providers.validBaseUrl('http://localhost:11434/v1'));
+  assert.ok(providers.validBaseUrl('https://api.example.com/v1'));
+  assert.ok(!providers.validBaseUrl('http://api.example.com/v1'));
+  assert.ok(!providers.validBaseUrl('https://user:pass@api.example.com/v1'));
+  assert.ok(!providers.validBaseUrl('ftp://api.example.com/v1'));
+  assert.ok(!providers.validBaseUrl('nao-e-uma-url'));
+});
+
 test('providerStatuses só marca como configurado quem tem URL válida', () => {
   const statuses = new Map(
     providers.providerStatuses().map((provider) => [provider.id, provider]),

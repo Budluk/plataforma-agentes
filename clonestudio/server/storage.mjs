@@ -419,7 +419,7 @@ export async function snapshotVersion(
       JSON.stringify(meta, null, 2),
       'utf8',
     );
-    await fs.promises.rename(staging, target);
+    await renameWithRetry(staging, target);
   } finally {
     await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => {});
   }

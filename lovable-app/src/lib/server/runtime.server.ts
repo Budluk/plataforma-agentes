@@ -67,9 +67,15 @@ export class Runtime {
   async flush() {
     if (!this.logs.length) return;
     const batch = this.logs;
-    this.logs = [];
     const { error } = await this.db.from("event_logs").insert(batch);
-    if (error) console.error("event_logs insert failed", error.message);
+    if (error) {
+      // Não descarta o lote quando o insert falha: os eventos continuam no
+      // buffer para uma nova tentativa. O teto evita crescimento ilimitado.
+      console.error("event_logs insert failed", error.message);
+      if (this.logs.length > 1000) this.logs = this.logs.slice(-1000);
+      return;
+    }
+    this.logs = this.logs.slice(batch.length);
   }
 
   async auditStage(ctx: RunCtx, agent: string, stage: string, result: Record<string, unknown>) {

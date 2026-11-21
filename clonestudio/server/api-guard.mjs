@@ -33,16 +33,34 @@ export function clientKey(req) {
 
 /** Janela fixa de um minuto por chave, com limpeza periódica das entradas antigas. */
 export class RateLimiter {
-  constructor(limit, windowMs = 60_000) {
+  constructor(limit, windowMs = 60_000, maxKeys = 5000) {
     if (!Number.isInteger(limit) || limit < 1) throw new Error('limite deve ser um inteiro positivo.');
+    if (!Number.isInteger(maxKeys) || maxKeys < 1) throw new Error('maxKeys deve ser um inteiro positivo.');
     this.limit = limit;
     this.windowMs = windowMs;
+    this.maxKeys = maxKeys;
     this.hits = new Map();
   }
 
   check(key, now = Date.now()) {
     const entry = this.hits.get(key);
     if (!entry || now - entry.start >= this.windowMs) {
+      if (!entry && this.hits.size >= this.maxKeys) {
+        // Map nao pode crescer sem limite: remove janelas vencidas e, se ainda
+        // cheio, descarta a janela mais antiga antes de abrir uma nova.
+        this.prune(now);
+        if (this.hits.size >= this.maxKeys) {
+          let oldestKey = null;
+          let oldestStart = Infinity;
+          for (const [candidate, value] of this.hits) {
+            if (value.start < oldestStart) {
+              oldestStart = value.start;
+              oldestKey = candidate;
+            }
+          }
+          if (oldestKey !== null) this.hits.delete(oldestKey);
+        }
+      }
       this.hits.set(key, { start: now, count: 1 });
       return { allowed: true, remaining: this.limit - 1, retryAfter: 0 };
     }

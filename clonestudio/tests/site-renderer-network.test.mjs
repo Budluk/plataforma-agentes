@@ -45,3 +45,22 @@ test('isRouteAllowed cacheia host publico apos primeira validacao', async () => 
   // Segunda chamada para o mesmo host nao deve lancar (usa cache).
   assert.ok(await renderer.isRouteAllowed('https://example.com/outro', allowedHosts));
 });
+
+test('buildHostResolverRules fixa os IPs validados e deduplica enderecos', () => {
+  const rules = renderer.buildHostResolverRules('example.com', [
+    { address: '93.184.216.34', family: 4 },
+    { address: '93.184.216.34', family: 4 },
+    { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+  ]);
+  assert.equal(
+    rules,
+    'MAP example.com 93.184.216.34, MAP example.com 2606:2800:220:1:248:1893:25c8:1946',
+  );
+});
+
+test('buildHostResolverRules rejeita host invalido ou sem enderecos', () => {
+  assert.equal(renderer.buildHostResolverRules('', [{ address: '93.184.216.34' }]), null);
+  assert.equal(renderer.buildHostResolverRules('example.com', []), null);
+  assert.equal(renderer.buildHostResolverRules('host com espaco', [{ address: '1.2.3.4' }]), null);
+  assert.equal(renderer.buildHostResolverRules('example.com', [{ address: '' }]), null);
+});

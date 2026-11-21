@@ -56,6 +56,30 @@ export async function isRouteAllowed(target, allowedHosts = new Map()) {
   }
 }
 
+/**
+ * Monta regras de resolucao fixa para o Chromium (`--host-resolver-rules`).
+ * O navegador conecta somente nos IPs publicos ja validados, sem resolver o DNS
+ * novamente, e mantem a URL, o Host e o SNI originais (virtual hosting/TLS).
+ * Hosts nao incluidos nessas regras sao abortados pelo handler de rota.
+ */
+export function buildHostResolverRules(host, addresses, maxRules = 8) {
+  const normalized = String(host || '')
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '');
+  if (!normalized || /\s/.test(normalized)) return null;
+  const rules = [];
+  for (const item of Array.isArray(addresses) ? addresses : []) {
+    const address = String(item?.address || '').trim();
+    if (!address || /\s/.test(address)) continue;
+    if (!rules.some((rule) => rule.endsWith(` ${address}`))) {
+      rules.push(`MAP ${normalized} ${address}`);
+    }
+    if (rules.length >= maxRules) break;
+  }
+  return rules.length ? rules.join(', ') : null;
+}
+
 export function isRenderableImage(src) {
   const value = String(src || '').trim();
   if (!value) return false;
@@ -73,6 +97,7 @@ export function normalizeImageList(images = []) {
       if (!isRenderableImage(image) || seen.has(image)) continue;
       seen.add(image);
       output.push({ src: image, alt: '' });
+      if (output.length >= MAX_IMAGES) break;
       continue;
     }
     const src = String(image?.src || '').trim();
@@ -313,7 +338,20 @@ export async function renderSiteReference(rawUrl, options = {}) {
   const playwright = await loadPlaywright();
   if (!playwright) return null;
 
-  const launch = await launchBrowser(playwright);
+  // Valida e resolve o DNS uma unica vez. O IP aprovado e fixado dentro do
+  // Chromium via --host-resolver-rules: a navegacao usa a URL original (Host e
+  // SNI corretos), mas a conexao nao pode resolver o dominio novamente.
+  let navigable;
+  let rules;
+  try {
+    navigable = await resolvePublicHttpUrl(rawUrl);
+    rules = buildHostResolverRules(navigable.url.hostname, navigable.addresses);
+  } catch {
+    return null;
+  }
+  if (!rules) return null;
+
+  const launch = await launchBrowser(playwright, { args: [`--host-resolver-rules=${rules}`] });
   if (!launch.browser) {
     console.warn(
       `[renderer] Nenhum navegador disponível para renderizar o site: ${launch.attempts.join(' | ')}`,
@@ -335,23 +373,29 @@ export async function renderSiteReference(rawUrl, options = {}) {
     page.setDefaultTimeout(Math.max(5000, Math.min(20000, deadline - Date.now())));
 
     // Imagens/fontes/mídia não precisam ser baixadas: só queremos as URLs e o layout.
-    // As demais requisições (inclusive navegação e scripts) só seguem para
-    // destinos públicos resolvidos, reduzindo SSRF/rebinding no navegador.
-    const allowedHosts = new Map();
+    // Apenas o host principal tem resolucao fixa; qualquer outro host e abortado
+    // (fail-closed) para nao haver segunda resolucao DNS via Chromium.
+    const pinnedHost = navigable.url.hostname
+      .toLowerCase()
+      .replace(/^\[|\]$/g, '')
+      .replace(/\.+$/, '');
     await page.route('**/*', async (route) => {
       const request = route.request();
       const type = request.resourceType();
       if (type === 'image' || type === 'font' || type === 'media') {
         return route.abort().catch(() => {});
       }
-      const allowed = await isRouteAllowed(request.url(), allowedHosts);
-      if (!allowed) {
+      try {
+        const parsed = new URL(request.url());
+        const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+        if (host !== pinnedHost) return route.abort().catch(() => {});
+      } catch {
         return route.abort().catch(() => {});
       }
       return route.continue().catch(() => {});
     });
 
-    await page.goto(rawUrl, {
+    await page.goto(navigable.url.href, {
       waitUntil: 'load',
       timeout: Math.max(8000, Math.min(25000, deadline - Date.now())),
     });

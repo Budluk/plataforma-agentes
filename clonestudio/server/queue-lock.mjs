@@ -92,8 +92,19 @@ export async function acquireQueueLock(
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       if (lockAgeMs(dir) >= staleMs) {
+        // Move o lock abandonado para um nome unico antes de apaga-lo. rename
+        // e atomico no mesmo volume: apenas um processo vence a disputa,
+        // e dois processos nao removem (e recriam) o mesmo lock ao mesmo tempo.
+        const graveyard = `${dir}.stale.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+        try {
+          await fs.promises.rename(dir, graveyard);
+        } catch (renameError) {
+          // Outro processo ja moveu/removeu o diretorio: tenta adquirir de novo.
+          if (renameError.code === 'ENOENT' || renameError.code === 'EEXIST') continue;
+          throw renameError;
+        }
+        await fs.promises.rm(graveyard, { recursive: true, force: true }).catch(() => {});
         lockStats.staleRecoveries += 1;
-        await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
         continue;
       }
       if (!waited) waited = true;

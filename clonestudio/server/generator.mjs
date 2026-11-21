@@ -620,7 +620,9 @@ async function doBuild(id, { afterBuild } = {}) {
     // Persiste o log antes de lançar o erro: o botão "Corrigir build" precisa
     // dele mesmo quando a geração termina em falha.
     updateProject(id, { buildLog: log });
-    const error = new Error(`O build falhou.\n\n${log}`);
+    // O log vai no campo próprio (e no audit), não em error.message: mensagens
+    // longas comOutput de build poluem logs e podem vazar trechos do código.
+    const error = new Error('O build falhou. Consulte o log de build.');
     error.buildLog = log;
     throw error;
   }
