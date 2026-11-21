@@ -33,6 +33,29 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/**
+ * Decide se uma requisicao de navegador pode seguir.
+ * Bloqueia esquemas nao-HTTP(S) e destinos nao publicos (loopback/privado),
+ * revalidando cada novo host via resolvePublicHttpUrl e cacheando por host
+ * durante a renderizacao.
+ */
+export async function isRouteAllowed(target, allowedHosts = new Map()) {
+  try {
+    const parsed = new URL(target);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (!allowedHosts.has(host)) {
+      await resolvePublicHttpUrl(parsed.href);
+      allowedHosts.set(host, true);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isRenderableImage(src) {
   const value = String(src || '').trim();
   if (!value) return false;
@@ -321,18 +344,8 @@ export async function renderSiteReference(rawUrl, options = {}) {
       if (type === 'image' || type === 'font' || type === 'media') {
         return route.abort().catch(() => {});
       }
-      const target = request.url();
-      try {
-        const parsed = new URL(target);
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-          return route.abort().catch(() => {});
-        }
-        const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-        if (!allowedHosts.has(host)) {
-          await resolvePublicHttpUrl(parsed.href);
-          allowedHosts.set(host, true);
-        }
-      } catch {
+      const allowed = await isRouteAllowed(request.url(), allowedHosts);
+      if (!allowed) {
         return route.abort().catch(() => {});
       }
       return route.continue().catch(() => {});
