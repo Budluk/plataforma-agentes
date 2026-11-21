@@ -146,6 +146,14 @@ test('todas as rotas /api/ validam o Host, inclusive GET', async (t) => {
   assert.equal(typeof health.queue.queued, 'number');
   assert.equal(typeof health.queue.running, 'number');
   assert.equal(typeof health.queue.history, 'number');
+  assert.equal(typeof health.uptimeMs, 'number');
+  assert.ok(health.uptimeMs >= 0);
+  assert.equal(typeof health.uptimeSeconds, 'number');
+  assert.ok(health.uptimeSeconds >= 0);
+  assert.equal(typeof health.lock, 'object');
+  assert.notEqual(health.lock, null);
+  assert.equal(typeof health.lock.acquires, 'number');
+  assert.equal(healthy.headers['x-frame-options'], 'DENY');
 
   const configLoopback = await rawGet(port, `127.0.0.1:${port}`, '/api/config');
   assert.equal(configLoopback.status, 200, getLogs());

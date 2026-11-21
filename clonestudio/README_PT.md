@@ -175,7 +175,7 @@ npm.cmd run check
 npm.cmd run test:browser
 ```
 
-A suíte padrão tem 201 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF, validação de `Host` em `/api/`, origem do preview, health operacional, retenção de auditoria, cache HTTP, cache de `src/`, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável com lock entre processos, auth/rate limit e isolamento de build.
+A suíte padrão tem 229 testes: parser/validador de geração, Context7, importação (ZIP bomb e imports que escapam), segurança de rede/SSRF (inclusive bloqueio de navegação no renderizador), validação de `Host` em `/api/`, origem do preview, health operacional, retenção de auditoria, cache HTTP, cache de `src/` e de referência de site, persistência agrupada, histórico de versões (snapshot, deduplicação, limite e restauração), auditoria, fila durável com lock entre processos (inclusive concorrência e estatísticas), auth/rate limit e isolamento de build.
 
 O `npm.cmd run test:browser` é separado porque abre o Edge headless. Ele sobe um servidor com `DATA_DIR` temporário e portas livres, cria dois projetos descartáveis e verifica 19 comportamentos de abas, janelas, persistência, acessibilidade e SSE, sem tocar nos seus projetos nem depender de rede externa.
 
