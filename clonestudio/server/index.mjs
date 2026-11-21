@@ -192,9 +192,16 @@ function sendJson(res, status, data, headers = {}) {
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
+    'x-frame-options': 'DENY',
     ...headers,
   });
   res.end(JSON.stringify(data));
+}
+
+/** Retorna mensagem segura para erros externos (rede/provedor/fs) sem vazar detalhes internos. */
+function externalErrorMessage(error, fallback) {
+  if (error instanceof HttpError) return error.message;
+  return fallback || 'Erro ao processar a solicitação.';
 }
 
 function sendError(res, status, message, extra, headers = {}) {
@@ -389,7 +396,7 @@ async function handleRequest(req, res) {
         const models = await listProviderModels(modelsMatch[1]);
         return sendJson(res, 200, { models, count: models.length });
       } catch (error) {
-        return sendError(res, 502, error.message || 'Falha ao consultar o provedor.');
+        return sendError(res, 502, externalErrorMessage(error, 'Falha ao consultar o provedor.'));
       }
     }
 
@@ -418,7 +425,7 @@ async function handleRequest(req, res) {
         const results = await resolveLibraryId(libraryName.slice(0, 120), query.slice(0, 500));
         return sendJson(res, 200, { results });
       } catch (error) {
-        return sendError(res, 502, error.message || 'Falha ao consultar o Context7.');
+        return sendError(res, 502, externalErrorMessage(error, 'Falha ao consultar o Context7.'));
       }
     }
 
@@ -439,7 +446,7 @@ async function handleRequest(req, res) {
           text: text.slice(0, 20000),
         });
       } catch (error) {
-        return sendError(res, 502, error.message || 'Falha ao consultar o Context7.');
+        return sendError(res, 502, externalErrorMessage(error, 'Falha ao consultar o Context7.'));
       }
     }
 
@@ -505,7 +512,11 @@ async function handleRequest(req, res) {
           });
         } catch (error) {
           if (social) {
-            return sendError(res, 502, error.message || 'Não foi possível analisar a página.');
+            return sendError(
+              res,
+              502,
+              externalErrorMessage(error, 'Não foi possível analisar a página.'),
+            );
           }
           console.warn(`[import] URL no prompt não pôde ser baixada: ${error.message}`);
         }
@@ -528,7 +539,11 @@ async function handleRequest(req, res) {
         const token = rememberInspiration(inspiration);
         return sendJson(res, 200, { ok: true, inspiration, token });
       } catch (error) {
-        return sendError(res, 502, error.message || 'Não foi possível analisar a página.');
+        return sendError(
+          res,
+          502,
+          externalErrorMessage(error, 'Não foi possível analisar a página.'),
+        );
       }
     }
 
@@ -542,7 +557,11 @@ async function handleRequest(req, res) {
           const inspection = await inspectGithubSource(url);
           return sendJson(res, 200, { ok: true, inspection });
         } catch (error) {
-          return sendError(res, 502, error.message || 'Não foi possível analisar o repositório.');
+          return sendError(
+            res,
+            502,
+            externalErrorMessage(error, 'Não foi possível analisar o repositório.'),
+          );
         }
       }
       if (kind === 'zip') {
@@ -575,7 +594,11 @@ async function handleRequest(req, res) {
             project: projectDetail(getProject(project.id), base),
           });
         } catch (error) {
-          return sendError(res, 502, error.message || 'Não foi possível baixar o site.');
+          return sendError(
+            res,
+            502,
+            externalErrorMessage(error, 'Não foi possível baixar o site.'),
+          );
         }
       }
 
@@ -610,7 +633,11 @@ async function handleRequest(req, res) {
             project: projectDetail(getProject(project.id), base),
           });
         } catch (error) {
-          return sendError(res, 502, error.message || 'Não foi possível importar o repositório.');
+          return sendError(
+            res,
+            502,
+            externalErrorMessage(error, 'Não foi possível importar o repositório.'),
+          );
         }
       }
 
