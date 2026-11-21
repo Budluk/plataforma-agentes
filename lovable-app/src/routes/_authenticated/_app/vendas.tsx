@@ -59,7 +59,7 @@ const TILES: readonly ShopTile[] = [
     tag: "núcleo",
     art: "bars",
     price: "R$ 0",
-    priceNote: "ferramenta real",
+    priceNote: "sample · ferramenta real",
     category: "Cálculo",
     span: "md",
     action: "margin",
@@ -72,7 +72,7 @@ const TILES: readonly ShopTile[] = [
     tag: "núcleo",
     art: "grid",
     price: "R$ 0",
-    priceNote: "ferramenta real",
+    priceNote: "sample · ferramenta real",
     category: "Cálculo",
     span: "md",
     action: "price",
@@ -85,7 +85,7 @@ const TILES: readonly ShopTile[] = [
     tag: "núcleo",
     art: "blocks",
     price: "R$ 0",
-    priceNote: "ferramenta real",
+    priceNote: "sample · ferramenta real",
     category: "Cálculo",
     span: "md",
     action: "break_even",
@@ -95,11 +95,11 @@ const TILES: readonly ShopTile[] = [
     code: "CD-014",
     name: "Caderno capa dura",
     note: "192 páginas · 90 g · amostra de papelaria",
-    tag: "-28%",
+    tag: "-28% sample",
     art: "grid",
     price: "R$ 34,90",
     was: "R$ 48,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -113,7 +113,7 @@ const TILES: readonly ShopTile[] = [
     tag: "novo",
     art: "bars",
     price: "R$ 12,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -128,7 +128,7 @@ const TILES: readonly ShopTile[] = [
     tagDark: true,
     art: "stripes",
     price: "R$ 89,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -139,11 +139,11 @@ const TILES: readonly ShopTile[] = [
     code: "CF-330",
     name: "Café em grãos 500g",
     note: "Torra média · embalagem lacrada",
-    tag: "-15%",
+    tag: "-15% sample",
     art: "rings",
     price: "R$ 49,00",
     was: "R$ 58,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -158,7 +158,7 @@ const TILES: readonly ShopTile[] = [
     tagDark: true,
     art: "blocks",
     price: "R$ 189,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -172,7 +172,7 @@ const TILES: readonly ShopTile[] = [
     tag: "3 por 2",
     art: "dots",
     price: "R$ 21,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -186,7 +186,7 @@ const TILES: readonly ShopTile[] = [
     tag: "novo",
     art: "wave",
     price: "R$ 99,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -201,7 +201,7 @@ const TILES: readonly ShopTile[] = [
     tagDark: true,
     art: "stripes",
     price: "R$ 29,00",
-    priceNote: "preço ilustrativo",
+    priceNote: "sample · preço ilustrativo",
     category: "Produtos",
     span: "sm",
     action: "product",
@@ -215,7 +215,7 @@ const TILES: readonly ShopTile[] = [
     tag: "entrada",
     art: "wave",
     price: "R$ 0",
-    priceNote: "ferramenta real",
+    priceNote: "sample · ferramenta real",
     category: "Cálculo",
     span: "lg",
     action: "natural",
@@ -228,7 +228,7 @@ const TILES: readonly ShopTile[] = [
     tag: "análise",
     art: "bars",
     price: "R$ 0",
-    priceNote: "ferramenta real",
+    priceNote: "sample · ferramenta real",
     category: "Funil",
     span: "lg",
     action: "funnel",
@@ -242,7 +242,7 @@ const TILES: readonly ShopTile[] = [
     tagDark: true,
     art: "grid",
     price: "R$ 0",
-    priceNote: "ferramenta real",
+    priceNote: "sample · ferramenta real",
     category: "Relatório",
     span: "lg",
     action: "report",
@@ -453,12 +453,36 @@ function Vendas() {
         </div>
       </div>
 
+      <section className="sf-wrap sf-lead" aria-label="Vitrine e balcão de cálculo">
+        <div className="sf-lead-copy">
+          <h1 className="sf-lead-title">O preço é de amostra. O cálculo é real.</h1>
+          <p>
+            Escolha um item da prateleira ou abra o balcão: margem, preço e equilíbrio usam os
+            contratos determinísticos da CentralIA.
+          </p>
+        </div>
+        <div className="sf-lead-desk">
+          <span className="sf-sample-tag">sample</span>
+          <div className="sf-lead-figure">
+            <span>R$ 34,90</span>
+            <small>caderno capa dura · amostra</small>
+          </div>
+          <a
+            href="#sf-calculo"
+            className="sf-lead-cta"
+            onClick={() => {
+              setAction("margin");
+              setSelected("tool-margin");
+            }}
+          >
+            Calcular margem <ArrowUpRight size={14} aria-hidden="true" />
+          </a>
+        </div>
+      </section>
+
       <main className="sf-wrap sf-main" id="sf-vitrine">
         <div className="sf-section-head">
-          <div>
-            <span className="sf-kicker">01 / vitrine</span>
-            <h1 className="sf-title">Prateleira de demonstração</h1>
-          </div>
+          <h2 className="sf-title">Prateleira de demonstração</h2>
           <span className="sf-count" aria-live="polite">
             {String(visible.length).padStart(2, "0")} itens · amostra local
           </span>
@@ -534,7 +558,6 @@ function Vendas() {
         <div className="sf-wrap sf-backroom-inner">
           <div className="sf-backroom-head">
             <div>
-              <span className="sf-kicker">02 / balcão de cálculo</span>
               <h2 id="sf-backroom-title">O motor por trás da vitrine</h2>
               <p>
                 Aqui os números são reais: margem, preço, equilíbrio e funil passam pelos gates
