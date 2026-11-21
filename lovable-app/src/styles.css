@@ -365,3 +365,32 @@
     scroll-behavior: auto;
   }
 }
+
+/* ---- Songbook: light reading mode for the music area ----------------- */
+/* A deliberate sheet-of-paper surface inside the dark operations console. */
+.songbook {
+  --sb-ink: #12233b;
+  --sb-paper: #fbfaf6;
+  --sb-edge: #e3e7ec;
+  --sb-blue: #1f4e79;
+  --sb-orange: #e8663d;
+  --sb-muted: #66748a;
+  background-color: var(--sb-paper);
+  color: var(--sb-ink);
+}
+.songbook ::selection {
+  background: rgb(232 102 61 / 22%);
+  color: var(--sb-ink);
+}
+.songbook :focus-visible {
+  outline-color: var(--sb-orange);
+}
+
+/* Faint five-line staff used behind the masthead mark. */
+@utility songbook-staff {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 6%) 0 1px,
+    transparent 1px 8px
+  );
+}
