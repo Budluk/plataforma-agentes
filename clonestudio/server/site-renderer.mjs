@@ -12,6 +12,7 @@ const MAX_LINKS = 30;
 const MAX_VIDEOS = 24;
 const MAX_DETAIL_PAGES = 8;
 const DETAIL_FETCH_TIMEOUT_MS = 6000;
+const DOM_EXTRACT_TIMEOUT_MS = 10_000;
 
 const MOBILE_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -21,6 +22,15 @@ function clean(value, limit) {
     .replace(/\s+/g, ' ')
     .trim();
   return text.length > limit ? text.slice(0, limit) : text;
+}
+
+/** Executa uma promise com timeout; rejeita com TimeoutError se exceder. */
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout de ${label} (${ms}ms)`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 export function isRenderableImage(src) {
@@ -350,8 +360,9 @@ export async function renderSiteReference(rawUrl, options = {}) {
     }
     await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
 
-    const data = await page.evaluate(() => {
-      const absolute = (value) => {
+    const data = await withTimeout(
+      page.evaluate(() => {
+        const absolute = (value) => {
         try {
           return new URL(value, location.href).href;
         } catch {
@@ -461,9 +472,12 @@ export async function renderSiteReference(rawUrl, options = {}) {
         fonts: top(fontCounts, 4),
         finalUrl: location.href,
       };
-    });
+    }),
+    DOM_EXTRACT_TIMEOUT_MS,
+    'extração DOM',
+  );
 
-    let pageVideos = await page.evaluate(collectVideosInPage).catch(() => []);
+  let pageVideos = await page.evaluate(collectVideosInPage).catch(() => []);
     const detailLinks = await page.evaluate(collectDetailLinksInPage).catch(() => []);
     const finalUrl = data.finalUrl || rawUrl;
 
