@@ -42,6 +42,10 @@ const INSPECTION_TTL_MS = envNumber('IMPORT_INSPECTION_TTL_MS', 15 * 60 * 1000, 
 const MAX_INSPECTION_ENTRIES = envNumber('IMPORT_INSPECTION_MAX_ENTRIES', 6000, { min: 10 });
 const MAX_INSPECTION_CACHE = envNumber('IMPORT_INSPECTION_CACHE', 8, { min: 1, max: 1000 });
 
+const siteReferenceCache = new Map();
+const SITE_REFERENCE_TTL_MS = envNumber('IMPORT_SITE_REFERENCE_TTL_MS', 10 * 60 * 1000, { min: 1000 });
+const MAX_SITE_REFERENCE_CACHE = envNumber('IMPORT_SITE_REFERENCE_CACHE', 20, { min: 1, max: 1000 });
+
 /* ---------- URL safety ---------- */
 // A validação de URL/rede (incluindo resolução de DNS) fica em net-safety.mjs.
 
@@ -324,6 +328,13 @@ async function readSiteOnce(url, timeoutMs) {
 
 export async function fetchSiteReference(rawUrl) {
   const url = await assertPublicHttpUrlResolved(rawUrl);
+  const cacheKey = url.href;
+
+  const cached = siteReferenceCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.reference;
+  }
+
   const startedAt = Date.now();
   let attempt = await readSiteOnce(url, SITE_TIMEOUT_MS);
 
@@ -364,7 +375,7 @@ export async function fetchSiteReference(rawUrl) {
     return fallback[key] || (Array.isArray(value) ? [] : '');
   };
 
-  return {
+  const reference = {
     kind: 'site',
     url: base.url || url.href,
     title: String(pick('title') || '').slice(0, 160),
@@ -380,6 +391,15 @@ export async function fetchSiteReference(rawUrl) {
     rendered: Boolean(rendered),
     fetchedAt: new Date().toISOString(),
   };
+
+  // Cache de referência de site para não refetchar a mesma URL em curto intervalo.
+  if (siteReferenceCache.size >= MAX_SITE_REFERENCE_CACHE) {
+    const oldest = siteReferenceCache.keys().next().value;
+    if (oldest !== undefined) siteReferenceCache.delete(oldest);
+  }
+  siteReferenceCache.set(cacheKey, { reference, expiresAt: Date.now() + SITE_REFERENCE_TTL_MS });
+
+  return reference;
 }
 
 export function shortSitePrompt(reference, userPrompt) {
