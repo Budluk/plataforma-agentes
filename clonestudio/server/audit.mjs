@@ -5,6 +5,7 @@
  * core/logger.py da plataforma Python para manter as duas areas alinhadas.
  */
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ROOT } from './env.mjs';
@@ -126,19 +127,19 @@ export class JsonlAudit {
     this.lastExpireAt = 0;
     fs.mkdirSync(this.dir, { recursive: true });
 
-    // Expiracao por idade roda em janela propria para nao bloquear log() no request.
+    // Expiracao por idade roda em janela propria (assincrona) para nao bloquear log() no request.
     if (this.retentionDays > 0) {
-      const runExpire = () => {
+      const runExpire = async () => {
         const now = Date.now();
         this.lastExpireAt = now;
         try {
-          this.expire(now);
+          await this.expireAsync(now);
         } catch (error) {
           console.error('[audit] Nao foi possivel aplicar retencao por idade:', error.message);
         }
       };
-      setImmediate(runExpire);
-      const timer = setInterval(runExpire, EXPIRE_INTERVAL_MS);
+      setImmediate(() => runExpire().catch(() => {}));
+      const timer = setInterval(() => runExpire().catch(() => {}), EXPIRE_INTERVAL_MS);
       timer.unref?.();
     }
   }
@@ -170,6 +171,42 @@ export class JsonlAudit {
         fs.renameSync(tmp, file);
       } catch (error) {
         fs.rmSync(tmp, { force: true });
+        throw error;
+      }
+    }
+    return removed;
+  }
+
+  /** Versao assincrona da expiracao por idade para nao bloquear o event loop. */
+  async expireAsync(now = Date.now()) {
+    if (this.retentionDays <= 0) return 0;
+    const cutoff = new Date(now - this.retentionDays * DAY_MS).toISOString();
+    let removed = 0;
+    for (let index = 0; index <= this.backups; index += 1) {
+      const file = index === 0 ? this.path : `${this.path}.${index}`;
+      let text;
+      try {
+        text = await fsp.readFile(file, 'utf8');
+      } catch (error) {
+        if (error.code === 'ENOENT') continue;
+        throw error;
+      }
+      const result = filterFreshLines(text, cutoff);
+      if (!result.removed) continue;
+      removed += result.removed;
+      if (!result.text && index > 0) {
+        await fsp.rm(file, { force: true });
+        continue;
+      }
+      const tmp = `${file}.${process.pid}.expire.tmp`;
+      await fsp.writeFile(tmp, result.text, 'utf8');
+      try {
+        await fsp.rm(file, { force: true });
+      } catch {}
+      try {
+        await fsp.rename(tmp, file);
+      } catch (error) {
+        await fsp.rm(tmp, { force: true });
         throw error;
       }
     }

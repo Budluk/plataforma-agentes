@@ -139,3 +139,25 @@ test('retencao por idade remove registros antigos do arquivo e dos backups', () 
   assert.equal(fs.existsSync(`${retentionFile}.1`), false);
   for (const line of main.trim().split('\n')) JSON.parse(line);
 });
+
+test('retencao assincrona por idade remove registros antigos', async () => {
+  const asyncFile = path.join(dataDir, 'ret-async.jsonl');
+  const now = Date.now();
+  const oldTs = new Date(now - 40 * 86_400_000).toISOString();
+  const recentTs = new Date(now - 1_000).toISOString();
+  fs.writeFileSync(
+    asyncFile,
+    [JSON.stringify({ ts: oldTs, event: 'antigo' }), JSON.stringify({ ts: recentTs, event: 'recente' })].join('\n'),
+  );
+  fs.writeFileSync(`${asyncFile}.1`, `${JSON.stringify({ ts: oldTs, event: 'backupAntigo' })}\n`);
+
+  const logger = new audit.JsonlAudit({ filePath: asyncFile, retentionDays: 0, backups: 2 });
+  logger.retentionDays = 30;
+  assert.equal(await logger.expireAsync(now), 2);
+
+  const main = fs.readFileSync(asyncFile, 'utf8');
+  assert.match(main, /recente/);
+  assert.ok(!main.includes('antigo'));
+  assert.equal(fs.existsSync(`${asyncFile}.1`), false);
+  for (const line of main.trim().split('\n')) JSON.parse(line);
+});

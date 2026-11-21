@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { ROOT } from './env.mjs';
 import { logAudit } from './audit.mjs';
 import { queueStats } from './job-queue.mjs';
+import { lockStatsSnapshot } from './queue-lock.mjs';
 import { runWithRequest } from './request-context.mjs';
 import {
   addMessage,
@@ -78,6 +79,8 @@ import {
 } from './preview-validator.mjs';
 
 const VERSION = '0.2.0';
+// Tempo de inicializacao do servidor para observabilidade (sem segredos).
+const SERVER_STARTED_AT = Date.now();
 let HOST;
 try {
   HOST = assertLoopbackHost(process.env.HOST || '127.0.0.1');
@@ -342,9 +345,12 @@ async function handleRequest(req, res) {
         name: 'CloneStudio AI',
         version: VERSION,
         time: new Date().toISOString(),
+        uptimeMs: Date.now() - SERVER_STARTED_AT,
+        uptimeSeconds: Math.floor((Date.now() - SERVER_STARTED_AT) / 1000),
         providers: providerOrder().map((provider) => provider.id),
         ...generatorStats(),
         queue: queueStats(),
+        lock: lockStatsSnapshot(),
         buildIsolation: BUILD_ISOLATION,
         auth: HEALTH_AUTH,
         ...sseStatus(),

@@ -18,6 +18,28 @@ export function queueLockPath(dataDir) {
   return path.join(dataDir, LOCK_NAME);
 }
 
+/** Estatisticas de contencao do lock da fila (somente leitura, sem segredos). */
+const lockStats = {
+  acquires: 0,
+  waits: 0,
+  totalWaitMs: 0,
+  maxWaitMs: 0,
+  staleRecoveries: 0,
+};
+
+export function lockStatsSnapshot() {
+  return {
+    acquires: lockStats.acquires,
+    waits: lockStats.waits,
+    totalWaitMs: lockStats.totalWaitMs,
+    maxWaitMs: lockStats.maxWaitMs,
+    staleRecoveries: lockStats.staleRecoveries,
+    averageWaitMs: lockStats.acquires
+      ? Math.round(lockStats.totalWaitMs / lockStats.acquires)
+      : 0,
+  };
+}
+
 /** Inteiros positivos; valores invalidos voltam ao padrao (fail closed). */
 export function envPositiveInt(name, fallback) {
   const value = Number(process.env[name]);
@@ -43,6 +65,8 @@ export async function acquireQueueLock(
 ) {
   await fs.promises.mkdir(path.dirname(dir), { recursive: true });
   const deadline = Date.now() + timeoutMs;
+  const waitStartedAt = Date.now();
+  let waited = false;
 
   for (;;) {
     try {
@@ -53,6 +77,12 @@ export async function acquireQueueLock(
         `${JSON.stringify(owner)}\n`,
         'utf8',
       );
+      lockStats.acquires += 1;
+      if (waited) {
+        const waitedMs = Date.now() - waitStartedAt;
+        lockStats.totalWaitMs += waitedMs;
+        if (waitedMs > lockStats.maxWaitMs) lockStats.maxWaitMs = waitedMs;
+      }
       let released = false;
       return async () => {
         if (released) return;
@@ -62,9 +92,11 @@ export async function acquireQueueLock(
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       if (lockAgeMs(dir) >= staleMs) {
+        lockStats.staleRecoveries += 1;
         await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
         continue;
       }
+      if (!waited) waited = true;
       if (Date.now() >= deadline) {
         throw new Error('A fila esta ocupada por outro processo.');
       }
