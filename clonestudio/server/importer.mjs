@@ -43,6 +43,7 @@ const MAX_INSPECTION_ENTRIES = envNumber('IMPORT_INSPECTION_MAX_ENTRIES', 6000, 
 const MAX_INSPECTION_CACHE = envNumber('IMPORT_INSPECTION_CACHE', 8, { min: 1, max: 1000 });
 
 const siteReferenceCache = new Map();
+const siteReferenceInflight = new Map();
 const SITE_REFERENCE_TTL_MS = envNumber('IMPORT_SITE_REFERENCE_TTL_MS', 10 * 60 * 1000, { min: 1000 });
 const MAX_SITE_REFERENCE_CACHE = envNumber('IMPORT_SITE_REFERENCE_CACHE', 20, { min: 1, max: 1000 });
 
@@ -335,6 +336,20 @@ export async function fetchSiteReference(rawUrl) {
     return cached.reference;
   }
 
+  // Deduplica requisicoes concorrentes para a mesma URL normalizada.
+  const inflight = siteReferenceInflight.get(cacheKey);
+  if (inflight) return inflight;
+
+  const pending = loadSiteReference(url, cacheKey);
+  siteReferenceInflight.set(cacheKey, pending);
+  try {
+    return await pending;
+  } finally {
+    siteReferenceInflight.delete(cacheKey);
+  }
+}
+
+async function loadSiteReference(url, cacheKey) {
   const startedAt = Date.now();
   let attempt = await readSiteOnce(url, SITE_TIMEOUT_MS);
 
