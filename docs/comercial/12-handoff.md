@@ -1,13 +1,16 @@
 # 12 — Handoff e autorizações pendentes
 
-Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como relatórios, contratos puros e documentação. **Nenhuma autorização abaixo foi executada.**
+Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como relatórios, contratos puros e documentação. Execução das autorizações em 2026-11-21: **A1 e A7 concluídas; A2 e A8 bloqueadas; A3–A6 pausadas**.
 
 ## Estado atual
 
-- Nada foi commitado, pushado, mesclado, deployado, exposto, tunelado ou associado a domínio.
+- **A1 concluída:** ADR 0010 aprovado como especificação.
+- **A7 concluída:** commit `8edbc37` ("Add multi-tenant commercial platform contracts (phases 2-10)") commitado e pushado para `main`; 37 arquivos, 8.260 inserções. Verificação isolada do commit: typecheck OK e 258 testes/21 arquivos. **Nenhum PR foi aberto** — isso exigiria aprovação explícita separada. A feature de PDF com IA ficou de fora e permanece no working tree.
+- Nada foi mesclado, deployado, exposto, tunelado ou associado a domínio.
 - Nenhuma `.env` de produção foi editada e nenhum token foi rotacionado.
-- O schema da Fase 2 não foi aplicado; os tipos do Supabase não foram gerados; o Lovable MCP não está conectado.
-- O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) continua como minuta.
+- **A2 bloqueada:** o Lovable MCP está desconectado (sem `send_message` e sem recursos). O schema da Fase 2 não foi aplicado e os tipos do Supabase não foram gerados. O prompt pronto está em `13-prompt-lovable.md`.
+- **A8 bloqueada (tipo C):** classificação C, gate B fail closed. Nada foi exposto e nenhum comando de túnel foi executado. Faltam hostname interno definitivo, Cloudflare Access + WARP/rota privada, token definitivo em Cloud Secret e novo ADR aprovando A→B com CI verde. O ADR 0009 segue como minuta.
+- O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) foi aprovado em 2026-11-21 como especificação; não autoriza escrita manual de schema, exposição nem envio real.
 - As Fases 3–10 não leem banco nem executam ações externas: são primitivas determinísticas que recebem dados do chamador.
 - A vitrine `/vendas` segue ilustrativa e rotulada `AMOSTRA`; publicação social continua simulada.
 
@@ -21,10 +24,10 @@ Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como re
 | A4 | Aprovar RLS, `memberships`, `agent_grants` e `integration_grants` iniciais | Define o isolamento por tenant e as permissões de humanos/agentes/integrações | A2, A3 |
 | A5 | Ligar as Fases 3–10 a servidor, rotas e UI | Transforma contratos puros em leituras reais; mantém `requireOperator` e gates | A2–A4 |
 | A6 | ADR específico para WhatsApp Business API e e-mail oficiais | Integração real exige consentimento, template aprovado e ambiente autorizado | A1, A4 |
-| A7 | Autorizar commit/push/PR | Versiona o trabalho; o branch publicado não pode ter histórico reescrito | A1–A6 estáveis |
-| A8 | Autorizar deploy, expose, tunnel ou domínio | Muda ambiente; o preflight precisa estar `pronto` e a autorização deve ser explícita e separada | A7 + testes em ambiente autorizado |
+| A7 | Autorizar commit/push/PR | Versiona o trabalho; o branch publicado não pode ter histórico reescrito | Escopo definido pelo operador: só Fases 2–10 |
+| A8 | Autorizar deploy, expose, tunnel ou domínio | Muda ambiente; o preflight precisa estar `pronto` e a autorização deve ser explícita e separada | A7 + gates do ADR 0007 |
 
-Ordem recomendada: **A1 → A2 → A3 → A4 → A5 → A6 → A7 → A8**.
+Ordem executada: **A1 → A2 (bloqueada) → A7 → A8 (bloqueada)**. A3–A6 dependem de A2. A ordem recomendada original era A1 → A2 → A3 → A4 → A5 → A6 → A7 → A8; o operador autorizou A7 com escopo reduzido antes de A2 ser desbloqueada.
 
 ## O que cada fase deixou pronto
 
@@ -55,8 +58,8 @@ commit · push · PR · merge · deploy · expose · tunnel · domínio · rota�
 
 ## Próxima ação sugerida
 
-Diga explicitamente qual autorização deseja iniciar — normalmente **A1 (aprovar o ADR 0010)**. Enquanto isso, posso preparar, sem enviar nada:
+1. **Desbloquear A2:** copie o bloco de `13-prompt-lovable.md` no editor do Lovable e informe quando as tabelas, funções, policies e os tipos gerados estiverem prontos. A3–A6 retomam na sequência.
+2. **Desbloquear A8:** informe o hostname interno definitivo, configure Cloudflare Access + WARP/rota privada, registre o token definitivo como Cloud Secret e aprove um ADR A→B com CI verde. Até lá, nada será exposto.
+3. **Decidir a feature de PDF com IA:** os 7 arquivos permanecem no working tree, sem entrar no commit A7.
 
-1. uma revisão do texto do ADR 0010 para aprovação;
-2. o conteúdo de `05-especificacao-lovable.md` convertido em mensagem pronta para o editor do Lovable;
-3. um plano de testes de isolamento entre dois tenants para A4.
+Sem uma dessas ações, não há mais nada executável no roadmap.

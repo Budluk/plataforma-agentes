@@ -15,10 +15,12 @@ Este diretório registra o desenho da área comercial sobre o projeto existente.
 - `10-inteligencia.md` — consolidação de leituras reais, lacunas, divergências e camada editorial da Fase 9, sem execução.
 - `11-seguranca.md` — permissões por ator, LGPD, auditoria encadeada e preflight da Fase 10, sem exposição ou deploy.
 - `12-handoff.md` — autorizações pendentes (A1–A8), dependências e critérios de aceite após as 10 fases.
+- `13-prompt-lovable.md` — prompt único, pronto para colar no editor do Lovable, consolidando `02`, `03` e `05`.
 
 **Regras de leitura**
 
 1. O schema atual (19 tabelas) é o baseline; nada aqui foi aplicado ao banco real.
 2. `drizzle/`, `supabase/migrations/`, arquivos gerados e segredos não são editados nesta fase.
 3. A vitrine `/vendas` continua ilustrativa; nenhum item desta especificação a transforma em catálogo real automaticamente.
-4. O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) está como minuta e precisa de aprovação explícita antes de qualquer mudança de schema.
+4. O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) foi **aprovado em 2026-11-21 como especificação** (A1). Isso autoriza enviar o prompt ao Lovable, mas **não** autoriza escrever `supabase/migrations/` ou `drizzle/` à mão, expor rede nem executar envios reais.
+5. O schema da Fase 2 ainda não foi aplicado: o Lovable MCP está desconectado e nenhuma `send_message` está disponível. Use `13-prompt-lovable.md` no editor do Lovable para desbloquear A2–A6.
