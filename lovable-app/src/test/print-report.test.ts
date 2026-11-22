@@ -160,4 +160,32 @@ describe("sales print report model", () => {
     expect(html).toContain("Mostrando 30 de 40 assuntos");
     expect(html).not.toContain("assunto 35");
   });
+
+  it("includes the AI-written section when it was generated", () => {
+    const html = htmlOf({
+      ...base,
+      narrative: {
+        resumo: "Leitura editorial baseada apenas nos dados aprovados nesta sessão.",
+        destaques: ["Margem calculada pelo gate"],
+        atencao: ["Funil ainda não foi diagnosticado"],
+        proximos_passos: ["Rodar o diagnóstico do funil"],
+      },
+    });
+    expect(html).toContain("4. Leitura por IA");
+    expect(html).toContain("Resumo: Leitura editorial baseada");
+    expect(html).toContain("Margem calculada pelo gate");
+    expect(html).toContain("Funil ainda não foi diagnosticado");
+    expect(html).toContain("Rodar o diagnóstico do funil");
+  });
+
+  it("keeps the deterministic report and warns when the AI failed", () => {
+    const html = htmlOf({ ...base, narrativeError: "HTTP 503" });
+    expect(html).toContain("4. Leitura por IA");
+    expect(html).toContain("A IA não completou a leitura: HTTP 503");
+    expect(html).toContain("Nenhum cálculo de vendas executado nesta sessão");
+  });
+
+  it("omits the AI section when it was never requested", () => {
+    expect(htmlOf(base)).not.toContain("4. Leitura por IA");
+  });
 });

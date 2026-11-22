@@ -4,10 +4,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { ArrowUpRight, Calculator, FileText, Search, Tag, X } from "lucide-react";
-import { runFunnel, runSales } from "@/lib/api/agents.functions";
+import { runFunnel, runSales, writeSalesNarrative } from "@/lib/api/agents.functions";
 import { trendsQuery } from "@/lib/queries";
 import { renderPrintHtml } from "@/lib/core/print-report";
 import { buildSalesReport } from "@/lib/core/sales-report";
+import {
+  buildNarrativeFacts,
+  SalesNarrativeSchema,
+  type SalesNarrative,
+} from "@/lib/core/sales-narrative";
 import { Outcome, Panel } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -253,6 +258,7 @@ function Vendas() {
   const qc = useQueryClient();
   const sales = useServerFn(runSales);
   const funnel = useServerFn(runFunnel);
+  const writeNarrative = useServerFn(writeSalesNarrative);
   const [action, setAction] = useState<"margin" | "price" | "break_even">("margin");
   const [f, setF] = useState({
     product: "produto",
@@ -264,7 +270,7 @@ function Vendas() {
   });
   const [salesText, setSalesText] = useState("");
   const [funnelText, setFunnelText] = useState("");
-  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState<"plain" | "ai" | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<Category>("Todos");
@@ -289,29 +295,55 @@ function Vendas() {
       .map((x) => Number(x.replace(",", "."))),
   });
 
-  const printReport = async () => {
-    setPdfBusy(true);
+  const printReport = async (mode: "plain" | "ai") => {
+    setPdfBusy(mode);
     setPdfError(null);
     // Open synchronously with the click so popup blockers keep the user gesture.
     const win = window.open("", "_blank", "width=900,height=700");
     if (!win) {
       setPdfError("Pop-up bloqueado. Libere pop-ups para este site e tente novamente.");
-      setPdfBusy(false);
+      setPdfBusy(null);
       return;
     }
     try {
       const trends = await qc.fetchQuery(trendsQuery("latest", 24));
+      const input = {
+        generatedAt: new Date().toLocaleString("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
+        sales: s.data ?? null,
+        funnel: fu.data ?? null,
+        salesParams: request(),
+        trendRows: trends.rows,
+        trendObservationCount: trends.observations.length,
+      };
+
+      let narrative: SalesNarrative | null = null;
+      let narrativeError: string | null = null;
+      if (mode === "ai") {
+        try {
+          const facts = buildNarrativeFacts({
+            ...input,
+            sampleTiles: TILES,
+          });
+          const r = await writeNarrative({ data: facts });
+          if (r.ok && r.data) {
+            const parsed = SalesNarrativeSchema.safeParse(r.data);
+            if (parsed.success) narrative = parsed.data;
+            else narrativeError = "A IA respondeu fora do formato; o PDF segue determinístico.";
+          } else {
+            narrativeError = r.reasons?.[0] ?? "Resposta da IA indisponível.";
+          }
+        } catch {
+          narrativeError = "A IA não pôde ser consultada; o PDF segue determinístico.";
+        }
+      }
+
       const html = renderPrintHtml(
         buildSalesReport({
-          generatedAt: new Date().toLocaleString("pt-BR", {
-            dateStyle: "short",
-            timeStyle: "short",
-          }),
-          sales: s.data ?? null,
-          funnel: fu.data ?? null,
-          salesParams: request(),
-          trendRows: trends.rows,
-          trendObservationCount: trends.observations.length,
+          ...input,
+          ...(mode === "ai" ? { narrative, narrativeError } : {}),
         }),
       );
       win.document.open();
@@ -329,7 +361,7 @@ function Vendas() {
       win.close();
       setPdfError((e as Error).message || "Não foi possível abrir a impressão.");
     } finally {
-      setPdfBusy(false);
+      setPdfBusy(null);
     }
   };
 
@@ -366,7 +398,7 @@ function Vendas() {
         scrollTo("sf-funil");
         break;
       case "report":
-        if (s.data || fu.data) void printReport();
+        if (s.data || fu.data) void printReport("plain");
         else scrollTo("sf-relatorio");
         break;
     }
@@ -564,14 +596,24 @@ function Vendas() {
                 determinísticos. Campos ausentes falham fechado — nada é inventado.
               </p>
             </div>
-            <Button
-              variant="outline"
-              disabled={pdfBusy || (!s.data && !fu.data)}
-              onClick={printReport}
-            >
-              <FileText size={14} aria-hidden="true" />
-              {pdfBusy ? "Abrindo…" : "Imprimir PDF"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={pdfBusy !== null || (!s.data && !fu.data)}
+                onClick={() => void printReport("plain")}
+              >
+                <FileText size={14} aria-hidden="true" />
+                {pdfBusy === "plain" ? "Abrindo…" : "Imprimir PDF"}
+              </Button>
+              <Button
+                variant="signal"
+                disabled={pdfBusy !== null || (!s.data && !fu.data)}
+                onClick={() => void printReport("ai")}
+              >
+                <FileText size={14} aria-hidden="true" />
+                {pdfBusy === "ai" ? "Gerando com IA…" : "Gerar PDF com IA"}
+              </Button>
+            </div>
           </div>
 
           <div className="sf-backroom-grid">
@@ -694,15 +736,16 @@ function Vendas() {
             >
               <p className="text-sm text-muted-foreground">
                 Abre a impressão do navegador com os resultados calculados nesta sessão e as
-                tendências já salvas no app. Escolha “Salvar como PDF” na janela que abrir. Nada é
-                coletado na geração; se um cálculo não foi feito, o relatório diz que ele está
-                ausente.
+                tendências já salvas no app. “Gerar PDF com IA” acrescenta uma seção editorial
+                escrita somente com esses fatos; a vitrine entra como amostra explícita. Se a IA
+                falhar, o PDF determinístico segue com aviso. Escolha “Salvar como PDF” na janela
+                que abrir.
               </p>
               {pdfError ? <p className="mt-3 text-sm text-destructive">{pdfError}</p> : null}
               {!s.data && !fu.data ? (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Execute um cálculo de vendas ou um diagnóstico de funil para habilitar o botão
-                  “Imprimir PDF”.
+                  Execute um cálculo de vendas ou um diagnóstico de funil para habilitar os botões
+                  de PDF.
                 </p>
               ) : null}
             </Panel>

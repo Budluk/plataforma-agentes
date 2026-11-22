@@ -3,6 +3,7 @@
 // no clock read, no collection — absent data is reported as absent.
 
 import type { ReportBlock, ReportDocument, ReportTableBlock } from "./report";
+import type { SalesNarrative } from "./sales-narrative";
 
 export interface OutcomeLike {
   ok: boolean;
@@ -40,6 +41,10 @@ export interface SalesReportInput {
   salesParams: SalesParams;
   trendRows: TrendRowLike[];
   trendObservationCount: number;
+  /** Optional AI-written editorial layer. Null when the user did not request it. */
+  narrative?: SalesNarrative | null;
+  /** Set when the AI layer failed; the deterministic report is still emitted. */
+  narrativeError?: string | null;
 }
 
 const nf = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
@@ -236,13 +241,49 @@ function trendsBlocks(input: SalesReportInput): ReportBlock[] {
   return blocks;
 }
 
+function narrativeBlocks(input: SalesReportInput): ReportBlock[] {
+  const heading: ReportBlock = { kind: "text", text: "4. Leitura por IA", style: "heading" };
+  if (input.narrativeError) {
+    return [
+      heading,
+      {
+        kind: "text",
+        text: `A IA não completou a leitura: ${input.narrativeError}. Os números acima permanecem determinísticos.`,
+        style: "muted",
+      },
+    ];
+  }
+  const n = input.narrative;
+  if (!n) return [];
+
+  const blocks: ReportBlock[] = [
+    heading,
+    {
+      kind: "text",
+      text: "Texto editorial gerado pela IA somente a partir dos dados desta sessão; não é novo cálculo nem prova comercial.",
+      style: "muted",
+    },
+    { kind: "text", text: `Resumo: ${n.resumo}`, style: "body" },
+  ];
+
+  const addList = (label: string, items: string[]) => {
+    if (!items.length) return;
+    blocks.push({ kind: "text", text: label, style: "heading" });
+    for (const item of items) blocks.push({ kind: "text", text: `- ${item}`, style: "body" });
+  };
+  addList("Destaques", n.destaques);
+  addList("Pontos de atenção", n.atencao);
+  addList("Próximos passos", n.proximos_passos);
+  return blocks;
+}
+
 /** Builds the document model consumed by `renderPrintHtml`. */
 export function buildSalesReport(input: SalesReportInput): ReportDocument {
   const blocks: ReportBlock[] = [
     { kind: "text", text: "Como ler este relatório", style: "heading" },
     {
       kind: "text",
-      text: "Todo número foi calculado por código a partir dos valores informados nesta sessão. Resultados não executados aparecem como ausentes — sem zeros inventados, sem projeções e sem coleta de RSS na geração.",
+      text: "Todo número foi calculado por código a partir dos valores informados nesta sessão. Resultados não executados aparecem como ausentes — sem zeros inventados, sem projeções e sem coleta de RSS na geração. A seção opcional de IA é apenas leitura editorial desses mesmos fatos: se a IA falhar, o PDF traz o aviso e segue determinístico.",
       style: "muted",
     },
     { kind: "space", points: 4 },
@@ -265,6 +306,7 @@ export function buildSalesReport(input: SalesReportInput): ReportDocument {
     { kind: "space", points: 8 },
     { kind: "text", text: "3. Tendências do momento", style: "heading" },
     ...trendsBlocks(input),
+    ...(input.narrative || input.narrativeError ? narrativeBlocks(input) : []),
   ];
   return {
     title: "Relatório de vendas",

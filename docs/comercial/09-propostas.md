@@ -41,7 +41,7 @@ Resultado: `status: "preparado" | "bloqueado"`, `canSend: false`, `canCheckout: 
 
 `buildProposalReport` produz o mesmo `ReportDocument` usado pelo relatório de vendas; `proposalPrintHtml` chama o renderizador existente para a janela de impressão do navegador. Seções: identificação, itens, totais, aprovação/limites e, opcionalmente, “Leitura por IA”.
 
-A camada editorial opcional é descrita pelo tipo estrutural `ProposalNarrative` (`resumo`, `destaques`, `atencao`, `proximos_passos`); a feature de IA que a preenche é independente deste módulo. Se falhar, o PDF traz o aviso e todos os números permanecem determinísticos. Nenhuma chamada de modelo ou server function foi adicionada nesta fase.
+A camada de IA é apenas editorial e usa `SalesNarrativeSchema`. Se falhar, o PDF traz o aviso e todos os números permanecem determinísticos. Nenhuma chamada de modelo ou server function foi adicionada nesta fase.
 
 ## Limites desta fase
 

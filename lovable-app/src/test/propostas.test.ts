@@ -9,8 +9,8 @@ import {
   proposalPrintHtml,
   resolvePrice,
   snapshotProposalVersion,
-  type ProposalNarrative,
 } from "@/lib/core/propostas";
+import { SalesNarrativeSchema } from "@/lib/core/sales-narrative";
 
 const AS_OF = "2026-11-21T12:00:00.000Z";
 
@@ -103,12 +103,12 @@ const RUN = {
   asOf: AS_OF,
 };
 
-const NARRATIVE: ProposalNarrative = {
+const NARRATIVE = SalesNarrativeSchema.parse({
   resumo: "Proosta preparada apenas com dados informados nesta sessão.",
   destaques: ["Totais calculados por código."],
   atencao: [],
   proximos_passos: ["Revisar com uma pessoa antes de qualquer uso externo."],
-};
+});
 
 describe("catalog and price resolution", () => {
   it("resolves a vigent BRL price from the supplied table", () => {

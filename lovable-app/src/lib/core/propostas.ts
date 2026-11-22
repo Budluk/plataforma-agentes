@@ -10,18 +10,7 @@ import { canonical, sha256hex } from "./canonical";
 import { timestampMs } from "./dashboard";
 import { renderPrintHtml } from "./print-report";
 import type { ReportDocument } from "./report";
-
-/**
- * Structural shape of the optional editorial layer. The AI narrative feature
- * is independent and is not part of this module; this keeps the print model
- * decoupled from it while accepting the same fields.
- */
-export interface ProposalNarrative {
-  resumo: string;
-  destaques: string[];
-  atencao: string[];
-  proximos_passos: string[];
-}
+import type { SalesNarrative } from "./sales-narrative";
 
 export const PROPOSAL_ORIGINS = ["real", "amostra"] as const;
 export const PROPOSAL_STATUSES = ["rascunho", "em_revisao"] as const;
@@ -545,7 +534,7 @@ export interface ProposalReportInput {
   draft: ProposalDraft;
   generatedAt: string;
   /** Optional editorial layer only; numbers stay deterministic. */
-  narrative?: ProposalNarrative | null;
+  narrative?: SalesNarrative | null;
   narrativeError?: string | null;
 }
 
