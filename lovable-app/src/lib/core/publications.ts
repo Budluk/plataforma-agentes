@@ -1,7 +1,7 @@
 import { paramsHash, sha256hex } from "./canonical";
 import { PUBLISH_ACTION, PublishPost } from "./content";
 
-export async function validatePublication(draft: { hook: string; script: string; caption: string; persona_id: string; content_hash: string }, approval: { action: string; params_json: string; params_hash: string; status: string; expires_ts: number }, now = Date.now() / 1000) {
+export async function validatePublication(draft: { hook: string; script: string; caption: string; persona_id: string; content_hash: string }, approval: { action: string; params_json: string; params_hash: string; status: string; expires_ts: number }, now: number) {
   if (approval.action !== PUBLISH_ACTION || approval.status !== "approved" || approval.expires_ts <= now) throw new Error("Aprovação ausente, usada ou vencida.");
   const params = PublishPost.parse(JSON.parse(approval.params_json));
   if (await paramsHash(params) !== approval.params_hash) throw new Error("Parâmetros diferentes dos aprovados.");

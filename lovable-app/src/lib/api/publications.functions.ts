@@ -53,8 +53,8 @@ export const publishSavedContent = createServerFn({ method: "POST" }).middleware
       context.supabase.from("approvals").select("*").eq("id", data.approvalId).single(),
     ]);
     if (d.error || a.error || !d.data || !a.data) throw new Error("Conteúdo ou aprovação ausente.");
-    await validatePublication(d.data, a.data);
     const ts = Date.now() / 1000;
+    await validatePublication(d.data, a.data, ts);
     const runId = crypto.randomUUID();
     const detail = canonical({ draft_id: data.draftId, approval_id: data.approvalId, content_hash: d.data.content_hash, destination: "site" });
     const { data: id, error } = await context.supabase.rpc("ctl_publish_site", {

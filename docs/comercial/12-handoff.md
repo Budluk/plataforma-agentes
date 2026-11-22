@@ -9,8 +9,11 @@ Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como re
 - Nada foi mesclado, deployado, exposto, tunelado ou associado a domínio.
 - Nenhuma `.env` de produção foi editada e nenhum token foi rotacionado.
 - **A2 bloqueada:** a conta Lovable não tem créditos para executar o prompt e o MCP não completou o login OAuth (sem `send_message` e sem recursos). O schema da Fase 2 não foi aplicado e os tipos do Supabase não foram gerados. O prompt pronto está em `13-prompt-lovable.md`; o plano de verificação em `14-plano-testes-isolamento.md`; o roteiro SQL alternativo, **não executado e não autorizado**, em `15-script-sql-manual.md`.
-- **Feature de PDF com IA:** decisão registrada de mantê-la apenas no working tree, sem commit e sem exclusão, até autorização explícita.
+- **Feature de PDF com IA:** commitada em `dd26c85` ("Add AI-written sales narrative layer for PDF reports"); 10 arquivos, 588 inserções, 74 remoções. Não há mais nada da feature no working tree.
+- **Refatoração de relógio:** `validatePublication` em `src/lib/core/publications.ts` recebe agora `now: number` como parâmetro obrigatório (sem default `Date.now()`); o relógio do sistema fica na camada de API (`src/lib/api/publications.functions.ts`), mantendo o core puro e injetável.
 - **Revisão dos contratos:** sem `any`, `TODO`, `console` ou relógio/I/O direto nos módulos comerciais; todas as datas derivam de parâmetros explícitos. Nenhum ajuste necessário.
+- **CI:** `.github/workflows/ci.yml` adicionado — roda `typecheck`, `test` e `build` em todo push/PR a `main`. Pré-requisito do gate A8 (CI verde) já satisfeito como artefato; ainda falta a execução verde no GitHub após A2 ser aplicada.
+- **AGENTS.md raiz:** criado em `AGENTS.md`, apontando para `lovable-app/AGENTS.md` e resumindo regras de ouro + estado atual das autorizações.
 - **A8 bloqueada (tipo C):** classificação C, gate B fail closed. Nada foi exposto e nenhum comando de túnel foi executado. Faltam hostname interno definitivo, Cloudflare Access + WARP/rota privada, token definitivo em Cloud Secret e novo ADR aprovando A→B com CI verde. O ADR 0009 segue como minuta.
 - O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) foi aprovado em 2026-11-21 como especificação; não autoriza escrita manual de schema, exposição nem envio real.
 - As Fases 3–10 não leem banco nem executam ações externas: são primitivas determinísticas que recebem dados do chamador.
@@ -62,6 +65,6 @@ commit · push · PR · merge · deploy · expose · tunnel · domínio · rota�
 
 1. **Desbloquear A2:** copie o bloco de `13-prompt-lovable.md` no editor do Lovable e informe quando as tabelas, funções, policies e os tipos gerados estiverem prontos. A3–A6 retomam na sequência.
 2. **Desbloquear A8:** informe o hostname interno definitivo, configure Cloudflare Access + WARP/rota privada, registre o token definitivo como Cloud Secret e aprove um ADR A→B com CI verde. Até lá, nada será exposto.
-3. **Decidir a feature de PDF com IA:** os 7 arquivos permanecem no working tree, sem entrar no commit A7.
+3. **Decidir a feature de PDF com IA:** já commitada em `dd26c85`; não há mais nada pendente para ela.
 
 Sem uma dessas ações, não há mais nada executável no roadmap.
