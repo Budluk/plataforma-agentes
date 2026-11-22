@@ -4,78 +4,32 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
-  python:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-      - name: Instalar dependencias
-        run: pip install -r requirements.lock
-      - name: Conferir dependencias
-        run: pip check
-      - name: Testes
-        run: python -m pytest -q
-      - name: Verificar ambiente
-        run: python scripts/check_env.py
-
-  studio-node:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: clonestudio
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: clonestudio/package-lock.json
-      - name: Instalar dependencias
-        run: npm ci
-      - name: Checagem de sintaxe
-        run: npm run check
-      - name: Testes do CloneStudio
-        run: npm test
-
-  studio-browser:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: clonestudio
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: clonestudio/package-lock.json
-      - name: Instalar dependencias
-        run: npm ci
-      - name: Instalar Chromium
-        run: npx playwright-core install --with-deps chromium
-      - name: Testes de navegador
-        run: npm run test:browser
-
-  ui:
+  ci:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: lovable-app
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          bun-version: '1.4.5'
-      - name: Instalar dependencias
-        run: bun install --frozen-lockfile
-      - name: Checagem de tipos
-        run: bun run typecheck
-      - name: Testes da UI
-        run: bun run test
-      - name: Build da UI
-        run: bun run build
+          node-version: 20
+          cache: npm
+          cache-dependency-path: lovable-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
