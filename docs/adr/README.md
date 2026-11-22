@@ -15,6 +15,7 @@ As contagens de testes citadas no corpo dos ADRs são registros históricos da d
 | [0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md) | Preparação para o alvo B com Cloudflare Tunnel | gate B | Preparação documental; ADR-0001 segue em vigor até exposição ser aprovada |
 | [0008](./0008-isolamento-build-appcontainer.md) | Isolamento real do build com AppContainer + Job Object | gate B | Desenho para o alvo B; sem VM/container no Home, falha fechada |
 | [0009](./0009-mudanca-alvo-b.md) | Minuta: mudança do alvo A para o alvo B | gate A→B | **Minuta, não aprovada** — não autoriza exposição; ADR-0001 segue em vigor |
+| [0010](./0010-arquitetura-comercial-multitenant.md) | Arquitetura comercial multi-tenant | Fase 2 | Aprovada para a especificação; schema via Lovable, RLS por tenant e hard gate preservado |
 
 ## Estado do plano
 
@@ -27,6 +28,7 @@ As contagens de testes citadas no corpo dos ADRs são registros históricos da d
 - **Fase 6** ✅ documentação e validação final
 - **Alvo B** ⏳ preparação documentada em [ADR-0007](./0007-preparacao-alvo-b-cloudflare-tunnel.md) e desenho de isolamento em [ADR-0008](./0008-isolamento-build-appcontainer.md); exposição depende de gate explícito
 - **Gate A→B** 📝 minuta em [ADR-0009](./0009-mudanca-alvo-b.md) registrada, ainda sem aprovação; nenhum túnel foi criado e nada foi exposto
+- **Comercial** ✅ [ADR-0010](./0010-arquitetura-comercial-multitenant.md) aprovado como especificação; schema e tipos seguem pendentes no Lovable, nenhuma tabela comercial criada
 
 ## Limites que permanecem
 

@@ -41,6 +41,78 @@ export const REGISTRY: Record<string, ToolSpec> = {
   fetch_page: { agent: "research_agent", agentMethod: "fetch" },
   analyze_code: { agent: "dev_agent", agentMethod: "analyze" },
   save_code_file: { agent: "dev_agent", agentMethod: "save" },
+  // --- commercial area (Fase 5) -----------------------------------------
+  // Read/preparation tools only. Sending, campaigns, checkout and payments
+  // remain vetoed by hardGate.ts and are never registered here.
+  avaliar_fonte: { agent: "prospector_agent", agentMethod: "avaliar_fonte", action: "avaliar_fonte" },
+  preparar_lead: { agent: "prospector_agent", agentMethod: "preparar_lead", action: "preparar_lead" },
+  calcular_score: { agent: "qualifier_agent", agentMethod: "calcular_score", action: "calcular_score" },
+  qualificar_lead: { agent: "qualifier_agent", agentMethod: "qualificar_lead", action: "qualificar_lead" },
+  detectar_duplicatas: {
+    agent: "crm_steward_agent",
+    agentMethod: "detectar_duplicatas",
+    action: "detectar_duplicatas",
+  },
+  previsualizar_merge: {
+    agent: "crm_steward_agent",
+    agentMethod: "previsualizar_merge",
+    action: "previsualizar_merge",
+  },
+  segmentar_contatos: {
+    agent: "crm_steward_agent",
+    agentMethod: "segmentar_contatos",
+    action: "segmentar_contatos",
+  },
+  montar_kanban: { agent: "pipeline_agent", agentMethod: "montar_kanban", action: "montar_kanban" },
+  mover_oportunidade: {
+    agent: "pipeline_agent",
+    agentMethod: "mover_oportunidade",
+    action: "mover_oportunidade",
+  },
+  // funnel_agent already owns analyze_funnel; sales_agent already owns
+  // compute_margin, suggest_price and break_even. Do not duplicate them.
+  preparar_proposta: {
+    agent: "proposal_agent",
+    agentMethod: "preparar_proposta",
+    action: "preparar_proposta",
+  },
+  validar_desconto: {
+    agent: "proposal_agent",
+    agentMethod: "validar_desconto",
+    action: "validar_desconto",
+  },
+  rascunhar_resposta: {
+    agent: "followup_agent",
+    agentMethod: "rascunhar_resposta",
+    action: "rascunhar_resposta",
+  },
+  preparar_lembrete: {
+    agent: "followup_agent",
+    agentMethod: "preparar_lembrete",
+    action: "preparar_lembrete",
+  },
+  carregar_conversa: {
+    agent: "followup_agent",
+    agentMethod: "carregar_conversa",
+    action: "carregar_conversa",
+  },
+  validar_template: {
+    agent: "followup_agent",
+    agentMethod: "validar_template",
+    action: "validar_template",
+  },
+  avaliar_janela: {
+    agent: "followup_agent",
+    agentMethod: "avaliar_janela",
+    action: "avaliar_janela",
+  },
+  preparar_optout: {
+    agent: "followup_agent",
+    agentMethod: "preparar_optout",
+    action: "preparar_optout",
+  },
+  ler_dashboard: { agent: "insights_agent", agentMethod: "ler_dashboard", action: "ler_dashboard" },
+  gerar_leitura: { agent: "insights_agent", agentMethod: "gerar_leitura", action: "gerar_leitura" },
   // --- studio area (17 tools; studio_health enables the other 16) --------
   studio_health: {
     method: "health",
