@@ -16,6 +16,8 @@ Este diretório registra o desenho da área comercial sobre o projeto existente.
 - `11-seguranca.md` — permissões por ator, LGPD, auditoria encadeada e preflight da Fase 10, sem exposição ou deploy.
 - `12-handoff.md` — autorizações pendentes (A1–A8), dependências e critérios de aceite após as 10 fases.
 - `13-prompt-lovable.md` — prompt único, pronto para colar no editor do Lovable, consolidando `02`, `03` e `05`.
+- `14-plano-testes-isolamento.md` — 14 casos para validar RLS, grants, append-only, aprovação e kill switch (A4).
+- `15-script-sql-manual.md` — roteiro SQL alternativo para o Supabase, **não executado**, com avisos de divergência.
 
 **Regras de leitura**
 

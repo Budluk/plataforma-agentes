@@ -8,7 +8,9 @@ Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como re
 - **A7 concluída:** commit `8edbc37` ("Add multi-tenant commercial platform contracts (phases 2-10)") commitado e pushado para `main`; 37 arquivos, 8.260 inserções. Verificação isolada do commit: typecheck OK e 258 testes/21 arquivos. **Nenhum PR foi aberto** — isso exigiria aprovação explícita separada. A feature de PDF com IA ficou de fora e permanece no working tree.
 - Nada foi mesclado, deployado, exposto, tunelado ou associado a domínio.
 - Nenhuma `.env` de produção foi editada e nenhum token foi rotacionado.
-- **A2 bloqueada:** o Lovable MCP está desconectado (sem `send_message` e sem recursos). O schema da Fase 2 não foi aplicado e os tipos do Supabase não foram gerados. O prompt pronto está em `13-prompt-lovable.md`.
+- **A2 bloqueada:** a conta Lovable não tem créditos para executar o prompt e o MCP não completou o login OAuth (sem `send_message` e sem recursos). O schema da Fase 2 não foi aplicado e os tipos do Supabase não foram gerados. O prompt pronto está em `13-prompt-lovable.md`; o plano de verificação em `14-plano-testes-isolamento.md`; o roteiro SQL alternativo, **não executado e não autorizado**, em `15-script-sql-manual.md`.
+- **Feature de PDF com IA:** decisão registrada de mantê-la apenas no working tree, sem commit e sem exclusão, até autorização explícita.
+- **Revisão dos contratos:** sem `any`, `TODO`, `console` ou relógio/I/O direto nos módulos comerciais; todas as datas derivam de parâmetros explícitos. Nenhum ajuste necessário.
 - **A8 bloqueada (tipo C):** classificação C, gate B fail closed. Nada foi exposto e nenhum comando de túnel foi executado. Faltam hostname interno definitivo, Cloudflare Access + WARP/rota privada, token definitivo em Cloud Secret e novo ADR aprovando A→B com CI verde. O ADR 0009 segue como minuta.
 - O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) foi aprovado em 2026-11-21 como especificação; não autoriza escrita manual de schema, exposição nem envio real.
 - As Fases 3–10 não leem banco nem executam ações externas: são primitivas determinísticas que recebem dados do chamador.
