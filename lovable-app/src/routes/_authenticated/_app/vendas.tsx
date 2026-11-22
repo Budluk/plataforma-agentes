@@ -448,6 +448,18 @@ function Vendas() {
         </div>
       </div>
 
+      <div className="sf-wrap sf-sample-banner" role="region" aria-label="Aviso de amostra">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+          <span className="sf-sample-mark">●</span>
+          <span className="sf-sample-text font-medium">AMOSTRA</span>
+          <span className="sf-sample-text">
+            — este balcão exibe dados ilustrativos. Nenhum produto, preço ou cliente aqui é real. Os
+            cálculos de margem, preço e equilíbrio usam contratos determinísticos, mas não geram pedidos
+            nem publicam nada.
+          </span>
+        </div>
+      </div>
+
       <div className="sf-wrap sf-toolbar">
         <form
           className="sf-search"
@@ -580,9 +592,9 @@ function Vendas() {
         ) : null}
 
         <p className="sf-disclaimer">
-          <strong>Amostra:</strong> nomes, códigos, preços e descontos acima são dados locais
-          criados só para demonstrar a interface. Clicar em um item carrega seus números no balcão
-          abaixo; nenhum pedido é criado.
+          <span className="font-bold text-amber-800">Amostra:</span> nomes, códigos, preços e descontos
+          acima são dados locais criados só para demonstrar a interface. Clicar em um item carrega seus
+          números no balcão abaixo; nenhum pedido é criado, nenhum pagamento é iniciado e nada é publicado.
         </p>
       </main>
 

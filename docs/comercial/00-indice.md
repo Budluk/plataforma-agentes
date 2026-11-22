@@ -20,6 +20,7 @@ Este diretório registra o desenho da área comercial sobre o projeto existente.
 | `13-prompt-lovable.md` | prompt único, pronto para colar no editor do Lovable, consolidando `02`, `03` e `05` | pronto, aguarda Lovable |
 | `14-plano-testes-isolamento.md` | 14 casos para validar RLS, grants, append-only, aprovação e kill switch (A4) | pronto, aguarda A2/A3 |
 | `15-script-sql-manual.md` | roteiro SQL alternativo para o Supabase, **não executado**, com avisos de divergência | não autorizado |
+| `16-revisao-consistencia.md` | divergências corrigidas nos contratos puros e um ponto de fuso pendente de decisão | concluída; fuso aguarda decisão |
 
 **Regras de leitura**
 

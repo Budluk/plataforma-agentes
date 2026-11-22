@@ -56,8 +56,8 @@ LEADS E FUNIL
 CATALOGO, PROPOSTAS E VENDAS
 - products: sku, name, description, category, unit, active, rules.
 - price_tables / price_items: vigencia, currency BRL, amount_cents, min_qty, max_discount_pct.
-- proposals: opportunity_id, customer_id, version, status, valid_until, subtotal_cents, discount_cents, tax_cents, total_cents, payment_terms, approval_id, created_by.
-- proposal_items: proposal_id, product_id?, description, qty, unit_price_cents, discount_pct, tax_pct.
+- proposals: opportunity_id, customer_id, version, origin (real ou amostra, obrigatorio), status, valid_until, subtotal_cents, discount_cents, tax_cents, total_cents, payment_terms, approval_id, created_by.
+- proposal_items: proposal_id, product_id?, description, origin (real ou amostra), sample (boolean), qty, unit_price_cents, discount_pct, tax_pct. Itens amostra devem manter rotulo AMOSTRA.
 - proposal_versions: snapshot JSON imutavel da proposta, version, created_at, actor.
 - orders / order_items: vinculo com proposta, amount_cents, paid_at, status. Sem integracao de pagamento.
 - Regra: nenhum agente cria preco, desconto ou condicao fora de price_items.max_discount_pct. Desconto extraordinario gera approvals.

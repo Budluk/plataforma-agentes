@@ -206,6 +206,13 @@ describe("reply draft", () => {
     expect(prepareReply({ ...REPLY, conversation: { id: "x" } }).status).toBe("bloqueado");
     expect(prepareReply({ ...REPLY, evidenceRef: null }).reasons[0]).toContain("evidence_ref");
   });
+
+  it("blocks tenant divergence against the conversation tenant", () => {
+    const out = prepareReply({ ...REPLY, organization_id: "org-2" });
+    expect(out.status).toBe("bloqueado");
+    expect(out.reasons.some((r) => r.includes("tenant divergente"))).toBe(true);
+    expect(out.draft).toBeNull();
+  });
 });
 
 describe("reminder draft", () => {
@@ -236,6 +243,7 @@ describe("reminder draft", () => {
     };
     expect(prepareReminder({ ...base, contactOptedOut: true }).status).toBe("bloqueado");
     expect(prepareReminder({ ...base, dueAt: "quando der" }).status).toBe("bloqueado");
+    expect(prepareReminder({ ...base, organization_id: "  " }).status).toBe("bloqueado");
   });
 });
 

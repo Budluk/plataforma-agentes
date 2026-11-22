@@ -20,11 +20,17 @@ Este repositório é o **plataforma-agentes** da CentralIA. A aplicação princi
 - Prompt pronto para o Lovable (Fase 2): `docs/comercial/13-prompt-lovable.md`
 - Plano de testes de isolamento (A4): `docs/comercial/14-plano-testes-isolamento.md`
 - Roteiro SQL manual alternativo (não executado): `docs/comercial/15-script-sql-manual.md`
+- Revisão de consistência das regras: `docs/comercial/16-revisao-consistencia.md`
+- Tipos preparados para o schema Fase 2 (não criam tabelas): `lovable-app/src/lib/core/schema-pending.ts`
+- Testes extras de regras comerciais: `lovable-app/src/test/*-extra.test.ts`
 
-## Estado atual (2026-11-21)
+## Estado atual (2026-11-22)
 
 - A1 concluído (ADR 0010 aprovado).
-- A7 concluído (commits `8edbc37` e `57069ca` pushados, sem PR).
+- A7 concluído (commits `8edbc37`, `57069ca`, `7d084ef`, `dd26c85`, `92ec01d`, `4d9999b` pushados, sem PR).
+- FASE 0 do Prompt Mestre concluída: seis documentos em `docs/`, commit `1330288`, sem alteração de código. Aguardando avaliação para FASE 1.
+- Dependências Drizzle removidas em `2b18d5c` (não eram importadas). Último commit: `2b18d5c`, sincronizado com `origin/main`.
+- Validação local: `typecheck` OK, 26 arquivos / 345 testes OK, `build` OK.
 - A2 bloqueado: sem créditos no Lovable e MCP sem login OAuth. O schema da Fase 2 não foi aplicado.
-- A8 bloqueado: gate C fechado (faltam hostname, Cloudflare, token em Cloud Secret, ADR aprovado e CI verde).
-- Feature de PDF com IA commitada em `dd26c85`.
+- A3–A6 pausadas: dependem de A2.
+- A8 bloqueado: gate C fechado (faltam hostname, Cloudflare, token em Cloud Secret, ADR aprovado e CI verde). Nada foi exposto e nenhum comando de túnel foi executado.

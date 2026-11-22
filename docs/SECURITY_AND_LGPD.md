@@ -28,7 +28,7 @@
 1. **Autenticação:** Supabase Auth (JWT via `requireSupabaseAuth`).
 2. **Autenticação server:** `client.server.ts` usa service role key (apenas operações server-side confiáveis, bypassa RLS — usar com extremo cuidado).
 3. **Autorização:** `requireOperator` exige role `admin` via RPC `has_role`.
-4. **Autorização comercial:** `authorizeCommercialAction()` verifica escopo do agente, `agent_grants`, `integration_grants`, kill switch, desconto fora da tabela e nível de autonomia.
+4. **Autorização comercial:** `authorizeCommercialAction()` verifica escopo do agente, `agent_grants`, `integration_grants`, kill switch, desconto fora da tabela e nível de autonomia. `evaluateActorPermission()` canonicaliza aliases de ações sensíveis e usa a hierarquia de escopos `read < write < approve < admin`, rejeitando overrides mais fracos que a capacidade exigida.
 
 ### Papéis de tenant (`docs/comercial/03-rls-permissoes.md`)
 

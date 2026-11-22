@@ -277,7 +277,7 @@ describe("proposal preparation", () => {
 describe("version snapshots", () => {
   it("creates a deterministic, chained, canonical hash", async () => {
     const draft = prepareProposal(RUN).draft!;
-    const input = { proposalId: "prop-1", asOf: AS_OF, actor: "operador-1" };
+    const input = { proposalId: "prop-1", organizationId: "org-1", asOf: AS_OF, actor: "operador-1" };
     const v1 = await snapshotProposalVersion(draft, input);
     const v1Again = await snapshotProposalVersion(draft, input);
     expect(v1.snapshot_id).toBe(v1Again.snapshot_id);
@@ -296,13 +296,13 @@ describe("version snapshots", () => {
   it("refuses divergent ids, invalid actors and invalid instants", async () => {
     const draft = prepareProposal(RUN).draft!;
     await expect(
-      snapshotProposalVersion(draft, { proposalId: "outra", asOf: AS_OF, actor: "operador-1" }),
+      snapshotProposalVersion(draft, { proposalId: "outra", organizationId: "org-1", asOf: AS_OF, actor: "operador-1" }),
     ).rejects.toThrow("divergente");
     await expect(
-      snapshotProposalVersion(draft, { proposalId: "prop-1", asOf: "agora", actor: "operador-1" }),
+      snapshotProposalVersion(draft, { proposalId: "prop-1", organizationId: "org-1", asOf: "agora", actor: "operador-1" }),
     ).rejects.toThrow("instante");
     await expect(
-      snapshotProposalVersion(draft, { proposalId: "prop-1", asOf: AS_OF, actor: "" }),
+      snapshotProposalVersion(draft, { proposalId: "prop-1", organizationId: "org-1", asOf: AS_OF, actor: "" }),
     ).rejects.toThrow("ator");
   });
 });

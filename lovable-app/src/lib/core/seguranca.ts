@@ -7,6 +7,7 @@ import { z } from "zod";
 import { auditCanon, auditHash, canonical, GENESIS_HASH } from "./canonical";
 import {
   AUTONOMY_LEVELS,
+  canonicalAction,
   checkCommercialTool,
   SENSIBLE_ACTIONS,
   TENANT_ROLES,
@@ -86,24 +87,31 @@ const READ_ACTIONS = new Set([
   "calcular_break_even",
   "health",
   "list_apps",
+  "list",
 ]);
 const APPROVAL_ACTIONS = new Set(["aprovar_proposta", "aprovar_desconto", "aprovar_plantao"]);
 const ADMIN_ACTIONS = new Set(["alteracao_permissoes", "configurar_tenant"]);
 
-const capabilityFor = (action: string): Capability =>
-  ADMIN_ACTIONS.has(action)
+/** Aliases are canonicalized once in comercial.ts and reused here. */
+const capabilityFor = (action: string): Capability => {
+  const canonical = canonicalAction(action);
+  return ADMIN_ACTIONS.has(canonical)
     ? "administracao"
-    : APPROVAL_ACTIONS.has(action)
+    : APPROVAL_ACTIONS.has(canonical)
       ? "aprovacao"
-      : READ_ACTIONS.has(action)
+      : READ_ACTIONS.has(canonical)
         ? "leitura"
         : "escrita";
+};
 
 const scopeFor = (capability: Capability): string =>
   ({ leitura: "read", escrita: "write", aprovacao: "approve", administracao: "admin" })[capability];
 
+/** read < write < approve < admin. Unknown scopes are always weaker. */
+const SCOPE_RANK: Record<string, number> = { read: 0, write: 1, approve: 2, admin: 3 };
+
 const isSensible = (action: string): boolean =>
-  (SENSIBLE_ACTIONS as readonly string[]).includes(action);
+  (SENSIBLE_ACTIONS as readonly string[]).includes(canonicalAction(action));
 
 export interface ActorPermission {
   allowed: boolean;
@@ -129,7 +137,7 @@ export interface ActorPermissionInput {
 /** Evaluates one actor × action with fail-closed tenant, grant and kill checks. */
 export function evaluateActorPermission(input: ActorPermissionInput): ActorPermission {
   const parsed = Actor.safeParse(input.actor);
-  const action = input.action.trim();
+  const action = canonicalAction(input.action);
   const capability = capabilityFor(action);
   const denied = (
     ator: ActorPermission["ator"],
@@ -210,7 +218,18 @@ export function evaluateActorPermission(input: ActorPermissionInput): ActorPermi
       return denied("integracao", "integration_grants", ["validade da integração ou instante inválido"]);
     if (now > expires) return denied("integracao", "integration_grants", ["grant de integração expirado"]);
   }
-  const requiredScope = input.scope?.trim() || scopeFor(capability);
+  const minimumScope = scopeFor(capability);
+  const requestedScope = input.scope?.trim() || null;
+  if (
+    requestedScope !== null &&
+    (SCOPE_RANK[requestedScope] ?? -1) < (SCOPE_RANK[minimumScope] ?? 0)
+  )
+    return denied(
+      "integracao",
+      "integration_grants",
+      [`escopo '${requestedScope}' é mais fraco que o mínimo '${minimumScope}' exigido por '${capability}'`],
+    );
+  const requiredScope = requestedScope ?? minimumScope;
   if (!actor.scopes.includes(requiredScope))
     return denied("integracao", "integration_grants", [`escopo '${requiredScope}' não concedido`]);
   return {

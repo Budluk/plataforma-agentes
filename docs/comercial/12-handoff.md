@@ -1,11 +1,11 @@
 # 12 — Handoff e autorizações pendentes
 
-Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como relatórios, contratos puros e documentação. Execução das autorizações em 2026-11-21: **A1 e A7 concluídas; A2 e A8 bloqueadas; A3–A6 pausadas**.
+Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como relatórios, contratos puros e documentação. Execução das autorizações, atualizado em 2026-11-22: **A1 e A7 concluídas; A2 e A8 bloqueadas; A3–A6 pausadas**.
 
 ## Estado atual
 
 - **A1 concluída:** ADR 0010 aprovado como especificação.
-- **A7 concluída:** commit `8edbc37` ("Add multi-tenant commercial platform contracts (phases 2-10)") commitado e pushado para `main`; 37 arquivos, 8.260 inserções. Verificação isolada do commit: typecheck OK e 258 testes/21 arquivos. **Nenhum PR foi aberto** — isso exigiria aprovação explícita separada. A feature de PDF com IA ficou de fora e permanece no working tree.
+- **A7 concluída:** commit `8edbc37` ("Add multi-tenant commercial platform contracts (phases 2-10)") commitado e pushado para `main`; 37 arquivos, 8.260 inserções. Verificação isolada do commit: typecheck OK e 258 testes/21 arquivos. **Nenhum PR foi aberto** — isso exigiria aprovação explícita separada. A feature de PDF com IA ficou de fora deste commit e depois foi autorizada e commitada em `dd26c85` (ver abaixo).
 - Nada foi mesclado, deployado, exposto, tunelado ou associado a domínio.
 - Nenhuma `.env` de produção foi editada e nenhum token foi rotacionado.
 - **A2 bloqueada:** a conta Lovable não tem créditos para executar o prompt e o MCP não completou o login OAuth (sem `send_message` e sem recursos). O schema da Fase 2 não foi aplicado e os tipos do Supabase não foram gerados. O prompt pronto está em `13-prompt-lovable.md`; o plano de verificação em `14-plano-testes-isolamento.md`; o roteiro SQL alternativo, **não executado e não autorizado**, em `15-script-sql-manual.md`.
@@ -14,6 +14,12 @@ Estado ao final do roadmap de 10 fases: as Fases 1–10 estão entregues como re
 - **Revisão dos contratos:** sem `any`, `TODO`, `console` ou relógio/I/O direto nos módulos comerciais; todas as datas derivam de parâmetros explícitos. Nenhum ajuste necessário.
 - **CI:** `.github/workflows/ci.yml` adicionado — roda `typecheck`, `test` e `build` em todo push/PR a `main`. Pré-requisito do gate A8 (CI verde) já satisfeito como artefato; ainda falta a execução verde no GitHub após A2 ser aplicada.
 - **AGENTS.md raiz:** criado em `AGENTS.md`, apontando para `lovable-app/AGENTS.md` e resumindo regras de ouro + estado atual das autorizações.
+- **Limpeza de dependências:** `drizzle-kit` e `drizzle-orm` removidos do `package.json` (não importados em nenhum arquivo; commit `2b18d5c`).
+- **Tipos pendentes para schema:** `src/lib/core/schema-pending.ts` criado com interfaces TypeScript para o schema Fase 2 (organizations, memberships, agent_grants, leads, opportunities, proposals, consent_events, etc.). Não cria tabelas nem migrations; é apenas contrato para quando A2 for desbloqueado.
+- **Testes adicionais:** 4 novos arquivos de teste (`comercial-extra`, `seguranca-extra`, `automacoes-extra`, `propostas-extra`) cobrindo hard gate, RLS, LGPD, cadeia de auditoria, versionamento de propostas, descontos, automações e regressões de consistência. Total: 26 arquivos, 345 testes, todos verdes.
+- **Página `/vendas` reforçada:** banner `AMOSTRA` mais visível no topo, disclaimer expandido, nenhum dado fictício apresentado como real.
+- **FASE 0 do Prompt Mestre concluída:** seis documentos criados em `docs/` (`SALES_COMMERCE_AUDIT.md`, `SALES_COMMERCE_ARCHITECTURE.md`, `REPOSITORY_EVALUATION.md`, `IMPLEMENTATION_ROADMAP.md`, `SECURITY_AND_LGPD.md`, `TEST_STRATEGY.md`) — commit `1330288`, sem alteração de código.
+- **Revisão de consistência (16-revisao-consistencia.md):** 12 divergências corrigidas nos contratos puros e nos limites API/server (aliases sensíveis, redação de CPF/CNPJ, escopo de integração, hard gate PT-BR, kill switch, tenant em auxiliares, safe integer por item e agregado, proveniência da amostra, coluna `origin` no schema previsto). Um ponto ficou pendente de decisão: o fuso dos buckets de analytics, hoje em UTC apesar da declaração de `America/Sao_Paulo`.
 - **A8 bloqueada (tipo C):** classificação C, gate B fail closed. Nada foi exposto e nenhum comando de túnel foi executado. Faltam hostname interno definitivo, Cloudflare Access + WARP/rota privada, token definitivo em Cloud Secret e novo ADR aprovando A→B com CI verde. O ADR 0009 segue como minuta.
 - O ADR [0010](../adr/0010-arquitetura-comercial-multitenant.md) foi aprovado em 2026-11-21 como especificação; não autoriza escrita manual de schema, exposição nem envio real.
 - As Fases 3–10 não leem banco nem executam ações externas: são primitivas determinísticas que recebem dados do chamador.

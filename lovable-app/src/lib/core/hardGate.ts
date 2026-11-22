@@ -9,6 +9,10 @@ export const FORBIDDEN_TOOL_TOKENS = [
   "execution_order", "place_order", "submit_order", "send_order", "checkout", "purchase", "payment", "charge_card",
   "launch_campaign", "set_budget", "send_whatsapp", "publish_page", "submit_form", "post_form", "login", "download",
   "execute_code", "run_code", "run_script", "eval_code", "shell_command", "pip_install", "git_push", "deploy",
+  // PT-BR mirrors of SENSIBLE_ACTIONS (comercial.ts): no alias may bypass the gate.
+  "desconto_extraordinario", "alteracao_preco", "campanha_em_massa", "exclusao", "exportacao_dados",
+  "contrato", "compromisso_financeiro", "alteracao_permissoes", "envio_mensagem", "enviar_mensagem",
+  "pagamento", "checkout",
 ];
 
 export class ExecutionToolForbidden extends Error {}

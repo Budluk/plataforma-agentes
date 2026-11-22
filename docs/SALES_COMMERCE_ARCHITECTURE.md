@@ -15,7 +15,7 @@
 | **Camadas separadas** | UI → Server Functions → Orquestração Server → Core Puro → Banco (Supabase). Cada camada tem responsabilidade única. |
 | **Core puro** | Toda lógica de negócio (cálculos, validações, scoring, regras de autonomia, segurança) vive em `src/lib/core/` sem I/O, sem clock direto, sem rede. |
 | **Server apenas orquestra** | Server functions (`src/lib/api/*.functions.ts`) só coordenam chamadas ao banco e ao core puro; são guardadas por `requireOperator`. |
-| **Banco gerenciado pelo Lovable** | Schema, migrations, RLS e tipos são administrados pelo Lovable. Não editar `supabase/migrations/` nem `drizzle/` à mão. |
+| **Banco gerenciado pelo Lovable** | Schema, migrations, RLS e tipos são administrados pelo Lovable. Não editar `supabase/migrations/` nem `drizzle/` à mão; nenhum desses diretórios existe hoje e as dependências Drizzle foram removidas em `2b18d5c`. |
 | **Fail closed** | Kill switch, hard gate, RLS e grants falham fechado: ausência de permissão = bloqueio. |
 | **Isolamento por tenant** | Toda dado comercial tem `organization_id`. Nenhuma server function comercia resolve `organization_id` enviado pelo cliente. |
 

@@ -46,8 +46,8 @@ Etapas padrão sugeridas: `lead_recebido`, `lead_identificado`, `primeiro_contat
 |---|---|---|
 | `products` | Produtos/serviços | `organization_id`, `sku`, `name`, `description`, `category`, `unit`, `active`, `rules` |
 | `price_tables` / `price_items` | Tabelas de preço | vigência, `currency` `BRL`, `amount_cents`, `min_qty`, `max_discount_pct` |
-| `proposals` | Proposta | `organization_id`, `opportunity_id`, `customer_id`, `version`, `status`, `valid_until`, `subtotal_cents`, `discount_cents`, `tax_cents`, `total_cents`, `payment_terms`, `approval_id`, `created_by` |
-| `proposal_items` | Itens | `proposal_id`, `product_id?`, `description`, `qty`, `unit_price_cents`, `discount_pct`, `tax_pct` |
+| `proposals` | Proposta | `organization_id`, `opportunity_id`, `customer_id`, `version`, `origin` (`real`/`amostra`, obrigatório), `status`, `valid_until`, `subtotal_cents`, `discount_cents`, `tax_cents`, `total_cents`, `payment_terms`, `approval_id`, `created_by` |
+| `proposal_items` | Itens | `proposal_id`, `product_id?`, `description`, `origin` (`real`/`amostra`), `sample` (boolean), `qty`, `unit_price_cents`, `discount_pct`, `tax_pct` |
 | `proposal_versions` | Histórico imutável | snapshot JSON da proposta, `version`, `created_at`, `actor` |
 | `orders` / `order_items` | Venda concluída | vínculo com proposta, `amount_cents`, `paid_at`, `status` — sem integração de pagamento nesta fase |
 

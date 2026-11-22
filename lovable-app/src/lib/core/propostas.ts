@@ -292,12 +292,17 @@ export interface ProposalAuditRecord {
 }
 
 /** Ids, counts and totals only: no notes, payment terms or item descriptions. */
-export function redactProposalAudit(draft: ProposalDraft | null, reasons: readonly string[]): ProposalAuditRecord {
+export function redactProposalAudit(
+  draft: ProposalDraft | null,
+  reasons: readonly string[],
+  /** Origin of the request, so a blocked real proposal is never mislabelled as a sample. */
+  origin: "real" | "amostra" | null = null,
+): ProposalAuditRecord {
   return {
     organization_id: draft?.organization_id ?? "desconhecido",
     proposal_id: draft?.id ?? "desconhecido",
     version: draft?.version ?? 0,
-    origin: draft?.origin ?? "amostra",
+    origin: draft?.origin ?? origin ?? "amostra",
     customer_id: draft?.customer_id ?? "desconhecido",
     item_count: draft?.items.length ?? 0,
     total_cents: draft?.total_cents ?? 0,
@@ -330,6 +335,8 @@ export interface ProposalPreparation {
 
 /** Builds a reviewable draft from supplied catalog and price table only. */
 export function prepareProposal(input: PrepareProposalInput): ProposalPreparation {
+  const raw = input.proposal as { origin?: unknown } | null;
+  const requestOrigin = raw && (raw.origin === "real" || raw.origin === "amostra") ? raw.origin : null;
   const empty = (reasons: string[], requiresApproval = false): ProposalPreparation => ({
     status: "bloqueado",
     canSend: false,
@@ -337,7 +344,7 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
     requiresApproval,
     reasons,
     draft: null,
-    audit: redactProposalAudit(null, reasons),
+    audit: redactProposalAudit(null, reasons, requestOrigin),
   });
 
   if (input.killEngaged === true)
@@ -400,6 +407,10 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
       continue;
     }
     const subtotal = price.amount_cents! * requested.qty;
+    if (!Number.isSafeInteger(subtotal)) {
+      hardBlocks.push(`subtotal de '${requested.sku}' excede o limite seguro de centavos; nenhuma proposta foi preparada`);
+      continue;
+    }
     const discount = evaluateDiscount({
       baseCents: subtotal,
       discountPct: requested.discount_pct,
@@ -417,6 +428,11 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
       approvalNotes.push(...discount.reasons.slice(0, 2));
     }
     const taxCents = roundCents((discount.total_cents * price.tax_pct!) / 100);
+    const lineTotal = discount.total_cents + taxCents;
+    if (!Number.isSafeInteger(lineTotal)) {
+      hardBlocks.push(`total de '${requested.sku}' excede o limite seguro de centavos; nenhuma proposta foi preparada`);
+      continue;
+    }
     lines.push({
       sku: product.sku,
       name: product.origin === "amostra" ? `${SAMPLE_LABEL} · ${product.name}` : product.name,
@@ -429,7 +445,7 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
       discount_cents: discount.discount_cents,
       tax_pct: price.tax_pct!,
       tax_cents: taxCents,
-      total_cents: discount.total_cents + taxCents,
+      total_cents: lineTotal,
       notes: requested.notes,
     });
   }
@@ -440,6 +456,12 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
   const subtotal = lines.reduce((s, l) => s + l.unit_price_cents * l.qty, 0);
   const discountCents = lines.reduce((s, l) => s + l.discount_cents, 0);
   const taxCents = lines.reduce((s, l) => s + l.tax_cents, 0);
+  const totalCents = subtotal - discountCents + taxCents;
+  if (![subtotal, discountCents, taxCents, totalCents].every(Number.isSafeInteger))
+    return empty(
+      ["total agregado da proposta excede o limite seguro de centavos; nenhuma proposta foi preparada"],
+      anyApproval,
+    );
   const draft: ProposalDraft = {
     id: proposal.id,
     organization_id: proposal.organization_id,
@@ -456,7 +478,7 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
     subtotal_cents: subtotal,
     discount_cents: discountCents,
     tax_cents: taxCents,
-    total_cents: subtotal - discountCents + taxCents,
+    total_cents: totalCents,
     approval_required: anyApproval,
   };
   const reasons = [
@@ -474,7 +496,7 @@ export function prepareProposal(input: PrepareProposalInput): ProposalPreparatio
     requiresApproval: anyApproval,
     reasons,
     draft,
-    audit: redactProposalAudit(draft, reasons),
+    audit: redactProposalAudit(draft, reasons, draft.origin),
   };
 }
 
@@ -494,10 +516,18 @@ export interface ProposalVersion {
 /** Canonical JSON + SHA-256, matching the platform's audit/approval hash style. */
 export async function snapshotProposalVersion(
   draft: ProposalDraft,
-  input: { proposalId: string; asOf: Date | number | string; actor: string; previousSnapshotId?: string | null },
+  input: {
+    proposalId: string;
+    organizationId: string;
+    asOf: Date | number | string;
+    actor: string;
+    previousSnapshotId?: string | null;
+  },
 ): Promise<ProposalVersion> {
   const parsedDraft = ProposalDraft.safeParse(draft);
   if (!parsedDraft.success) throw new Error("rascunho de proposta inválido; nenhuma versão foi criada");
+  if (input.organizationId.trim() !== draft.organization_id)
+    throw new Error("tenant divergente; nenhuma versão foi criada");
   if (input.proposalId.trim() !== draft.id)
     throw new Error("id da proposta divergente; nenhuma versão foi criada");
   const actor = input.actor.trim();

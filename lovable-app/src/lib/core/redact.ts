@@ -1,4 +1,6 @@
-const SENSITIVE_KEY = /key|token|secret|password|passwd|authorization|credential|cookie|private/i;
+// Mirrors SENSITIVE_FIELDS in seguranca.ts: CPF/CNPJ and similar personal
+// identifiers must also be masked before any append-only audit write.
+const SENSITIVE_KEY = /key|token|secret|password|passwd|authorization|credential|cookie|private|\b(cpf|cnpj|rg|documento|endereco|telefone|data_nascimento)\b/i;
 const PATTERNS: RegExp[] = [
   /gsk_[A-Za-z0-9]{16,}/g,
   /sk-[A-Za-z0-9_-]{16,}/g,

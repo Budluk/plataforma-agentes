@@ -66,8 +66,19 @@ export interface AutonomyInput {
   killEngaged?: boolean;
 }
 
-const isSensible = (action: string): action is SensibleAction =>
-  (SENSIBLE_ACTIONS as readonly string[]).includes(action);
+/** Aliases that must never bypass a sensitive-action gate. */
+export const ACTION_ALIASES: Readonly<Record<string, string>> = {
+  enviar_mensagem: "envio_mensagem",
+};
+
+/** Single canonicalizer reused by seguranca.ts, automacoes.ts and this module. */
+export function canonicalAction(action: string): string {
+  const trimmed = action.trim();
+  return ACTION_ALIASES[trimmed] ?? trimmed;
+}
+
+const isSensible = (action: string): boolean =>
+  (SENSIBLE_ACTIONS as readonly string[]).includes(canonicalAction(action));
 
 /**
  * Decides whether an agent may proceed and whether a human must approve.
@@ -76,22 +87,25 @@ const isSensible = (action: string): action is SensibleAction =>
  */
 export function decideAutonomy(input: AutonomyInput): AutonomyDecision {
   const reasons: string[] = [];
-  if (input.killEngaged)
+  // Strict boolean check matches evaluateAutomationKillSwitch and the other gates.
+  if (input.killEngaged === true)
     return { allowed: false, requiresApproval: false, reasons: ["kill switch ativo"] };
-  if (!input.action.trim())
+  const action = canonicalAction(input.action);
+  if (!action)
     return { allowed: false, requiresApproval: false, reasons: ["ação vazia"] };
-  if (!input.grantActions.includes(input.action)) {
+  const grants = input.grantActions.map(canonicalAction);
+  if (!grants.includes(action)) {
     return {
       allowed: false,
       requiresApproval: false,
-      reasons: [`ação '${input.action}' não concedida ao agente`],
+      reasons: [`ação '${action}' não concedida ao agente`],
     };
   }
-  if (isSensible(input.action)) {
+  if (isSensible(action)) {
     return {
       allowed: false,
       requiresApproval: true,
-      reasons: [`'${input.action}' exige aprovação humana em todos os níveis de autonomia`],
+      reasons: [`'${action}' exige aprovação humana em todos os níveis de autonomia`],
     };
   }
   if (

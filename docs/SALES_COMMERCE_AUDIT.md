@@ -78,7 +78,8 @@
 | Vite | `8.1.5` | Build / dev server |
 | Vitest | `^4.1.10` | Testes |
 | TypeScript | `^5.8.3` | Tipagem |
-| drizzle-orm / drizzle-kit | `0.x` | Instalados, não usados (veja problema P2) |
+
+> Atualização 2026-11-22: `drizzle-orm` e `drizzle-kit` foram **removidos** do `package.json` no commit `2b18d5c` porque não eram importados em nenhum arquivo de `src/`. O banco continua gerenciado pelo Lovable.
 
 ### Backend Python (raiz do repo)
 
@@ -139,7 +140,7 @@ Todas as funções de mutação são guardadas por **`requireOperator`** (exige 
 ### Banco de dados (Supabase)
 
 - **Tabelas atuais (19):** `action_calls`, `agent_runs`, `agent_settings`, `alerts`, `approvals`, `audit_events`, `capabilities`, `content_drafts`, `dev_outputs`, `event_logs`, `kill_switch`, `personas`, `portfolio`, `publish_dryrun`, `research_notes`, `runtime_settings`, `site_publications`, `trend_observations`, `user_roles`.
-- **Não existem** `supabase/migrations/` nem `drizzle/` no `lovable-app/`. Banco gerenciado pelo Lovable.
+- **Não existem** `supabase/migrations/` nem `drizzle/` no `lovable-app/`. Banco gerenciado pelo Lovable. As dependências Drizzle foram removidas em `2b18d5c` (antes: instaladas e não usadas).
 - **Schema comercial Fase 2 NÃO aplicado:** não há `organizations`, `memberships`, `agent_grants`, `leads`, `opportunities`, `proposals`, etc.
 - **RLS:** implementado via policies do Supabase, mas apenas para role `admin` global. Não há isolamento por `organization_id`.
 - **Tipos gerados:** `src/integrations/supabase/types.ts` (arquivo gerado, não editar).
@@ -190,10 +191,10 @@ Todas as funções de mutação são guardadas por **`requireOperator`** (exige 
 | ID | Problema | Impacto |
 |----|----------|---------|
 | P1 | Schema Fase 2 não aplicado (bloqueado A2 — sem créditos Lovable, MCP desconectado) | Todos os módulos comerciais são contratos puros sem banco real; sem isolamento por tenant |
-| P2 | `drizzle-kit`/`drizzle-orm` em `devDependencies` mas não usados | Dívida técnica; dependências desnecessárias |
+| P2 | `drizzle-kit`/`drizzle-orm` em `devDependencies` mas não usados | **RESOLVIDO** em `2b18d5c`: dependências removidas; nenhuma importação em `src/` |
 | P3 | Vitrine `/vendas` apenas ilustrativa | Não é uma loja real; intencional até Fase 8 + A2 |
 | P4 | Nenhum teste de integração com Supabase/RLS | Sem validação de isolamento entre tenants |
-| P5 | `npm test` / `typecheck` / `build` não executados nesta sessão | Não se sabe se a suíte está verde no estado atual |
+| P5 | `npm test` / `typecheck` / `build` não executados nesta sessão | **RESOLVIDO** em 2026-11-22: `typecheck` OK, 26 arquivos / 345 testes OK, `build` OK |
 | P6 | `requireOperator` exige role `admin` global (atalho cross-tenant) | Risco de segurança: admin global acessa dados de qualquer tenant |
 | P7 | `client.server.ts` usa service role key que bypassa RLS | Risco elevado se usado incorretamente em funções comerciais |
 | P8 | Tipos do Supabase gerados automaticamente (`types.ts`) | Risco de divergência entre tipos TS e schema real após A2 |

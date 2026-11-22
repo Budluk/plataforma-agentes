@@ -5,7 +5,7 @@
 // hardGate.ts.
 
 import { z } from "zod";
-import { AUTONOMY_LEVELS, SENSIBLE_ACTIONS, type AutonomyLevel } from "./comercial";
+import { AUTONOMY_LEVELS, canonicalAction, SENSIBLE_ACTIONS, type AutonomyLevel } from "./comercial";
 import {
   COMMERCIAL_ACTIONS,
   COMMERCIAL_ACTION_TOOL,
@@ -385,7 +385,7 @@ export function validateWorkflowDefinition(raw: unknown): { ok: boolean; issues:
       issues.push(`condição '${condition.field}' não declarada em dataKeys`);
   }
   for (const step of workflow.steps) {
-    if ((SENSIBLE_ACTIONS as readonly string[]).includes(step.action))
+    if ((SENSIBLE_ACTIONS as readonly string[]).includes(canonicalAction(step.action)))
       issues.push(`${step.id}: ação sensível não permitida em automação`);
     if (!(COMMERCIAL_ACTIONS as readonly string[]).includes(step.action))
       issues.push(`${step.id}: ação não registrada`);

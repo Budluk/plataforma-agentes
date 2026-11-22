@@ -324,6 +324,8 @@ export function prepareReply(input: ReplyDraftInput): ReplyDraft {
   const conv = parsed.data;
   const blocks: string[] = [];
   const notes: string[] = [];
+  if (input.organization_id.trim() !== conv.organization_id)
+    blocks.push("tenant divergente; nenhum rascunho foi preparado");
   const audit = redactForAudit({
     conversation_id: conv.id,
     contact_id: conv.contact_id,
@@ -396,7 +398,7 @@ export function prepareReply(input: ReplyDraftInput): ReplyDraft {
     reasons: [...notes],
     audit,
     draft: {
-      organization_id: input.organization_id,
+      organization_id: conv.organization_id,
       conversation_id: conv.id,
       contact_id: conv.contact_id,
       channel: conv.channel,
@@ -447,6 +449,8 @@ export function prepareReminder(input: ReminderDraftInput): ReminderDraft {
     ...(input.killEngaged === undefined ? {} : { killEngaged: input.killEngaged }),
   });
   const blocks: string[] = [];
+  if (!input.organization_id.trim())
+    blocks.push("tenant ausente; nenhum lembrete foi proposto");
   if (input.contactOptedOut)
     blocks.push("contato optou por não receber contato; nenhum lembrete é proposto");
   const dueMs = timestampMs(input.dueAt);
