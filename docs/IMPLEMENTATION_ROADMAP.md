@@ -61,6 +61,8 @@ Antes de qualquer fase que leia/grave banco comercial:
 
 ### FASE 1 — Planejamento
 
+**Status atual (24/11/2026): concluída como especificação documental.** Registro no fim deste arquivo; o texto original desta seção é mantido como histórico.
+
 **Objetivo:** Definir arquitetura detalhada, módulos, schema comercial, permissões, integrações e prioridades.
 
 **Atividades:**
@@ -323,3 +325,28 @@ Aguardar aprovação do relatório FASE 0. Após aprovação:
 1. Desbloquear A2 (créditos Lovable + login OAuth MCP).
 2. Aplicar schema Fase 2 via `docs/comercial/13-prompt-lovable.md`.
 3. Iniciar FASE 1 (Planejamento).
+
+---
+
+## 6. REGISTRO DE CONCLUSÃO DA FASE 1 (2026-11-24)
+
+A FASE 1 foi concluída **como planejamento documental**. As seções anteriores, inclusive a "PRÓXIMA AÇÃO IMEDIATA", permanecem como registro histórico; nada do que já estava publicado foi removido ou reescrito.
+
+**Entregas:**
+
+- `docs/FASE1_PLANNING.md` (novo) — sete decisões do escopo: baseline de 19 tabelas vs. 37 tabelas novas e 1 view; resolução de `organization_id` sem atalho cross-tenant; prioridade e aceite dos nove agentes; investigação de pagamentos; manutenção de Lovable AI Gateway e Groq; critérios por módulo; matriz humano / agente / integração.
+- `docs/comercial/01-arquitetura.md` (atualizado) — camadas físicas preservadas, com responsabilidades explícitas de tenant, grants e auditoria; classificação dos entrypoints; frentes de IA e pagamentos sem integração.
+- `docs/IMPLEMENTATION_ROADMAP.md` (este arquivo) — registro de conclusão, sem alteração do histórico das fases.
+
+**Estado de validação herdado:** `docs/comercial/17-auditoria-modulos.md` registra 26 arquivos / 350 testes OK e CI verde no commit `1537afe`. Cinco achados daquela auditoria foram corrigidos no lote de 2026-11-24 (parse de aprovação, `devWrite`, Kanban, fuso e redaction); os três restantes continuam sem mudança de semântica e foram destinados a decisões futuras no plano.
+
+**Restrições preservadas:**
+
+- A2 permanece bloqueada (Lovable sem créditos e MCP sem login OAuth); todo schema descrito é especificação, não aplicação.
+- A8 permanece bloqueada; nenhum deploy, expose, túnel, domínio, `.env`, segredo ou token foi alterado.
+- Nenhum código, migration, `drizzle/`, `supabase/` ou arquivo gerado foi editado por esta FASE 1; alterações de código eventualmente presentes na working tree são externas a este registro e não foram tocadas. Nenhum commit, push, PR ou merge foi feito por este trabalho.
+- Nenhum dado fictício foi apresentado como real; a vitrine `/vendas` continua `AMOSTRA`.
+
+**Critérios de conclusão avaliados:** arquitetura atualizada e pronta para aprovação ✅ · matriz de permissões definida ✅ · lista de provedores de pagamento para investigação e de IA para manutenção ✅ · nenhum código alterado ✅.
+
+**Próxima ação real:** aguardar aprovação deste plano e desbloquear A2 no editor do Lovable; depois executar A3, A4 (14 casos de isolamento) e somente então A5.

@@ -110,6 +110,27 @@ describe("Kanban board", () => {
     expect(board.weighted_open_cents).toBeNull();
     expect(board.columns.every((c) => c.count === 0 && c.weighted_cents === null)).toBe(true);
   });
+
+  it("discards a card whose amount would overflow the column aggregate", () => {
+    const huge = Number.MAX_SAFE_INTEGER;
+    const board = buildKanbanBoard(STAGES, [
+      { id: "a", stage: "lead_recebido", amount_cents: huge, probability: null },
+      { id: "b", stage: "lead_recebido", amount_cents: huge, probability: null },
+    ]);
+    expect(board.columns[0]).toMatchObject({ count: 2, total_cents: huge, invalid_amounts: 1 });
+    expect(board.columns[0]?.reason).toContain("estouro");
+    expect(board.open_cents).toBe(huge);
+  });
+
+  it("reports an unsafe board total as null instead of a wrong number", () => {
+    const huge = Number.MAX_SAFE_INTEGER;
+    const board = buildKanbanBoard(STAGES, [
+      { id: "a", stage: "lead_recebido", amount_cents: huge, probability: null },
+      { id: "b", stage: "qualificacao", amount_cents: huge, probability: null },
+    ]);
+    expect(board.open_cents).toBeNull();
+    expect(board.reason).toContain("limite seguro");
+  });
 });
 
 describe("stage move decisions", () => {

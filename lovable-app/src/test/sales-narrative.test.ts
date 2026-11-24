@@ -47,6 +47,28 @@ describe("sales narrative contract", () => {
     expect(parsed.funnel).toBeNull();
   });
 
+  it("masks sensitive free-form data and bounds what is sent to the LLM", () => {
+    const facts = buildNarrativeFacts({
+      ...source,
+      sales: {
+        ok: true,
+        data: { cpf: "123.456.789-00", token: "gsk_abcdefghijklmnop", note: "x".repeat(5000) },
+        reasons: [],
+      },
+    });
+    const json = JSON.stringify(facts);
+    expect(json).not.toContain("123.456.789-00");
+    expect(json).not.toContain("gsk_abcdefghijklmnop");
+    expect(json.length).toBeLessThan(4_000);
+
+    const huge = buildNarrativeFacts({
+      ...source,
+      funnel: { ok: true, data: Array.from({ length: 50 }, () => "y".repeat(300)), reasons: [] },
+    });
+    expect(huge.funnel?.data).toBe("[dados omitidos: excede o limite]");
+    expect(NarrativeFactsSchema.safeParse(huge).success).toBe(true);
+  });
+
   it("accepts a fenced JSON object with the exact sections", () => {
     const good = {
       resumo: "Leitura curta e objetiva dos dados aprovados nesta sessão.",

@@ -2,6 +2,7 @@
 // sales PDF. Pure module: no I/O, no clock, no network.
 
 import { z } from "zod";
+import { redact } from "./redact";
 
 const SHORT = z.string().trim().min(1).max(300);
 const LIST_ITEM = z.string().trim().min(4).max(240);
@@ -112,13 +113,30 @@ export interface NarrativeFactsSource {
 
 const short = (v: string | undefined) => (v ?? "").trim().slice(0, 300);
 
+const MAX_FACT_DATA_CHARS = 2_000;
+
+/** Audit-grade masking plus a hard size ceiling for free-form outcome data. */
+function projectOutcomeData(value: unknown): unknown | null {
+  if (value === null || value === undefined) return null;
+  const safe = redact(value);
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(safe);
+  } catch {
+    return "[dados omitidos]";
+  }
+  if (serialized === undefined || serialized.length > MAX_FACT_DATA_CHARS)
+    return "[dados omitidos: excede o limite]";
+  return safe;
+}
+
 /** Builds the bounded, explicitly labelled fact bundle sent to the LLM. */
 export function buildNarrativeFacts(source: NarrativeFactsSource): NarrativeFacts {
   const outcome = (o: NarrativeFactsSource["sales"]) =>
     o
       ? {
           ok: o.ok,
-          data: o.data ?? null,
+          data: projectOutcomeData(o.data),
           reasons: (o.reasons ?? []).slice(0, 8).map((r) => short(r)),
         }
       : null;

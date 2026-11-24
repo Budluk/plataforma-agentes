@@ -104,7 +104,8 @@ export interface KanbanColumn {
 export interface KanbanBoard {
   status: "medido" | "sem_dados";
   columns: KanbanColumn[];
-  open_cents: number;
+  /** null = a soma não é um inteiro seguro; nenhum número é inventado no lugar dela. */
+  open_cents: number | null;
   weighted_open_cents: number | null;
   unmapped: { count: number; ids: string[] };
   invalid_amounts: number;
@@ -114,6 +115,11 @@ export interface KanbanBoard {
 const validCents = (v: number) => Number.isSafeInteger(v) && v >= 0;
 const validProbability = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100;
+/** Só devolve um número enquanto a soma continuar sendo um inteiro seguro. */
+const safeAdd = (sum: number, value: number): number | null => {
+  const next = sum + value;
+  return Number.isSafeInteger(next) ? next : null;
+};
 
 /** Groups supplied opportunities into configured columns. Unknown stages are listed, never dropped silently. */
 export function buildKanbanBoard(
@@ -130,8 +136,10 @@ export function buildKanbanBoard(
     const cards = opportunities.filter((o) => o.stage.trim() === stage.key);
     let total_cents = 0;
     let invalid_amounts = 0;
+    let overflow_amounts = 0;
     let weighted_cents = 0;
     let weightedCards = 0;
+    let weightedOverflow = false;
     const probability_sources: ProbabilitySources = { explicit: 0, stage_default: 0, missing: 0 };
     for (const card of cards) {
       seen.add(card.id);
@@ -139,7 +147,13 @@ export function buildKanbanBoard(
         invalid_amounts++;
         continue;
       }
-      total_cents += card.amount_cents;
+      const nextTotal = safeAdd(total_cents, card.amount_cents);
+      if (nextTotal === null) {
+        invalid_amounts++;
+        overflow_amounts++;
+        continue;
+      }
+      total_cents = nextTotal;
       const probability = validProbability(card.probability)
         ? card.probability
         : stage.probability_default > 0
@@ -149,8 +163,13 @@ export function buildKanbanBoard(
       else if (stage.probability_default > 0) probability_sources.stage_default++;
       else probability_sources.missing++;
       if (probability !== null) {
-        weighted_cents += Math.round(card.amount_cents * (probability / 100));
-        weightedCards++;
+        const weighted = Math.round(card.amount_cents * (probability / 100));
+        const nextWeighted = validCents(weighted) ? safeAdd(weighted_cents, weighted) : null;
+        if (nextWeighted === null) weightedOverflow = true;
+        else {
+          weighted_cents = nextWeighted;
+          weightedCards++;
+        }
       }
     }
     return {
@@ -161,11 +180,16 @@ export function buildKanbanBoard(
       count: cards.length,
       total_cents,
       invalid_amounts,
-      weighted_cents: weightedCards ? weighted_cents : null,
+      weighted_cents: weightedCards && !weightedOverflow ? weighted_cents : null,
       probability_sources,
-      reason: invalid_amounts
-        ? `${invalid_amounts} valor(es) inválido(s) descartado(s) desta coluna.`
-        : "Valores e probabilidades vêm das linhas informadas e da configuração da etapa.",
+      reason: [
+        invalid_amounts
+          ? `${invalid_amounts} valor(es) inválido(s) descartado(s) desta coluna${overflow_amounts ? ` (${overflow_amounts} por estouro)` : ""}.`
+          : "Valores e probabilidades vêm das linhas informadas e da configuração da etapa.",
+        weightedOverflow ? "Soma ponderada não mensurável nesta coluna." : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
   });
 
@@ -175,17 +199,23 @@ export function buildKanbanBoard(
   const open = columns.filter((c) => !c.terminal);
   const openWeighted = open.filter((c) => c.weighted_cents !== null);
   const measured = columns.some((c) => c.count > 0);
+  const openTotal = open.reduce<number | null>(
+    (sum, c) => (sum === null ? null : safeAdd(sum, c.total_cents)),
+    0,
+  );
+  const openWeightedTotal = openWeighted.reduce<number | null>(
+    (sum, c) => (sum === null ? null : safeAdd(sum, c.weighted_cents ?? 0)),
+    0,
+  );
   return {
     status: measured ? "medido" : "sem_dados",
     columns,
-    open_cents: open.reduce((sum, c) => sum + c.total_cents, 0),
-    weighted_open_cents: openWeighted.length
-      ? openWeighted.reduce((sum, c) => sum + (c.weighted_cents ?? 0), 0)
-      : null,
+    open_cents: openTotal,
+    weighted_open_cents: openWeighted.length ? openWeightedTotal : null,
     unmapped: { count: unmappedIds.length, ids: unmappedIds.slice(0, 20) },
     invalid_amounts: columns.reduce((sum, c) => sum + c.invalid_amounts, 0),
     reason: measured
-      ? "Quadros montados somente com oportunidades informadas; etapas desconhecidas ficam em unmapped."
+      ? `Quadros montados somente com oportunidades informadas; etapas desconhecidas ficam em unmapped.${openTotal === null || openWeightedTotal === null ? " Alguns totais excedem o limite seguro e não foram informados." : ""}`
       : "Nenhuma oportunidade informada; nenhum valor foi inferido.",
   };
 }

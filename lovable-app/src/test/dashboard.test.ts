@@ -31,18 +31,22 @@ describe("timestamp handling", () => {
 });
 
 describe("buckets", () => {
-  it("starts the week on Monday in UTC", () => {
+  it("starts the week on Monday in America/Sao_Paulo", () => {
     expect(
       new Date(bucketStart(Date.parse("2026-11-22T23:00:00Z"), "week")).toISOString().slice(0, 10),
     ).toBe("2026-11-16");
+    // 00:00Z ainda é 21:00 do dia anterior no horário de Brasília.
     expect(
       new Date(bucketStart(Date.parse("2026-11-23T00:00:00Z"), "week")).toISOString().slice(0, 10),
-    ).toBe("2026-11-23");
+    ).toBe("2026-11-16");
+    expect(new Date(bucketStart(Date.parse("2026-11-23T00:00:00Z"), "day")).toISOString()).toBe(
+      "2026-11-22T03:00:00.000Z",
+    );
   });
 
   it("shifts day, week and month buckets without drifting the clock", () => {
     const start = Date.parse("2026-11-19T00:00:00Z");
-    expect(new Date(shiftBucket(start, "day", -1)).toISOString().slice(0, 10)).toBe("2026-11-18");
+    expect(new Date(shiftBucket(start, "day", -1)).toISOString().slice(0, 10)).toBe("2026-11-17");
     expect(new Date(shiftBucket(start, "week", -1)).toISOString().slice(0, 10)).toBe("2026-11-09");
     expect(new Date(shiftBucket(start, "month", -1)).toISOString().slice(0, 10)).toBe("2026-10-01");
   });
@@ -53,9 +57,18 @@ describe("buckets", () => {
       "day",
     );
     expect(r.items).toEqual([
-      { key: "2026-11-19", start: Date.parse("2026-11-19T00:00:00Z"), count: 1 },
+      { key: "2026-11-18", start: Date.parse("2026-11-18T03:00:00Z"), count: 1 },
     ]);
     expect(r.invalid).toBe(2);
+  });
+
+  it("keeps a local day boundary even when UTC already changed date", () => {
+    const r = periodCounts([{ ts: sec("2026-11-19T02:00:00Z") }], "day");
+    expect(r.items[0]).toEqual({
+      key: "2026-11-18",
+      start: Date.parse("2026-11-18T03:00:00Z"),
+      count: 1,
+    });
   });
 });
 
@@ -87,7 +100,7 @@ describe("period comparison", () => {
   });
 
   it("compares calendar months, not rolling windows", () => {
-    const rows = [{ ts: sec("2026-10-31T23:00:00Z") }, { ts: sec("2026-11-01T01:00:00Z") }];
+    const rows = [{ ts: sec("2026-10-31T23:00:00Z") }, { ts: sec("2026-11-01T04:00:00Z") }];
     const r = periodComparison(rows, "month", NOW);
     expect(r.current).toBe(1);
     expect(r.previous).toBe(1);
@@ -162,8 +175,8 @@ describe("quality snapshot", () => {
 describe("window counts", () => {
   it("separates today from the rest of the month and flags invalid stamps", () => {
     const rows = [
-      { ts: sec("2026-11-19T01:00:00Z") },
-      { ts: sec("2026-11-01T00:00:00Z") },
+      { ts: sec("2026-11-19T12:00:00Z") },
+      { ts: sec("2026-11-01T04:00:00Z") },
       { ts: sec("2026-10-31T23:00:00Z") },
       { ts: "nao tem fuso" },
     ];

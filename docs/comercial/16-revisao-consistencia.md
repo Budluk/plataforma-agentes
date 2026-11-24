@@ -17,9 +17,13 @@ Revisão dos contratos puros em `lovable-app/src/lib/core/`. Nenhuma tabela, mig
 | 9 | `seguranca.ts` tratava `list_apps` como leitura, mas o registry usa `action: "list"` | `"list"` incluído nas ações de leitura | Suíte existente |
 | 10 | `ProposalPending` não previa `origin` | Campo obrigatório `origin: "real" \| "amostra"` adicionado ao contrato pendente | Typecheck |
 
+## Fuso dos buckets — resolvido em 2026-11-24
+
+- **Fuso dos buckets de analytics.** `dashboard.ts` passou a derivar dia/semana/mês de `America/Sao_Paulo` por `Intl.DateTimeFormat`, com `DASHBOARD_TIMEZONE` como fonte única; `crm-dashboard.ts` reexporta essa constante. `bucketStart`, `shiftBucket`, `periodCounts`, `windowCounts` e `dayKey` usam o mesmo relógio local, e os testes agora afirmam a fronteira (00:00Z ainda é 21:00 do dia anterior em Brasília). **A semântica mudou:** o "dia" troca à meia-noite de Brasília, não às 21:00. Períodos históricos calculados antes dessa mudança não devem ser comparados como se fossem a mesma base.
+
 ## Pendente de decisão (não alterado)
 
-- **Fuso dos buckets de analytics.** `crm-dashboard.ts` e `inteligencia.ts` declaram `America/Sao_Paulo`, mas `dashboard.ts` calcula dia/semana/mês com `Date.UTC`. O "dia atual" troca às 21:00 de Brasília. Corrigir isso muda a semântica de `bucketStart`, `shiftBucket`, `periodCounts` e `windowCounts`, além dos testes que hoje afirmam explicitamente buckets em UTC. Como altera números históricos de relatório, foi **registrado e não modificado**; requer aprovação explícita para virar comportamento padrão.
+- Os demais pontos de semântica seguem registrados em `17-auditoria-modulos.md`: conversão por responsável acima de 100%, warning de auditoria em `contentCycle` e reaproveitamento de aprovação salva.
 
 ## Consistências confirmadas sem mudança
 
@@ -40,4 +44,4 @@ Verificado como consistente: nenhum entrypoint chama `snapshotProposalVersion`, 
 
 ## Validação
 
-`typecheck` OK · 26 arquivos / 345 testes OK · `build` OK.
+`typecheck` OK · 26 arquivos / 350 testes OK · `build` OK (incluindo a correção do fuso).

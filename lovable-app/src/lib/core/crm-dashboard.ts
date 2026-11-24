@@ -3,6 +3,7 @@
 
 import {
   bucketStart,
+  DASHBOARD_TIMEZONE,
   periodCounts,
   round2,
   targetProgress,
@@ -11,7 +12,7 @@ import {
   type PeriodCount,
 } from "./dashboard";
 
-export const COMMERCIAL_TIMEZONE = "America/Sao_Paulo";
+export const COMMERCIAL_TIMEZONE = DASHBOARD_TIMEZONE;
 
 export interface LeadRow {
   id: string;

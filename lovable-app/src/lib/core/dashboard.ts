@@ -28,27 +28,76 @@ export function timestampMs(v: unknown): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
+/** All calendar buckets use the Brazilian official time (America/Sao_Paulo). */
+export const DASHBOARD_TIMEZONE = "America/Sao_Paulo";
+
+const ZONED_PARTS = new Intl.DateTimeFormat("en-US", {
+  timeZone: DASHBOARD_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+interface ZonedDate {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+function zonedParts(ms: number): ZonedDate {
+  const parts: Record<string, string> = {};
+  for (const part of ZONED_PARTS.formatToParts(new Date(ms)))
+    if (part.type !== "literal") parts[part.type] = part.value;
+  return {
+    year: Number(parts["year"]),
+    month: Number(parts["month"]) - 1,
+    day: Number(parts["day"]),
+    hour: Number(parts["hour"]),
+    minute: Number(parts["minute"]),
+  };
+}
+
+/** Difference between local wall-clock time and UTC, in milliseconds. */
+function zoneOffsetMs(ms: number): number {
+  const p = zonedParts(ms);
+  const wallClock = Date.UTC(p.year, p.month, p.day, p.hour, p.minute);
+  return wallClock - Math.floor(ms / 60_000) * 60_000;
+}
+
+/** UTC instant of 00:00 in DASHBOARD_TIMEZONE for a local calendar date. */
+function zonedDayStart(year: number, month: number, day: number): number {
+  const localMidnight = Date.UTC(year, month, day) - zoneOffsetMs(Date.UTC(year, month, day, 12));
+  return Date.UTC(year, month, day) - zoneOffsetMs(localMidnight);
+}
+
 export function bucketStart(ms: number, bucket: Bucket): number {
   if (!Number.isFinite(ms)) throw new Error("timestamp inválido");
-  const d = new Date(ms);
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth();
-  const day = d.getUTCDate();
-  if (bucket === "month") return Date.UTC(y, m, 1);
-  if (bucket === "week") return Date.UTC(y, m, day - ((d.getUTCDay() + 6) % 7));
-  return Date.UTC(y, m, day);
+  const { year, month, day } = zonedParts(ms);
+  if (bucket === "month") return zonedDayStart(year, month, 1);
+  if (bucket === "week") {
+    const dow = new Date(Date.UTC(year, month, day)).getUTCDay();
+    return zonedDayStart(year, month, day - ((dow + 6) % 7));
+  }
+  return zonedDayStart(year, month, day);
 }
 
 export function shiftBucket(start: number, bucket: Bucket, delta: number): number {
   if (!Number.isInteger(delta)) throw new Error("delta deve ser inteiro");
-  const d = new Date(bucketStart(start, bucket));
-  if (bucket === "month") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + delta, 1);
-  if (bucket === "week")
-    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + delta * 7);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + delta);
+  const { year, month, day } = zonedParts(bucketStart(start, bucket));
+  if (bucket === "month") return zonedDayStart(year, month + delta, 1);
+  if (bucket === "week") return zonedDayStart(year, month, day + delta * 7);
+  return zonedDayStart(year, month, day + delta);
 }
 
-const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const dayKey = (ms: number) => {
+  const { year, month, day } = zonedParts(ms);
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
 
 export interface PeriodCount {
   key: string;
