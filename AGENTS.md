@@ -32,7 +32,7 @@ Este repositório é o **plataforma-agentes** da CentralIA. A aplicação princi
 - A7 concluído (commits `8edbc37`, `57069ca`, `7d084ef`, `dd26c85`, `92ec01d`, `4d9999b` pushados, sem PR).
 - FASE 0 do Prompt Mestre concluída: seis documentos em `docs/`, commit `1330288`, sem alteração de código.
 - FASE 1 concluída como planejamento documental: `docs/FASE1_PLANNING.md`, `docs/IMPLEMENTATION_ROADMAP.md` e `docs/comercial/01-arquitetura.md`. Nenhuma tabela, migration, segredo ou `.env` alterado.
-- Dependências Drizzle removidas em `2b18d5c` (não eram importadas). Último commit pushado: `a16e65b`, sincronizado com `origin/main`; o CI desta entrega está em verificação.
+- Dependências Drizzle removidas em `2b18d5c` (não eram importadas). Commits incrementais publicados em `main` sem PR; consulte `git log -1` para o hash mais recente.
 - Validação do lote mais recente: `typecheck` OK, 26 arquivos / 350 testes OK, `build` OK.
 - A2 bloqueado: sem créditos no Lovable e MCP sem `send_message` nem recursos. O schema da Fase 2 não foi aplicado.
 - A3–A6 pausadas: dependem de A2.
