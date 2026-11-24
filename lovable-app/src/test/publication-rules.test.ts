@@ -14,4 +14,10 @@ describe("release saved approved content", () => {
   it("rejects an expired approval", async () => { const f = await fixture(); await expect(validatePublication(f.draft, f.approval, 200)).rejects.toThrow("Aprovação"); });
   it("rejects edited saved text", async () => { const f = await fixture(); await expect(validatePublication({ ...f.draft, script: "Texto alterado" }, f.approval, 100)).rejects.toThrow("conteúdo"); });
   it("rejects a different parameters hash", async () => { const f = await fixture(); await expect(validatePublication(f.draft, { ...f.approval, params_hash: "b".repeat(64) }, 100)).rejects.toThrow("Parâmetros"); });
+  it("rejects unreadable or out-of-contract approval parameters", async () => {
+    const f = await fixture();
+    await expect(validatePublication(f.draft, { ...f.approval, params_json: "{" }, 100)).rejects.toThrow("ilegíveis");
+    const outOfContract = JSON.stringify({ ...JSON.parse(f.approval.params_json), platform: "fake" });
+    await expect(validatePublication(f.draft, { ...f.approval, params_json: outOfContract }, 100)).rejects.toThrow("fora do contrato");
+  });
 });

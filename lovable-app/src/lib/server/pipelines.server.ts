@@ -406,7 +406,8 @@ export async function devWrite(rt: Runtime, task: string): Promise<Outcome> {
     const report = (await rt.callTool("dev_agent", ctx, tools, "analyze_code", {})) as { approved: boolean; findings: string[]; warnings: string[]; metrics: Record<string, unknown> };
     if (!report.approved) return reject(rt, ctx, "dev_agent", null, ["análise estática reprovou o código", ...report.findings]);
     const saved = (await rt.callTool("dev_agent", ctx, tools, "save_code_file", { filename: proposal.filename })) as { filename: string; path: string };
-    await rt.db.from("dev_outputs").update({ explanation: proposal.explanation, warnings: report.warnings, metrics: report.metrics as never }).eq("filename", saved.filename);
+    const { error: updateError } = await rt.db.from("dev_outputs").update({ explanation: proposal.explanation, warnings: report.warnings, metrics: report.metrics as never }).eq("filename", saved.filename);
+    if (updateError) throw new Error("falha ao registrar metadados do arquivo; a conclusão não foi confirmada");
     await rt.recordRun("dev_agent", null, "ok", saved.filename);
     return {
       ok: true,

@@ -21,6 +21,7 @@ Este repositório é o **plataforma-agentes** da CentralIA. A aplicação princi
 - Plano de testes de isolamento (A4): `docs/comercial/14-plano-testes-isolamento.md`
 - Roteiro SQL manual alternativo (não executado): `docs/comercial/15-script-sql-manual.md`
 - Revisão de consistência das regras: `docs/comercial/16-revisao-consistencia.md`
+- Auditoria dos módulos restantes: `docs/comercial/17-auditoria-modulos.md`
 - Tipos preparados para o schema Fase 2 (não criam tabelas): `lovable-app/src/lib/core/schema-pending.ts`
 - Testes extras de regras comerciais: `lovable-app/src/test/*-extra.test.ts`
 
